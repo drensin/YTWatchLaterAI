@@ -1,0 +1,15 @@
+{
+  "name": "categorize-video",
+  "version": "1.0.0",
+  "description": "Cloud Function to categorize videos using Gemini API.",
+  "main": "index.js",
+  "dependencies": {
+    "@google-cloud/datastore": "^7.0.0",
+    "@google-cloud/secret-manager": "^4.0.0",
+    "@google-cloud/vertexai": "^0.1.3",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": "18"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "handle-youtube-auth",
+  "version": "1.0.0",
+  "description": "Cloud Function for YouTube OAuth 2.0 handling.",
+  "main": "index.js",
+  "dependencies": {
+    "@google-cloud/datastore": "^7.0.0",
+    "@google-cloud/secret-manager": "^4.0.0",
+    "googleapis": "^100.0.0",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": "18"
+  }
+}

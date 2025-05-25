@@ -1,0 +1,204 @@
+import React, { useState, useEffect } from 'react';
+import './App.css';
+
+// Placeholder for Cloud Function URLs - replace with your actual URLs
+const CLOUD_FUNCTIONS_BASE_URL = {
+  handleYouTubeAuth: "YOUR_HANDLE_YOUTUBE_AUTH_FUNCTION_URL",
+  getWatchLaterPlaylist: "YOUR_GET_WATCH_LATER_PLAYLIST_FUNCTION_URL",
+  categorizeVideo: "YOUR_CATEGORIZE_VIDEO_FUNCTION_URL",
+  chatWithPlaylist: "YOUR_CHAT_WITH_PLAYLIST_FUNCTION_URL"
+};
+
+// --- Components ---
+
+function LoginButton({ onLoginSuccess }) {
+  const handleLogin = () => {
+    // Redirect to the OAuth 2.0 authorization URL
+    // This URL should point to your 'handleYouTubeAuth' Cloud Function
+    // The Cloud Function will then redirect to Google's OAuth server
+    window.location.href = CLOUD_FUNCTIONS_BASE_URL.handleYouTubeAuth;
+  };
+
+  // In a real app, you'd check if the user is already logged in
+  // For now, we'll just show the button
+  return (
+    <button onClick={handleLogin}>Login with YouTube</button>
+  );
+}
+
+function ChatInterface({ onQuerySubmit }) {
+  const [query, setQuery] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (query.trim()) {
+      onQuerySubmit(query);
+      setQuery('');
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        type="text"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Ask about your playlist..."
+      />
+      <button type="submit">Send</button>
+    </form>
+  );
+}
+
+function VideoList({ videos }) {
+  if (!videos || videos.length === 0) {
+    return <p>No videos to display. Try logging in or fetching your playlist.</p>;
+  }
+
+  return (
+    <ul>
+      {videos.map(video => (
+        <li key={video.id}>
+          <h4>{video.title}</h4>
+          <p>{video.description ? video.description.substring(0, 100) + '...' : 'No description'}</p>
+          {/* Add more video details as needed */}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// --- Main App ---
+
+function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [videos, setVideos] = useState([]);
+  const [suggestedVideos, setSuggestedVideos] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Effect to handle OAuth callback
+  useEffect(() => {
+    // This is a simplified example. In a real app, you'd parse the URL
+    // for an auth code or token after redirecting back from the Cloud Function.
+    const urlParams = new URLSearchParams(window.location.search);
+    const oauthStatus = urlParams.get('oauth_status');
+
+    if (oauthStatus === 'success') {
+      setIsLoggedIn(true);
+      // Potentially fetch initial playlist data here
+      fetchPlaylist();
+      // Clean the URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (oauthStatus === 'error') {
+      setError("OAuth failed: " + urlParams.get('error_message'));
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
+  const handleLoginSuccess = () => {
+    setIsLoggedIn(true);
+    // After successful login, you might want to automatically fetch the playlist
+    fetchPlaylist();
+  };
+
+  const fetchPlaylist = async () => {
+    if (!isLoggedIn && !CLOUD_FUNCTIONS_BASE_URL.getWatchLaterPlaylist.startsWith("YOUR_")) { // Don't call if not logged in or URL not set
+        // In a real app, you'd ensure the user is authenticated before this call
+        // or the function itself handles auth by checking for a session/token.
+        // For this example, we assume the function requires prior auth via handleYouTubeAuth.
+        console.warn("User not logged in or getWatchLaterPlaylist URL not set. Skipping fetch.");
+        // setError("Please login to fetch your playlist.");
+        return;
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      // This function would be called by the user, or after login.
+      // It calls the 'getWatchLaterPlaylist' Cloud Function.
+      // The Cloud Function should be secured and expect an auth token (e.g., ID token)
+      // passed in the Authorization header if it's not the one setting up the initial session.
+      const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.getWatchLaterPlaylist, {
+        method: 'POST', // Or GET, depending on your function
+        // headers: {
+        //   'Authorization': `Bearer YOUR_ID_TOKEN_OR_ACCESS_TOKEN`, // If needed
+        // },
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(`Failed to fetch playlist: ${errData.message || response.statusText}`);
+      }
+      const data = await response.json();
+      setVideos(data.videos || []); // Assuming the function returns { videos: [...] }
+    } catch (err) {
+      console.error("Error fetching playlist:", err);
+      setError(err.message);
+      setVideos([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleQuerySubmit = async (query) => {
+    if (!isLoggedIn && !CLOUD_FUNCTIONS_BASE_URL.chatWithPlaylist.startsWith("YOUR_")) {
+        console.warn("User not logged in or chatWithPlaylist URL not set. Skipping query.");
+        // setError("Please login to chat with your playlist.");
+        return;
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      // This calls the 'chatWithPlaylist' Cloud Function
+      const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.chatWithPlaylist, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // 'Authorization': `Bearer YOUR_ID_TOKEN_OR_ACCESS_TOKEN`, // If needed
+        },
+        body: JSON.stringify({ query: query }),
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(`Failed to submit query: ${errData.message || response.statusText}`);
+      }
+      const data = await response.json();
+      setSuggestedVideos(data.suggestedVideos || []); // Assuming { suggestedVideos: [...] }
+    } catch (err) {
+      console.error("Error submitting query:", err);
+      setError(err.message);
+      setSuggestedVideos([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="App">
+      <header className="App-header">
+        <h1>YT Watch Later Manager</h1>
+        {!isLoggedIn && <LoginButton onLoginSuccess={handleLoginSuccess} />}
+        {isLoggedIn && <p>Welcome! You are logged in.</p>}
+      </header>
+      <main>
+        {error && <p style={{ color: 'red' }}>Error: {error}</p>}
+        {isLoggedIn && (
+          <>
+            <button onClick={fetchPlaylist} disabled={isLoading}>
+              {isLoading ? 'Fetching Playlist...' : 'Refresh Watch Later Playlist'}
+            </button>
+            <ChatInterface onQuerySubmit={handleQuerySubmit} />
+            <h2>Suggested Videos</h2>
+            {isLoading && <p>Loading suggestions...</p>}
+            <VideoList videos={suggestedVideos} />
+            <h2>Full Playlist (Latest)</h2>
+            {isLoading && <p>Loading playlist...</p>}
+            <VideoList videos={videos} />
+          </>
+        )}
+        {!isLoggedIn && <p>Please log in to manage your YouTube Watch Later playlist.</p>}
+      </main>
+    </div>
+  );
+}
+
+export default App;

@@ -1,0 +1,15 @@
+{
+  "name": "get-watch-later-playlist",
+  "version": "1.0.0",
+  "description": "Cloud Function to fetch YouTube Watch Later playlist.",
+  "main": "index.js",
+  "dependencies": {
+    "@google-cloud/datastore": "^7.0.0",
+    "@google-cloud/secret-manager": "^4.0.0",
+    "googleapis": "^100.0.0",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": "18"
+  }
+}
