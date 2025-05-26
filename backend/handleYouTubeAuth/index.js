@@ -36,7 +36,7 @@ async function initializeOAuthClient() {
   const clientId = await getSecret('YOUTUBE_CLIENT_ID');
   const clientSecret = await getSecret('YOUTUBE_CLIENT_SECRET');
   // This should be the URL of THIS Cloud Function
-  const redirectUri = 'YOUR_HANDLE_YOUTUBE_AUTH_FUNCTION_URL'; // IMPORTANT: Replace with this function's URL
+  const redirectUri = 'https://us-central1-watchlaterai-460918.cloudfunctions.net/handleYouTubeAuth';
 
   oauth2Client = new google.auth.OAuth2(
     clientId,

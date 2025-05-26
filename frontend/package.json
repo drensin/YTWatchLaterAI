@@ -34,5 +34,8 @@
       "last 1 safari version"
     ]
   },
-  "homepage": "https://drensin.github.io/YTWatchLaterAI/"
+  "homepage": "https://drensin.github.io/YTWatchLaterAI/",
+  "devDependencies": {
+    "gh-pages": "^6.3.0"
+  }
 }

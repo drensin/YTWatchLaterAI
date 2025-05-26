@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 
 // Placeholder for Cloud Function URLs - replace with your actual URLs
 const CLOUD_FUNCTIONS_BASE_URL = {
-  handleYouTubeAuth: "YOUR_HANDLE_YOUTUBE_AUTH_FUNCTION_URL",
+  handleYouTubeAuth: "https://us-central1-watchlaterai-460918.cloudfunctions.net/handleYouTubeAuth",
   getWatchLaterPlaylist: "YOUR_GET_WATCH_LATER_PLAYLIST_FUNCTION_URL",
   categorizeVideo: "YOUR_CATEGORIZE_VIDEO_FUNCTION_URL",
   chatWithPlaylist: "YOUR_CHAT_WITH_PLAYLIST_FUNCTION_URL"
@@ -77,32 +77,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Effect to handle OAuth callback
-  useEffect(() => {
-    // This is a simplified example. In a real app, you'd parse the URL
-    // for an auth code or token after redirecting back from the Cloud Function.
-    const urlParams = new URLSearchParams(window.location.search);
-    const oauthStatus = urlParams.get('oauth_status');
-
-    if (oauthStatus === 'success') {
-      setIsLoggedIn(true);
-      // Potentially fetch initial playlist data here
-      fetchPlaylist();
-      // Clean the URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } else if (oauthStatus === 'error') {
-      setError("OAuth failed: " + urlParams.get('error_message'));
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, []);
-
-  const handleLoginSuccess = () => {
-    setIsLoggedIn(true);
-    // After successful login, you might want to automatically fetch the playlist
-    fetchPlaylist();
-  };
-
-  const fetchPlaylist = async () => {
+  const fetchPlaylist = useCallback(async () => {
     if (!isLoggedIn && !CLOUD_FUNCTIONS_BASE_URL.getWatchLaterPlaylist.startsWith("YOUR_")) { // Don't call if not logged in or URL not set
         // In a real app, you'd ensure the user is authenticated before this call
         // or the function itself handles auth by checking for a session/token.
@@ -137,6 +112,12 @@ function App() {
     } finally {
       setIsLoading(false);
     }
+  }, [isLoggedIn]); // Added isLoggedIn as a dependency for useCallback
+
+  const handleLoginSuccess = () => {
+    setIsLoggedIn(true);
+    // After successful login, you might want to automatically fetch the playlist
+    fetchPlaylist();
   };
 
   const handleQuerySubmit = async (query) => {
@@ -171,6 +152,25 @@ function App() {
       setIsLoading(false);
     }
   };
+
+  // Effect to handle OAuth callback
+  useEffect(() => {
+    // This is a simplified example. In a real app, you'd parse the URL
+    // for an auth code or token after redirecting back from the Cloud Function.
+    const urlParams = new URLSearchParams(window.location.search);
+    const oauthStatus = urlParams.get('oauth_status');
+
+    if (oauthStatus === 'success') {
+      setIsLoggedIn(true);
+      // Potentially fetch initial playlist data here
+      fetchPlaylist();
+      // Clean the URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (oauthStatus === 'error') {
+      setError("OAuth failed: " + urlParams.get('error_message'));
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [fetchPlaylist]); // Added fetchPlaylist to dependency array
 
   return (
     <div className="App">
