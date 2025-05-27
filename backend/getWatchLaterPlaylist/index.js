@@ -120,7 +120,8 @@ exports.getWatchLaterPlaylist = async (req, res) => {
         if (items) {
           for (const item of items) {
             const videoId = item.snippet.resourceId.videoId;
-            const videoData = {
+            // Data for returning to frontend
+            const videoDataForFrontend = {
               videoId: videoId,
               title: item.snippet.title,
               description: item.snippet.description,
@@ -128,16 +129,24 @@ exports.getWatchLaterPlaylist = async (req, res) => {
               channelId: item.snippet.channelId,
               channelTitle: item.snippet.channelTitle,
               thumbnailUrl: item.snippet.thumbnails?.default?.url,
-              // contentDetails might include duration, but it's often not directly in playlistItems for WL.
-              // A separate videos.list call might be needed for duration if required.
             };
-            allVideos.push(videoData);
+            allVideos.push(videoDataForFrontend);
 
-            // Save/Update video in Datastore
+            // Data for Datastore with indexing control
+            const videoDataForDatastore = [
+              { name: 'videoId', value: videoId },
+              { name: 'title', value: item.snippet.title },
+              { name: 'description', value: item.snippet.description, excludeFromIndexes: true },
+              { name: 'publishedAt', value: new Date(item.snippet.publishedAt) }, // Store as Date object
+              { name: 'channelId', value: item.snippet.channelId },
+              { name: 'channelTitle', value: item.snippet.channelTitle },
+              { name: 'thumbnailUrl', value: item.snippet.thumbnails?.default?.url, excludeFromIndexes: true }, // URLs also often don't need indexing
+            ];
+            
             const videoKey = datastore.key(['Videos', videoId]);
             await datastore.upsert({
               key: videoKey,
-              data: videoData, // Not saving geminiCategories here, that's for categorizeVideo
+              data: videoDataForDatastore,
             });
           }
           console.log(`Fetched ${items.length} videos. Total so far: ${allVideos.length}`);
