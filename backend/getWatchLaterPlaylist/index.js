@@ -10,7 +10,7 @@ const youtube = google.youtube('v3');
 
 // --- CORS Configuration ---
 const corsOptions = {
-  origin: 'https://drensin.github.io', // IMPORTANT: Replace with your actual GitHub Pages URL
+  origin: ['https://drensin.github.io', 'https://dkr.bio'], // IMPORTANT: Replace with your actual GitHub Pages URL
   methods: ['POST', 'OPTIONS'], // Assuming this function is called via POST
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
@@ -29,7 +29,7 @@ async function getSecret(secretName) {
 async function getAuthenticatedClient() {
   const clientId = await getSecret('YOUTUBE_CLIENT_ID');
   const clientSecret = await getSecret('YOUTUBE_CLIENT_SECRET');
-  const redirectUri = 'YOUR_HANDLE_YOUTUBE_AUTH_FUNCTION_URL'; // Should match the one used in handleYouTubeAuth
+  const redirectUri = 'https://us-central1-watchlaterai-460918.cloudfunctions.net/handleYouTubeAuth'; // Should match the one used in handleYouTubeAuth
 
   const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 
