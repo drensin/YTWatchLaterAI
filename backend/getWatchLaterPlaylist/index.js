@@ -41,10 +41,13 @@ async function getAuthenticatedClient() {
     throw new Error('User not authenticated. No tokens found.');
   }
 
+  console.log('Token scopes from Datastore:', tokenEntity.scopes); // Log scopes
+
   oauth2Client.setCredentials({
     access_token: tokenEntity.accessToken,
     refresh_token: tokenEntity.refreshToken,
     expiry_date: tokenEntity.expiryDate,
+    scope: tokenEntity.scopes // Ensure scope is explicitly passed if needed by library
   });
 
   // Handle token refresh if necessary
@@ -58,8 +61,9 @@ async function getAuthenticatedClient() {
         accessToken: credentials.access_token,
         refreshToken: credentials.refresh_token || tokenEntity.refreshToken, // Keep old refresh if new one isn't provided
         expiryDate: credentials.expiry_date,
-        scopes: credentials.scope || tokenEntity.scopes,
+        scopes: credentials.scope || tokenEntity.scopes, // Ensure this is correct
       };
+      console.log('Refreshed token scopes:', updatedTokenData.scopes); // Log scopes after refresh
       await datastore.save({
         key: tokenKey,
         data: updatedTokenData,
@@ -103,6 +107,8 @@ exports.getWatchLaterPlaylist = async (req, res) => {
           maxResults: 50, // Max allowed by API
           pageToken: nextPageToken,
         });
+
+        console.log('Raw YouTube API response:', JSON.stringify(response.data, null, 2)); // Log raw response
 
         const items = response.data.items;
         if (items) {

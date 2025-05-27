@@ -1,0 +1,15 @@
+{
+  "name": "list-user-playlists",
+  "version": "1.0.0",
+  "description": "Cloud Function to list user's YouTube playlists.",
+  "main": "index.js",
+  "dependencies": {
+    "@google-cloud/datastore": "^7.0.0",
+    "@google-cloud/secret-manager": "^4.0.0",
+    "googleapis": "^100.0.0",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": "20"
+  }
+}
