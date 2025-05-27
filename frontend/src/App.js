@@ -4,7 +4,7 @@ import './App.css';
 // Placeholder for Cloud Function URLs - replace with your actual URLs
 const CLOUD_FUNCTIONS_BASE_URL = {
   handleYouTubeAuth: "https://us-central1-watchlaterai-460918.cloudfunctions.net/handleYouTubeAuth",
-  getWatchLaterPlaylist: "YOUR_GET_WATCH_LATER_PLAYLIST_FUNCTION_URL",
+  getWatchLaterPlaylist: "https://us-central1-watchlaterai-460918.cloudfunctions.net/getWatchLaterPlaylist",
   categorizeVideo: "YOUR_CATEGORIZE_VIDEO_FUNCTION_URL",
   chatWithPlaylist: "YOUR_CHAT_WITH_PLAYLIST_FUNCTION_URL"
 };
@@ -77,15 +77,13 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const fetchPlaylist = useCallback(async () => {
-    if (!isLoggedIn && !CLOUD_FUNCTIONS_BASE_URL.getWatchLaterPlaylist.startsWith("YOUR_")) { // Don't call if not logged in or URL not set
-        // In a real app, you'd ensure the user is authenticated before this call
-        // or the function itself handles auth by checking for a session/token.
-        // For this example, we assume the function requires prior auth via handleYouTubeAuth.
-        console.warn("User not logged in or getWatchLaterPlaylist URL not set. Skipping fetch.");
-        // setError("Please login to fetch your playlist.");
-        return;
-    }
+  // Renamed to fetchPlaylistInternal for clarity within component scope
+  const fetchPlaylistInternal = useCallback(async () => {
+    // URL placeholder check can be removed if we ensure this is called appropriately
+    // if (CLOUD_FUNCTIONS_BASE_URL.getWatchLaterPlaylist.startsWith("YOUR_")) {
+    //   console.warn("getWatchLaterPlaylist URL not set. Skipping fetch.");
+    //   return;
+    // }
     setIsLoading(true);
     setError(null);
     try {
@@ -112,13 +110,36 @@ function App() {
     } finally {
       setIsLoading(false);
     }
-  }, [isLoggedIn]); // Added isLoggedIn as a dependency for useCallback
+  }, []); // Removed isLoggedIn from here, will be handled by the calling effect
 
-  const handleLoginSuccess = () => {
-    setIsLoggedIn(true);
-    // After successful login, you might want to automatically fetch the playlist
-    fetchPlaylist();
+  // Effect to handle OAuth callback and set login status
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const oauthStatus = urlParams.get('oauth_status');
+
+    if (oauthStatus === 'success') {
+      setIsLoggedIn(true); // Set logged in status
+      // Clean the URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (oauthStatus === 'error') {
+      setError("OAuth failed: " + urlParams.get('error_message'));
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []); // Runs once on mount to check URL params
+
+  // Effect to fetch playlist when isLoggedIn becomes true
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchPlaylistInternal();
+    }
+  }, [isLoggedIn, fetchPlaylistInternal]); // Runs when isLoggedIn or fetchPlaylistInternal changes
+
+  const handleLoginSuccess = () => { // This might not be strictly needed if useEffect handles it
+    setIsLoggedIn(true); // This will trigger the useEffect above
   };
+
+  // Public fetchPlaylist for button click, points to the internal memoized version
+  const fetchPlaylist = fetchPlaylistInternal;
 
   const handleQuerySubmit = async (query) => {
     if (!isLoggedIn && !CLOUD_FUNCTIONS_BASE_URL.chatWithPlaylist.startsWith("YOUR_")) {
@@ -153,24 +174,6 @@ function App() {
     }
   };
 
-  // Effect to handle OAuth callback
-  useEffect(() => {
-    // This is a simplified example. In a real app, you'd parse the URL
-    // for an auth code or token after redirecting back from the Cloud Function.
-    const urlParams = new URLSearchParams(window.location.search);
-    const oauthStatus = urlParams.get('oauth_status');
-
-    if (oauthStatus === 'success') {
-      setIsLoggedIn(true);
-      // Potentially fetch initial playlist data here
-      fetchPlaylist();
-      // Clean the URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } else if (oauthStatus === 'error') {
-      setError("OAuth failed: " + urlParams.get('error_message'));
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, [fetchPlaylist]); // Added fetchPlaylist to dependency array
 
   return (
     <div className="App">
