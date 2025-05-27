@@ -4,7 +4,8 @@ import './App.css';
 // Placeholder for Cloud Function URLs - replace with your actual URLs
 const CLOUD_FUNCTIONS_BASE_URL = {
   handleYouTubeAuth: "https://us-central1-watchlaterai-460918.cloudfunctions.net/handleYouTubeAuth",
-  getWatchLaterPlaylist: "https://us-central1-watchlaterai-460918.cloudfunctions.net/getWatchLaterPlaylist",
+  getWatchLaterPlaylist: "https://us-central1-watchlaterai-460918.cloudfunctions.net/getWatchLaterPlaylist", // This will be for fetching items from a selected playlist
+  listUserPlaylists: "https://us-central1-watchlaterai-460918.cloudfunctions.net/listUserPlaylists",
   categorizeVideo: "YOUR_CATEGORIZE_VIDEO_FUNCTION_URL",
   chatWithPlaylist: "YOUR_CHAT_WITH_PLAYLIST_FUNCTION_URL"
 };
@@ -72,27 +73,56 @@ function VideoList({ videos }) {
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userPlaylists, setUserPlaylists] = useState([]);
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState('');
   const [videos, setVideos] = useState([]);
   const [suggestedVideos, setSuggestedVideos] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Renamed to fetchPlaylistInternal for clarity within component scope
-  const fetchPlaylistInternal = useCallback(async () => {
-    // URL placeholder check can be removed if we ensure this is called appropriately
-    // if (CLOUD_FUNCTIONS_BASE_URL.getWatchLaterPlaylist.startsWith("YOUR_")) {
-    //   console.warn("getWatchLaterPlaylist URL not set. Skipping fetch.");
-    //   return;
-    // }
+  const fetchUserPlaylists = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      // This function would be called by the user, or after login.
-      // It calls the 'getWatchLaterPlaylist' Cloud Function.
-      // The Cloud Function should be secured and expect an auth token (e.g., ID token)
-      // passed in the Authorization header if it's not the one setting up the initial session.
-      const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.getWatchLaterPlaylist, {
-        method: 'POST', // Or GET, depending on your function
+      const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.listUserPlaylists, {
+        method: 'GET', // As defined in the cloud function
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(`Failed to fetch user playlists: ${errData.message || response.statusText}`);
+      }
+      const data = await response.json();
+      setUserPlaylists(data.playlists || []);
+      if (data.playlists && data.playlists.length > 0) {
+        // Optionally auto-select the first playlist or let user choose
+        // setSelectedPlaylistId(data.playlists[0].id); 
+      }
+    } catch (err) {
+      console.error("Error fetching user playlists:", err);
+      setError(err.message);
+      setUserPlaylists([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Renamed to fetchPlaylistItems to be more specific
+  const fetchPlaylistItems = useCallback(async (playlistId) => {
+    if (!playlistId) {
+      setVideos([]); // Clear videos if no playlist is selected
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      // This function now needs the playlistId to be passed to the backend
+      // The backend 'getWatchLaterPlaylist' function will need to be modified to accept a playlistId
+      const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.getWatchLaterPlaylist, { // This URL might need to change if the backend function is renamed/refactored
+        method: 'POST', 
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ playlistId: playlistId }), // Send playlistId in the body
         // headers: {
         //   'Authorization': `Bearer YOUR_ID_TOKEN_OR_ACCESS_TOKEN`, // If needed
         // },
@@ -102,15 +132,15 @@ function App() {
         throw new Error(`Failed to fetch playlist: ${errData.message || response.statusText}`);
       }
       const data = await response.json();
-      setVideos(data.videos || []); // Assuming the function returns { videos: [...] }
+      setVideos(data.videos || []); 
     } catch (err) {
-      console.error("Error fetching playlist:", err);
+      console.error("Error fetching playlist items:", err);
       setError(err.message);
       setVideos([]);
     } finally {
       setIsLoading(false);
     }
-  }, []); // Removed isLoggedIn from here, will be handled by the calling effect
+  }, []); // Dependencies might be needed if it uses state/props not defined in its scope
 
   // Effect to handle OAuth callback and set login status
   useEffect(() => {
@@ -127,24 +157,47 @@ function App() {
     }
   }, []); // Runs once on mount to check URL params
 
-  // Effect to fetch playlist when isLoggedIn becomes true
+  // Effect to fetch user playlists when isLoggedIn becomes true
   useEffect(() => {
     if (isLoggedIn) {
-      fetchPlaylistInternal();
+      fetchUserPlaylists();
+      // We don't fetch playlist items immediately, user needs to select a playlist first
+      // Or, if we auto-select a playlist in fetchUserPlaylists, then fetchPlaylistItems could be called.
+    } else {
+      // Clear data if user logs out (not implemented yet, but good for future)
+      setUserPlaylists([]);
+      setSelectedPlaylistId('');
+      setVideos([]);
     }
-  }, [isLoggedIn, fetchPlaylistInternal]); // Runs when isLoggedIn or fetchPlaylistInternal changes
+  }, [isLoggedIn, fetchUserPlaylists]);
 
-  const handleLoginSuccess = () => { // This might not be strictly needed if useEffect handles it
-    setIsLoggedIn(true); // This will trigger the useEffect above
+  const handleLoginSuccess = () => {
+    setIsLoggedIn(true); 
   };
 
-  // Public fetchPlaylist for button click, points to the internal memoized version
-  const fetchPlaylist = fetchPlaylistInternal;
+  // Handler for when a playlist is selected from the dropdown
+  const handlePlaylistSelection = (event) => {
+    const newPlaylistId = event.target.value;
+    setSelectedPlaylistId(newPlaylistId);
+    if (newPlaylistId) {
+      fetchPlaylistItems(newPlaylistId);
+    } else {
+      setVideos([]); // Clear videos if "Select a playlist" is chosen
+    }
+  };
+  
+  // Button to refresh items for the currently selected playlist
+  const refreshSelectedPlaylistItems = () => {
+    if (selectedPlaylistId) {
+      fetchPlaylistItems(selectedPlaylistId);
+    } else {
+      alert("Please select a playlist first.");
+    }
+  };
 
   const handleQuerySubmit = async (query) => {
     if (!isLoggedIn && !CLOUD_FUNCTIONS_BASE_URL.chatWithPlaylist.startsWith("YOUR_")) {
         console.warn("User not logged in or chatWithPlaylist URL not set. Skipping query.");
-        // setError("Please login to chat with your playlist.");
         return;
     }
     setIsLoading(true);
@@ -186,19 +239,36 @@ function App() {
         {error && <p style={{ color: 'red' }}>Error: {error}</p>}
         {isLoggedIn && (
           <>
-            <button onClick={fetchPlaylist} disabled={isLoading}>
-              {isLoading ? 'Fetching Playlist...' : 'Refresh Watch Later Playlist'}
-            </button>
-            <ChatInterface onQuerySubmit={handleQuerySubmit} />
-            <h2>Suggested Videos</h2>
+            <div>
+              <label htmlFor="playlist-select">Choose a playlist: </label>
+              <select id="playlist-select" value={selectedPlaylistId} onChange={handlePlaylistSelection} disabled={isLoading || userPlaylists.length === 0}>
+                <option value="">-- Select a playlist --</option>
+                {userPlaylists.map(pl => (
+                  <option key={pl.id} value={pl.id}>
+                    {pl.title} ({pl.itemCount} items)
+                  </option>
+                ))}
+              </select>
+              <button onClick={refreshSelectedPlaylistItems} disabled={isLoading || !selectedPlaylistId} style={{marginLeft: '10px'}}>
+                {isLoading && selectedPlaylistId ? 'Refreshing Items...' : 'Refresh Items'}
+              </button>
+            </div>
+            {selectedPlaylistId && (
+              <>
+                <ChatInterface onQuerySubmit={handleQuerySubmit} />
+                <h2>Suggested Videos</h2>
             {isLoading && <p>Loading suggestions...</p>}
-            <VideoList videos={suggestedVideos} />
-            <h2>Full Playlist (Latest)</h2>
-            {isLoading && <p>Loading playlist...</p>}
-            <VideoList videos={videos} />
+                <VideoList videos={suggestedVideos} />
+                <h2>Videos in "{userPlaylists.find(p => p.id === selectedPlaylistId)?.title}"</h2>
+                {isLoading && <p>Loading videos...</p>}
+                <VideoList videos={videos} />
+              </>
+            )}
+            {!selectedPlaylistId && userPlaylists.length > 0 && <p>Select a playlist above to see its videos.</p>}
+            {!selectedPlaylistId && userPlaylists.length === 0 && isLoggedIn && !isLoading && <p>No playlists found or still loading playlists.</p>}
           </>
         )}
-        {!isLoggedIn && <p>Please log in to manage your YouTube Watch Later playlist.</p>}
+        {!isLoggedIn && <p>Please log in to manage your YouTube playlists.</p>}
       </main>
     </div>
   );

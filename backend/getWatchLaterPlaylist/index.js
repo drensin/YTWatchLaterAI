@@ -93,17 +93,23 @@ exports.getWatchLaterPlaylist = async (req, res) => {
 
     try {
       const auth = await getAuthenticatedClient();
+      const { playlistId } = req.body; // Get playlistId from request body
+
+      if (!playlistId) {
+        res.status(400).json({ error: 'Missing playlistId in request body' });
+        return;
+      }
+
       let allVideos = [];
       let nextPageToken = null;
-      const watchLaterPlaylistId = 'WL'; // Standard ID for "Watch Later"
-
-      console.log(`Fetching "Watch Later" playlist (ID: ${watchLaterPlaylistId})...`);
+      
+      console.log(`Fetching items for playlist ID: ${playlistId}...`);
 
       do {
         const response = await youtube.playlistItems.list({
           auth: auth,
           part: 'snippet,contentDetails',
-          playlistId: watchLaterPlaylistId,
+          playlistId: playlistId, // Use the provided playlistId
           maxResults: 50, // Max allowed by API
           pageToken: nextPageToken,
         });
