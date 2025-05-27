@@ -135,6 +135,7 @@ exports.getWatchLaterPlaylist = async (req, res) => {
             // Data for Datastore with indexing control
             const videoDataForDatastore = [
               { name: 'videoId', value: videoId },
+              { name: 'playlistId_original', value: playlistId }, // Store the ID of the playlist it came from
               { name: 'title', value: item.snippet.title },
               { name: 'description', value: item.snippet.description, excludeFromIndexes: true },
               { name: 'publishedAt', value: new Date(item.snippet.publishedAt) }, // Store as Date object

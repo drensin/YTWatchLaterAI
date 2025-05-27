@@ -7,7 +7,7 @@ const CLOUD_FUNCTIONS_BASE_URL = {
   getWatchLaterPlaylist: "https://us-central1-watchlaterai-460918.cloudfunctions.net/getWatchLaterPlaylist", // This will be for fetching items from a selected playlist
   listUserPlaylists: "https://us-central1-watchlaterai-460918.cloudfunctions.net/listUserPlaylists",
   categorizeVideo: "YOUR_CATEGORIZE_VIDEO_FUNCTION_URL",
-  chatWithPlaylist: "YOUR_CHAT_WITH_PLAYLIST_FUNCTION_URL"
+  chatWithPlaylist: "https://us-central1-watchlaterai-460918.cloudfunctions.net/chatWithPlaylist"
 };
 
 // --- Components ---
@@ -210,7 +210,7 @@ function App() {
           'Content-Type': 'application/json',
           // 'Authorization': `Bearer YOUR_ID_TOKEN_OR_ACCESS_TOKEN`, // If needed
         },
-        body: JSON.stringify({ query: query }),
+        body: JSON.stringify({ query: query, playlistId: selectedPlaylistId }),
       });
       if (!response.ok) {
         const errData = await response.json().catch(() => ({ message: response.statusText }));

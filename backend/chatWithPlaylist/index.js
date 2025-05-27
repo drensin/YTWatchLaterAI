@@ -1,51 +1,37 @@
-const { Datastore } = require('@google-cloud/datastore');
-const { VertexAI } = require('@google-cloud/vertexai'); // If using Gemini for query understanding
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
+const { Datastore } = require('@google-cloud/datastore');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const cors = require('cors');
 
 // Initialize GCP clients
-const datastore = new Datastore();
 const secretManagerClient = new SecretManagerServiceClient();
+const datastore = new Datastore();
+let genAI; // Will be initialized after fetching API key
 
-
-// --- CORS Configuration ---
+// CORS Configuration
 const corsOptions = {
-  origin: 'https://drensin.github.io', // IMPORTANT: Replace with your actual GitHub Pages URL
+  origin: ['https://drensin.github.io', 'https://dkr.bio'],
   methods: ['POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 };
 const corsMiddleware = cors(corsOptions);
 
-// Helper function to get secrets (if needed for Gemini API key directly, though VertexAI SDK usually uses service account)
 async function getSecret(secretName) {
   const [version] = await secretManagerClient.accessSecretVersion({
-    name: `projects/watchlaterai-460918/secrets/${secretName}/versions/latest`, // IMPORTANT: Replace YOUR_PROJECT_ID
+    name: `projects/watchlaterai-460918/secrets/${secretName}/versions/latest`,
   });
   return version.payload.data.toString('utf8');
 }
 
-// --- Gemini Configuration (Optional, for advanced query understanding) ---
-let vertex_ai_chat;
-let generativeModelChat;
-
-async function initializeGeminiChatClient() {
-  if (generativeModelChat) return generativeModelChat;
-
-  // This assumes you might use Gemini to parse the user's query into structured search terms
-  // or to understand intent. If your query logic is simpler (e.g., direct keyword search on titles/descriptions),
-  // you might not need Gemini here.
-  const projectId = await getSecret('GCP_PROJECT_ID');
-  const location = 'us-central1';
-  vertex_ai_chat = new VertexAI({ project: projectId, location: location });
-  generativeModelChat = vertex_ai_chat.getGenerativeModel({
-    model: 'gemini-1.0-pro', // Or another suitable model
-  });
-  console.log("Gemini Chat client initialized for query processing.");
-  return generativeModelChat;
+async function initializeGenAI() {
+  if (genAI) return genAI;
+  const apiKey = await getSecret('GEMINI_API_KEY');
+  genAI = new GoogleGenerativeAI(apiKey);
+  return genAI;
 }
 
-// --- Cloud Function Entry Point ---
+// Cloud Function Entry Point
 exports.chatWithPlaylist = async (req, res) => {
   corsMiddleware(req, res, async () => {
     if (req.method === 'OPTIONS') {
@@ -53,91 +39,88 @@ exports.chatWithPlaylist = async (req, res) => {
       return;
     }
     if (req.method !== 'POST') {
-        res.status(405).send('Method Not Allowed');
-        return;
+      res.status(405).send('Method Not Allowed');
+      return;
     }
 
     try {
-      const userQuery = req.body?.query;
-      if (!userQuery || typeof userQuery !== 'string' || userQuery.trim() === "") {
-        res.status(400).json({ error: 'Missing or invalid query in request body.' });
+      await initializeGenAI();
+      const { query, playlistId } = req.body;
+
+      if (!query || !playlistId) {
+        res.status(400).json({ error: 'Missing query or playlistId in request body' });
         return;
       }
 
-      console.log(`Received query: "${userQuery}"`);
+      // 1. Fetch all videos for the given playlistId from Datastore
+      //    (Assuming videos were stored by getPlaylistItems function)
+      //    Note: This simple query fetches all videos. For very large playlists,
+      //    you might need more sophisticated retrieval or context window management.
+      //    We will filter by 'playlistId_original' which should now be stored with each video.
+      console.log(`Fetching videos from Datastore for playlistId: ${playlistId}...`);
+      const datastoreQuery = datastore.createQuery('Videos')
+        .filter('playlistId_original', '=', playlistId)
+        .limit(100); // Limit for safety and context window for Gemini
 
-      // Placeholder for search/filtering logic.
-      // This is where you'd implement how to find videos based on the query.
-      //
-      // Option 1: Simple keyword search in Datastore (title, description, geminiCategories)
-      // Option 2: Use Gemini to parse `userQuery` into more structured search parameters
-      //           or to generate embeddings for semantic search if you have video embeddings.
+      const [videosForPlaylist] = await datastore.runQuery(datastoreQuery);
 
-      // --- Example: Simple Keyword Search (Case-insensitive) ---
-      const query = datastore.createQuery('Videos');
-      // This is a very basic example. Datastore doesn't support full-text search directly.
-      // For more complex searching, consider:
-      // 1. Storing keywords in an array property and using "IN" or "=" filters.
-      // 2. Using a dedicated search service like Elasticsearch or Algolia, populated from Datastore.
-      // 3. If using Gemini categories, you can filter by those.
+      if (!videosForPlaylist || videosForPlaylist.length === 0) {
+        res.status(200).json({ answer: `No videos found in Datastore for playlist ID ${playlistId} to chat about. Ensure items have been fetched for this playlist.`, suggestedVideos: [] });
+        return;
+      }
 
-      // A more robust simple search might involve fetching all and filtering in memory,
-      // or breaking the query into keywords and trying to match them.
-      // This example will be very limited.
+      // 2. Construct context for Gemini
+      let videoContext = "Available videos for this playlist:\n";
+      videosForPlaylist.forEach(video => {
+        videoContext += `- ID: ${video.videoId}, Title: ${video.title}, Description: ${video.description ? video.description.substring(0, 200) + '...' : 'N/A'}\n`;
+      });
 
-      const [allVideos] = await datastore.runQuery(query);
-      const lowerCaseUserQuery = userQuery.toLowerCase();
+      // 3. Prepare prompt for Gemini
+      const model = genAI.getGenerativeModel({ model: "gemini-pro" }); // Or your preferred model
+      const prompt = `Based on the following list of videos and their descriptions, please answer the user's query.
+User Query: "${query}"
+${videoContext}
+If the query asks for video recommendations, list the video IDs that are most relevant.
+Your response should be a JSON object with two keys: "answer" (a string for a textual response) and "suggestedVideoIds" (an array of strings, which are video IDs from the list if relevant, or an empty array if not). For example: {"answer": "Here are some videos about X...", "suggestedVideoIds": ["videoId1", "videoId2"]}`;
       
-      const suggestedVideos = allVideos.filter(video => {
-        const titleMatch = video.title?.toLowerCase().includes(lowerCaseUserQuery);
-        const descriptionMatch = video.description?.toLowerCase().includes(lowerCaseUserQuery);
-        const categoryMatch = video.geminiCategories?.some(cat => cat.toLowerCase().includes(lowerCaseUserQuery));
-        return titleMatch || descriptionMatch || categoryMatch;
-      }).slice(0, 20); // Limit results
+      console.log("Sending prompt to Gemini...");
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+      console.log("Gemini response text:", text);
 
-      console.log(`Found ${suggestedVideos.length} videos matching query (simple search).`);
-
-      // --- Example: Using Gemini for query understanding (more advanced) ---
-      // Uncomment and adapt if you want to use Gemini to refine the search.
-      /*
-      await initializeGeminiChatClient();
-      const promptForGemini = `
-        Given the user query "${userQuery}" about their YouTube Watch Later playlist,
-        identify key terms or topics the user is interested in.
-        Also, suggest if the query implies a desire for videos that are "short", "medium", or "long" in duration,
-        or if it mentions specific channels or upload dates (e.g., "recent", "last week").
-        Output a JSON object with fields like "keywords" (array of strings), "duration_preference" (string),
-        "channel_preference" (string), "recency_preference" (string).
-        If a field is not applicable, omit it or set its value to null.
-
-        Example: User query "funny cat videos from last month"
-        Output:
-        {
-          "keywords": ["funny", "cat"],
-          "recency_preference": "last month"
-        }
-      `;
-      const geminiRequest = { contents: [{ role: 'user', parts: [{ text: promptForGemini }] }] };
-      const streamingResp = await generativeModelChat.generateContentStream(geminiRequest);
-      let geminiResponseText = "";
-      for await (const item of streamingResp.stream) {
-          geminiResponseText += item.candidates[0].content.parts[0].text;
-      }
-      let searchParams;
+      let geminiJson = { answer: "Could not parse suggestion from AI.", suggestedVideoIds: [] };
       try {
-        searchParams = JSON.parse(geminiResponseText);
-        console.log("Gemini parsed search params:", searchParams);
-        // Now use searchParams to build a more targeted Datastore query or filter results
-      } catch (e) {
-        console.error("Could not parse Gemini response for query understanding:", e, geminiResponseText);
-        // Fallback to simple search or return an error
+        geminiJson = JSON.parse(text);
+      } catch (parseError) {
+        console.error("Failed to parse Gemini JSON response:", parseError, "Raw text:", text);
+        // Fallback: use the raw text as the answer if JSON parsing fails
+        geminiJson.answer = text;
       }
-      */
-
+      
+      // 4. Map suggestedVideoIds back to full video objects from our Datastore list
+      const suggestedVideosFull = [];
+      if (geminiJson.suggestedVideoIds && geminiJson.suggestedVideoIds.length > 0) {
+        geminiJson.suggestedVideoIds.forEach(id => {
+          const foundVideo = videosForPlaylist.find(v => v.videoId === id); // Search within the current playlist's videos
+          if (foundVideo) {
+            // Return the frontend-friendly structure
+            suggestedVideosFull.push({
+              videoId: foundVideo.videoId,
+              title: foundVideo.title,
+              description: foundVideo.description,
+              publishedAt: foundVideo.publishedAt, // This might be a Date object if stored as such
+              channelId: foundVideo.channelId,
+              channelTitle: foundVideo.channelTitle,
+              thumbnailUrl: foundVideo.thumbnailUrl,
+            });
+          }
+        });
+      }
 
       res.status(200).json({
-        query: userQuery,
-        suggestedVideos: suggestedVideos, // Replace with results from your chosen search logic
+        answer: geminiJson.answer,
+        suggestedVideos: suggestedVideosFull
       });
 
     } catch (error) {
