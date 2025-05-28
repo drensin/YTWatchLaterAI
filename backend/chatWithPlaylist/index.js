@@ -76,7 +76,7 @@ exports.chatWithPlaylist = async (req, res) => {
       });
 
       // 3. Prepare prompt for Gemini
-      const model = genAI.getGenerativeModel({ model: "gemini-pro" }); // Or your preferred model
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro-preview" }); 
       const prompt = `Based on the following list of videos and their descriptions, please answer the user's query.
 User Query: "${query}"
 ${videoContext}
