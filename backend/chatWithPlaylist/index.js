@@ -1,12 +1,14 @@
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
 const { Datastore } = require('@google-cloud/datastore');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require('@google/generative-ai'); // Added HarmCategory and HarmBlockThreshold
 const cors = require('cors');
 
 // Initialize GCP clients
 const secretManagerClient = new SecretManagerServiceClient();
 const datastore = new Datastore();
 let genAI; // Will be initialized after fetching API key
+
+const VIDEOS_ENTITY = 'Videos'; // Only VIDEOS_ENTITY is needed now
 
 // CORS Configuration
 const corsOptions = {
@@ -45,80 +47,86 @@ exports.chatWithPlaylist = async (req, res) => {
 
     try {
       await initializeGenAI();
-      const { query, playlistId, modelId } = req.body; // Add modelId
+      // Removed userId as it's not used in single-shot approach
+      const { query, playlistId, modelId } = req.body; 
 
       if (!query || !playlistId) {
         res.status(400).json({ error: 'Missing query or playlistId in request body' });
         return;
       }
       
-      const effectiveModelId = modelId || "gemini-2.5-flash-preview-05-20"; // Default to specific flash preview model
-      console.log(`Using Gemini model: ${effectiveModelId}`);
+      const effectiveModelId = modelId || "gemini-2.5-flash-preview-05-20";
+      console.log(`[${new Date().toISOString()}] Playlist: ${playlistId}, Query: "${query}"`);
+      console.log(`[${new Date().toISOString()}] Using Gemini model: ${effectiveModelId}`);
 
       // 1. Fetch all videos for the given playlistId from Datastore
-      //    (Assuming videos were stored by getPlaylistItems function)
-      //    Note: This simple query fetches all videos. For very large playlists,
-      //    you might need more sophisticated retrieval or context window management.
-      //    We will filter by 'playlistId_original' which should now be stored with each video.
-      console.log(`Fetching videos from Datastore for playlistId: ${playlistId}...`);
-      const datastoreQuery = datastore.createQuery('Videos')
-        .filter('playlistId_original', '=', playlistId)
-        .limit(100); // Limit for safety and context window for Gemini
-
+      console.log(`[${new Date().toISOString()}] Fetching videos from Datastore for playlistId: ${playlistId}...`);
+      const datastoreQuery = datastore.createQuery(VIDEOS_ENTITY)
+        .filter('playlistId_original', '=', playlistId);
       const [videosForPlaylist] = await datastore.runQuery(datastoreQuery);
+      console.log(`[${new Date().toISOString()}] Fetched ${videosForPlaylist ? videosForPlaylist.length : 0} videos from Datastore for playlistId: ${playlistId}`);
 
       if (!videosForPlaylist || videosForPlaylist.length === 0) {
-        res.status(200).json({ answer: `No videos found in Datastore for playlist ID ${playlistId} to chat about. Ensure items have been fetched for this playlist.`, suggestedVideos: [] });
+        res.status(200).json({ answer: `No videos found in Datastore for playlist ID ${playlistId}.`, suggestedVideos: [] });
         return;
       }
 
       // 2. Construct context for Gemini
+      console.log(`[${new Date().toISOString()}] Starting videoContext construction...`);
       let videoContext = "Video List:\n";
       videosForPlaylist.forEach(video => {
-        // Increase description length, ensure it's not null before substring
-        const descSnippet = video.description ? video.description.substring(0, 400) + '...' : 'N/A';
+        const descSnippet = video.description ? video.description.substring(0, 800) + '...' : 'N/A';
         videoContext += `- ID: ${video.videoId}, Title: "${video.title}", Description: "${descSnippet}"\n`;
       });
-
-      // 3. Prepare prompt for Gemini
-      const model = genAI.getGenerativeModel({ model: effectiveModelId }); 
-      const prompt = `You are a helpful assistant for recommending videos from a specific playlist.
-Your task is to analyze the user's query and suggest relevant videos from the provided "Video List".
+      console.log(`[${new Date().toISOString()}] Finished videoContext construction.`);
+      
+      const safetySettings = [
+        {
+          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
+        },
+      ];
+      const model = genAI.getGenerativeModel({ model: effectiveModelId, safetySettings }); 
+      
+      const singleShotPrompt = `Analyze the following 'Video List' based on the 'User Query'.
 
 User Query: "${query}"
 
+Video List:
 ${videoContext}
 
-Instructions for your response:
-1. Carefully read the User Query.
-2. Examine the Title and Description of each video in the Video List provided below.
-3. Identify videos from the list that are highly relevant to the User Query.
-   - If the User Query is a name (e.g., "Cory Henry"), find videos where this name appears in the Title or Description.
-   - If the User Query is a topic, find videos whose Title or Description discuss this topic.
-   - A video is relevant if its title or description contains the exact keywords, names, or closely related terms from the User Query.
-4. Your response MUST be a JSON object with exactly two keys:
-   - "answer": A string providing a brief textual response. If relevant videos are found, say something like "Based on your query, I found these videos:". If no relevant videos are found, state that clearly, for example: "I could not find any videos matching your query in this playlist."
-   - "suggestedVideoIds": An array of strings. Each string MUST be a video ID from the provided Video List that you identified as highly relevant. If no videos are relevant, this array MUST be empty. Do not include IDs not present in the list.
+Task:
+Identify all videos from the 'Video List' where the 'User Query' text appears in either the video's 'Title' or 'Description'.
 
-Example:
-User Query: "cats playing piano"
-Video List:
-- ID: "vid1", Title: "Funny Cats Compilation", Description: "Cats doing funny things."
-- ID: "vid2", Title: "Piano Masterclass", Description: "Learn to play piano."
-- ID: "vid3", Title: "Cat Plays Piano Concerto", Description: "My talented cat plays a beautiful piano piece."
-Response:
-{
-  "answer": "Based on your query, I found these videos:",
-  "suggestedVideoIds": ["vid3"]
-}
+Response Format:
+Return a JSON object with a single key: "matchingVideoIds".
+The value of "matchingVideoIds" MUST be an array of strings. Each string in the array MUST be the 'ID' of a video from the 'Video List' that matches the criteria.
+If no videos match, the "matchingVideoIds" array MUST be empty.
+
+Example for User Query "Cory Henry":
+If a video has ID "vid2" and Title "Cory Henry Live Concert", then "vid2" should be in the "matchingVideoIds" array.
+
+Output ONLY the JSON object.
 `;
-      
-      console.log("Sending prompt to Gemini...");
-      const result = await model.generateContent(prompt);
+
+      console.log(`[${new Date().toISOString()}] Sending single-shot prompt to Gemini...`);
+      const result = await model.generateContent(singleShotPrompt); // Using generateContent directly
       const response = await result.response;
       const text = response.text();
-      console.log("Gemini response text:", text);
-
+      console.log(`[${new Date().toISOString()}] Gemini response text:`, text);
+      
       let cleanedJsonText = text.trim();
       if (cleanedJsonText.startsWith("```json")) {
         cleanedJsonText = cleanedJsonText.substring(7); // Remove ```json\n
@@ -128,37 +136,51 @@ Response:
       }
       cleanedJsonText = cleanedJsonText.trim(); // Trim any remaining whitespace
 
-      let geminiJson = { answer: "Could not parse suggestion from AI.", suggestedVideoIds: [] };
+      let parsedResponse;
+      let suggestedVideoIds = [];
+      let answerText = "Could not find any videos matching your query in this playlist.";
+
       try {
-        geminiJson = JSON.parse(cleanedJsonText);
+        parsedResponse = JSON.parse(cleanedJsonText);
+        if (parsedResponse && parsedResponse.matchingVideoIds && parsedResponse.matchingVideoIds.length > 0) {
+          suggestedVideoIds = parsedResponse.matchingVideoIds;
+          answerText = "Based on your query, I found these videos:";
+        } else if (parsedResponse && parsedResponse.matchingVideoIds) {
+          // It's valid JSON with an empty array, so no matches found
+          answerText = "I could not find any videos matching your query in this playlist.";
+        } else {
+          // Valid JSON but not the expected format
+          console.error("Gemini response was valid JSON but not the expected format. Text:", cleanedJsonText);
+          answerText = "Received an unexpected format from the AI.";
+        }
       } catch (parseError) {
-        console.error("Failed to parse cleaned Gemini JSON response:", parseError, "Cleaned text:", cleanedJsonText, "Original text:", text);
-        // Fallback: use the original raw text as the answer if JSON parsing still fails
-        geminiJson.answer = text; 
+        console.error("Failed to parse Gemini JSON response:", parseError, "Cleaned text:", cleanedJsonText, "Original text:", text);
+        // If parsing fails, use the raw text as the answer, and no suggested videos.
+        answerText = `Error processing AI response. Raw AI output: ${text}`;
       }
       
-      // 4. Map suggestedVideoIds back to full video objects from our Datastore list
       const suggestedVideosFull = [];
-      if (geminiJson.suggestedVideoIds && geminiJson.suggestedVideoIds.length > 0) {
-        geminiJson.suggestedVideoIds.forEach(id => {
-          const foundVideo = videosForPlaylist.find(v => v.videoId === id); // Search within the current playlist's videos
+      if (suggestedVideoIds.length > 0) {
+        suggestedVideoIds.forEach(id => {
+          const foundVideo = videosForPlaylist.find(v => v.videoId === id);
           if (foundVideo) {
-            // Return the frontend-friendly structure
             suggestedVideosFull.push({
               videoId: foundVideo.videoId,
               title: foundVideo.title,
               description: foundVideo.description,
-              publishedAt: foundVideo.publishedAt, // This might be a Date object if stored as such
+              publishedAt: foundVideo.publishedAt,
               channelId: foundVideo.channelId,
               channelTitle: foundVideo.channelTitle,
               thumbnailUrl: foundVideo.thumbnailUrl,
             });
+          } else {
+            console.error(`[${new Date().toISOString()}] Video ID ${id} suggested by Gemini was not found in the current videosForPlaylist array (length: ${videosForPlaylist.length}).`);
           }
         });
       }
 
       res.status(200).json({
-        answer: geminiJson.answer,
+        answer: answerText,
         suggestedVideos: suggestedVideosFull
       });
 

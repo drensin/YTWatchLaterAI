@@ -210,7 +210,7 @@ function App() {
           'Content-Type': 'application/json',
           // 'Authorization': `Bearer YOUR_ID_TOKEN_OR_ACCESS_TOKEN`, // If needed
         },
-        body: JSON.stringify({ query: query, playlistId: selectedPlaylistId }),
+        body: JSON.stringify({ query: query, playlistId: selectedPlaylistId, userId: "currentUser" }), // Added userId
       });
       if (!response.ok) {
         const errData = await response.json().catch(() => ({ message: response.statusText }));
