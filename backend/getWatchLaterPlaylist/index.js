@@ -134,14 +134,14 @@ exports.getWatchLaterPlaylist = async (req, res) => {
 
             // Data for Datastore with indexing control
             const videoDataForDatastore = [
-              { name: 'videoId', value: videoId },
-              { name: 'playlistId_original', value: playlistId }, // Store the ID of the playlist it came from
-              { name: 'title', value: item.snippet.title },
-              { name: 'description', value: item.snippet.description, excludeFromIndexes: true },
-              { name: 'publishedAt', value: new Date(item.snippet.publishedAt) }, // Store as Date object
-              { name: 'channelId', value: item.snippet.channelId },
-              { name: 'channelTitle', value: item.snippet.channelTitle },
-              { name: 'thumbnailUrl', value: item.snippet.thumbnails?.default?.url, excludeFromIndexes: true }, // URLs also often don't need indexing
+              { name: 'videoId', value: videoId || null },
+              { name: 'playlistId_original', value: playlistId || null },
+              { name: 'title', value: item.snippet.title || '' }, // Title is usually present, but good to be safe
+              { name: 'description', value: item.snippet.description || '', excludeFromIndexes: true },
+              { name: 'publishedAt', value: item.snippet.publishedAt ? new Date(item.snippet.publishedAt) : null },
+              { name: 'channelId', value: item.snippet.channelId || null },
+              { name: 'channelTitle', value: item.snippet.channelTitle || '' },
+              { name: 'thumbnailUrl', value: item.snippet.thumbnails?.default?.url || null, excludeFromIndexes: true },
             ];
             
             const videoKey = datastore.key(['Videos', videoId]);

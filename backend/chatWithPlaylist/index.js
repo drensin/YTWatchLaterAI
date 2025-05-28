@@ -45,12 +45,15 @@ exports.chatWithPlaylist = async (req, res) => {
 
     try {
       await initializeGenAI();
-      const { query, playlistId } = req.body;
+      const { query, playlistId, modelId } = req.body; // Add modelId
 
       if (!query || !playlistId) {
         res.status(400).json({ error: 'Missing query or playlistId in request body' });
         return;
       }
+      
+      const effectiveModelId = modelId || "gemini-2.5-flash-preview-05-20"; // Default to specific flash preview model
+      console.log(`Using Gemini model: ${effectiveModelId}`);
 
       // 1. Fetch all videos for the given playlistId from Datastore
       //    (Assuming videos were stored by getPlaylistItems function)
@@ -70,18 +73,45 @@ exports.chatWithPlaylist = async (req, res) => {
       }
 
       // 2. Construct context for Gemini
-      let videoContext = "Available videos for this playlist:\n";
+      let videoContext = "Video List:\n";
       videosForPlaylist.forEach(video => {
-        videoContext += `- ID: ${video.videoId}, Title: ${video.title}, Description: ${video.description ? video.description.substring(0, 200) + '...' : 'N/A'}\n`;
+        // Increase description length, ensure it's not null before substring
+        const descSnippet = video.description ? video.description.substring(0, 400) + '...' : 'N/A';
+        videoContext += `- ID: ${video.videoId}, Title: "${video.title}", Description: "${descSnippet}"\n`;
       });
 
       // 3. Prepare prompt for Gemini
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro-preview" }); 
-      const prompt = `Based on the following list of videos and their descriptions, please answer the user's query.
+      const model = genAI.getGenerativeModel({ model: effectiveModelId }); 
+      const prompt = `You are a helpful assistant for recommending videos from a specific playlist.
+Your task is to analyze the user's query and suggest relevant videos from the provided "Video List".
+
 User Query: "${query}"
+
 ${videoContext}
-If the query asks for video recommendations, list the video IDs that are most relevant.
-Your response should be a JSON object with two keys: "answer" (a string for a textual response) and "suggestedVideoIds" (an array of strings, which are video IDs from the list if relevant, or an empty array if not). For example: {"answer": "Here are some videos about X...", "suggestedVideoIds": ["videoId1", "videoId2"]}`;
+
+Instructions for your response:
+1. Carefully read the User Query.
+2. Examine the Title and Description of each video in the Video List provided below.
+3. Identify videos from the list that are highly relevant to the User Query.
+   - If the User Query is a name (e.g., "Cory Henry"), find videos where this name appears in the Title or Description.
+   - If the User Query is a topic, find videos whose Title or Description discuss this topic.
+   - A video is relevant if its title or description contains the exact keywords, names, or closely related terms from the User Query.
+4. Your response MUST be a JSON object with exactly two keys:
+   - "answer": A string providing a brief textual response. If relevant videos are found, say something like "Based on your query, I found these videos:". If no relevant videos are found, state that clearly, for example: "I could not find any videos matching your query in this playlist."
+   - "suggestedVideoIds": An array of strings. Each string MUST be a video ID from the provided Video List that you identified as highly relevant. If no videos are relevant, this array MUST be empty. Do not include IDs not present in the list.
+
+Example:
+User Query: "cats playing piano"
+Video List:
+- ID: "vid1", Title: "Funny Cats Compilation", Description: "Cats doing funny things."
+- ID: "vid2", Title: "Piano Masterclass", Description: "Learn to play piano."
+- ID: "vid3", Title: "Cat Plays Piano Concerto", Description: "My talented cat plays a beautiful piano piece."
+Response:
+{
+  "answer": "Based on your query, I found these videos:",
+  "suggestedVideoIds": ["vid3"]
+}
+`;
       
       console.log("Sending prompt to Gemini...");
       const result = await model.generateContent(prompt);
@@ -89,13 +119,22 @@ Your response should be a JSON object with two keys: "answer" (a string for a te
       const text = response.text();
       console.log("Gemini response text:", text);
 
+      let cleanedJsonText = text.trim();
+      if (cleanedJsonText.startsWith("```json")) {
+        cleanedJsonText = cleanedJsonText.substring(7); // Remove ```json\n
+      }
+      if (cleanedJsonText.endsWith("```")) {
+        cleanedJsonText = cleanedJsonText.substring(0, cleanedJsonText.length - 3);
+      }
+      cleanedJsonText = cleanedJsonText.trim(); // Trim any remaining whitespace
+
       let geminiJson = { answer: "Could not parse suggestion from AI.", suggestedVideoIds: [] };
       try {
-        geminiJson = JSON.parse(text);
+        geminiJson = JSON.parse(cleanedJsonText);
       } catch (parseError) {
-        console.error("Failed to parse Gemini JSON response:", parseError, "Raw text:", text);
-        // Fallback: use the raw text as the answer if JSON parsing fails
-        geminiJson.answer = text;
+        console.error("Failed to parse cleaned Gemini JSON response:", parseError, "Cleaned text:", cleanedJsonText, "Original text:", text);
+        // Fallback: use the original raw text as the answer if JSON parsing still fails
+        geminiJson.answer = text; 
       }
       
       // 4. Map suggestedVideoIds back to full video objects from our Datastore list
