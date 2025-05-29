@@ -59,9 +59,15 @@ function VideoList({ videos }) {
   return (
     <ul>
       {videos.map(video => (
-        <li key={video.id}>
+        <li key={video.videoId || video.id}> {/* Ensure key is stable */}
           <h4>{video.title}</h4>
-          <p>{video.description ? video.description.substring(0, 100) + '...' : 'No description'}</p>
+          <p><strong>Description:</strong> {video.description ? video.description.substring(0, 100) + '...' : 'No description'}</p>
+          {video.duration && <p><strong>Duration:</strong> {video.duration}</p>}
+          {video.viewCount && <p><strong>Views:</strong> {Number(video.viewCount).toLocaleString()}</p>}
+          {video.likeCount && <p><strong>Likes:</strong> {Number(video.likeCount).toLocaleString()}</p>}
+          {video.topicCategories && video.topicCategories.length > 0 && (
+            <p><strong>Topics:</strong> {video.topicCategories.join(', ')}</p>
+          )}
           {/* Add more video details as needed */}
         </li>
       ))}

@@ -2,6 +2,7 @@ const { google } = require('googleapis');
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
 const { Datastore } = require('@google-cloud/datastore');
 const cors = require('cors');
+const axios = require('axios'); // Added axios
 
 // Initialize GCP clients
 const secretManagerClient = new SecretManagerServiceClient();
@@ -77,6 +78,32 @@ async function getAuthenticatedClient() {
   return oauth2Client;
 }
 
+function formatISO8601Duration(isoDuration) {
+  if (!isoDuration || typeof isoDuration !== 'string') {
+    return "00:00"; // Default or error format
+  }
+
+  const regex = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/;
+  const matches = isoDuration.match(regex);
+
+  if (!matches) {
+    return "00:00"; // Invalid format
+  }
+
+  const hours = parseInt(matches[1] || "0", 10);
+  const minutes = parseInt(matches[2] || "0", 10);
+  const seconds = parseInt(matches[3] || "0", 10);
+
+  const HH = String(hours).padStart(2, '0');
+  const MM = String(minutes).padStart(2, '0');
+  const SS = String(seconds).padStart(2, '0');
+
+  if (hours > 0) {
+    return `${HH}:${MM}:${SS}`;
+  }
+  return `${MM}:${SS}`;
+}
+
 // --- Cloud Function Entry Point ---
 exports.getWatchLaterPlaylist = async (req, res) => {
   corsMiddleware(req, res, async () => {
@@ -108,7 +135,7 @@ exports.getWatchLaterPlaylist = async (req, res) => {
       do {
         const response = await youtube.playlistItems.list({
           auth: auth,
-          part: 'snippet,contentDetails',
+          part: 'snippet,contentDetails', // This part is for playlistItems.list
           playlistId: playlistId, // Use the provided playlistId
           maxResults: 50, // Max allowed by API
           pageToken: nextPageToken,
@@ -120,15 +147,76 @@ exports.getWatchLaterPlaylist = async (req, res) => {
         if (items) {
           for (const item of items) {
             const videoId = item.snippet.resourceId.videoId;
+            
+            let duration = null;
+            let viewCount = null;
+            let likeCount = null;
+            let topicCategories = [];
+            let videoPublishedAt = null; // For video's own publish date
+            let videoChannelId = null;   // For video's own channelId
+            let videoChannelTitle = null; // For video's own channelTitle
+
+
+            try {
+              console.log(`[${new Date().toISOString()}] Fetching details for video ID: ${videoId}`);
+              const videoDetailsResponse = await youtube.videos.list({
+                auth: auth,
+                part: 'snippet,contentDetails,statistics,topicDetails', // Added snippet
+                id: videoId,
+              });
+
+              if (videoDetailsResponse.data.items && videoDetailsResponse.data.items.length > 0) {
+                const videoItem = videoDetailsResponse.data.items[0];
+                duration = formatISO8601Duration(videoItem.contentDetails?.duration); // Format the duration
+                viewCount = videoItem.statistics?.viewCount;
+                likeCount = videoItem.statistics?.likeCount;
+                videoPublishedAt = videoItem.snippet?.publishedAt;
+                videoChannelId = videoItem.snippet?.channelId;
+                videoChannelTitle = videoItem.snippet?.channelTitle;
+                
+                const topicCategoryURLs = videoItem.topicDetails?.topicCategories || [];
+                for (const topicURL of topicCategoryURLs) {
+                  let fallbackValue = topicURL; // Default fallback is the original URL
+                  try {
+                    const entityId = topicURL.split('/').pop();
+                    if (entityId) {
+                      fallbackValue = entityId; // If we have an entity ID, that's a better fallback
+                      const wikidataAPIURL = `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${entityId}&props=labels&languages=en&format=json`;
+                      const wikidataResponse = await axios.get(wikidataAPIURL);
+                      const label = wikidataResponse.data.entities[entityId]?.labels?.en?.value;
+                      if (label) {
+                        topicCategories.push(label);
+                      } else {
+                        console.warn(`[${new Date().toISOString()}] No English label found for Wikidata entity ${entityId}. Using entity ID as fallback.`);
+                        topicCategories.push(entityId);
+                      }
+                    } else {
+                      console.warn(`[${new Date().toISOString()}] Could not parse entity ID from topicURL: ${topicURL}. Using full URL as fallback.`);
+                      topicCategories.push(topicURL); 
+                    }
+                  } catch (e) {
+                    console.error(`[${new Date().toISOString()}] Error fetching/parsing Wikidata for ${topicURL} (fallback: ${fallbackValue}): ${e.message}`);
+                    topicCategories.push(fallbackValue); 
+                  }
+                }
+              }
+            } catch (e) {
+              console.error(`[${new Date().toISOString()}] Error fetching video details for ${videoId}: ${e.message}`);
+            }
+
             // Data for returning to frontend
             const videoDataForFrontend = {
               videoId: videoId,
-              title: item.snippet.title,
-              description: item.snippet.description,
-              publishedAt: item.snippet.publishedAt,
-              channelId: item.snippet.channelId,
-              channelTitle: item.snippet.channelTitle,
+              title: item.snippet.title, 
+              description: item.snippet.description, 
+              publishedAt: videoPublishedAt || item.snippet.publishedAt, 
+              channelId: videoChannelId || item.snippet.channelId, 
+              channelTitle: videoChannelTitle || item.snippet.channelTitle, 
               thumbnailUrl: item.snippet.thumbnails?.default?.url,
+              duration: duration,
+              viewCount: viewCount,
+              likeCount: likeCount,
+              topicCategories: topicCategories,
             };
             allVideos.push(videoDataForFrontend);
 
@@ -136,12 +224,16 @@ exports.getWatchLaterPlaylist = async (req, res) => {
             const videoDataForDatastore = [
               { name: 'videoId', value: videoId || null },
               { name: 'playlistId_original', value: playlistId || null },
-              { name: 'title', value: item.snippet.title || '' }, // Title is usually present, but good to be safe
-              { name: 'description', value: item.snippet.description || '', excludeFromIndexes: true },
-              { name: 'publishedAt', value: item.snippet.publishedAt ? new Date(item.snippet.publishedAt) : null },
-              { name: 'channelId', value: item.snippet.channelId || null },
-              { name: 'channelTitle', value: item.snippet.channelTitle || '' },
+              { name: 'title', value: item.snippet.title || '' }, 
+              { name: 'description', value: item.snippet.description || '', excludeFromIndexes: true }, 
+              { name: 'publishedAt', value: (videoPublishedAt || item.snippet.publishedAt) ? new Date(videoPublishedAt || item.snippet.publishedAt) : null }, 
+              { name: 'channelId', value: videoChannelId || item.snippet.channelId || null }, 
+              { name: 'channelTitle', value: videoChannelTitle || item.snippet.channelTitle || '' }, 
               { name: 'thumbnailUrl', value: item.snippet.thumbnails?.default?.url || null, excludeFromIndexes: true },
+              { name: 'duration', value: duration || "00:00" }, 
+              { name: 'viewCount', value: viewCount ? parseInt(viewCount, 10) : null },
+              { name: 'likeCount', value: likeCount ? parseInt(likeCount, 10) : null },
+              { name: 'topicCategories', value: topicCategories, excludeFromIndexes: true },
             ];
             
             const videoKey = datastore.key(['Videos', videoId]);

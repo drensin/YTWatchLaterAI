@@ -1,6 +1,6 @@
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
 const { Datastore } = require('@google-cloud/datastore');
-const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require('@google/generative-ai'); // Added HarmCategory and HarmBlockThreshold
+const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require('@google/generative-ai');
 const cors = require('cors');
 
 // Initialize GCP clients
@@ -8,7 +8,7 @@ const secretManagerClient = new SecretManagerServiceClient();
 const datastore = new Datastore();
 let genAI; // Will be initialized after fetching API key
 
-const VIDEOS_ENTITY = 'Videos'; // Only VIDEOS_ENTITY is needed now
+const VIDEOS_ENTITY = 'Videos';
 
 // CORS Configuration
 const corsOptions = {
@@ -47,7 +47,6 @@ exports.chatWithPlaylist = async (req, res) => {
 
     try {
       await initializeGenAI();
-      // Removed userId as it's not used in single-shot approach
       const { query, playlistId, modelId } = req.body; 
 
       if (!query || !playlistId) {
@@ -59,7 +58,6 @@ exports.chatWithPlaylist = async (req, res) => {
       console.log(`[${new Date().toISOString()}] Playlist: ${playlistId}, Query: "${query}"`);
       console.log(`[${new Date().toISOString()}] Using Gemini model: ${effectiveModelId}`);
 
-      // 1. Fetch all videos for the given playlistId from Datastore
       console.log(`[${new Date().toISOString()}] Fetching videos from Datastore for playlistId: ${playlistId}...`);
       const datastoreQuery = datastore.createQuery(VIDEOS_ENTITY)
         .filter('playlistId_original', '=', playlistId);
@@ -71,14 +69,19 @@ exports.chatWithPlaylist = async (req, res) => {
         return;
       }
 
-      // 2. Construct context for Gemini
-      console.log(`[${new Date().toISOString()}] Starting videoContext construction...`);
-      let videoContext = "Video List:\n";
-      videosForPlaylist.forEach(video => {
-        const descSnippet = video.description ? video.description.substring(0, 800) + '...' : 'N/A';
-        videoContext += `- ID: ${video.videoId}, Title: "${video.title}", Description: "${descSnippet}"\n`;
-      });
-      console.log(`[${new Date().toISOString()}] Finished videoContext construction.`);
+      console.log(`[${new Date().toISOString()}] Starting videoContext construction (JSON format)...`);
+      const videoListForContext = videosForPlaylist.map(video => ({
+        ID: video.videoId,
+        Title: video.title,
+        Description: video.description ? video.description.substring(0, 800) + '...' : 'N/A',
+        Duration: video.duration, // Assuming duration is already formatted HH:MM:SS or MM:SS from getWatchLaterPlaylist
+        Views: video.viewCount ? parseInt(video.viewCount, 10) : null,
+        Likes: video.likeCount ? parseInt(video.likeCount, 10) : null,
+        Topics: Array.isArray(video.topicCategories) ? video.topicCategories.join(', ') : '',
+        Published: video.publishedAt ? new Date(video.publishedAt).toISOString().split('T')[0] : null // Format as YYYY-MM-DD
+      }));
+      const videoContext = `Video List (JSON format):\n${JSON.stringify(videoListForContext, null, 2)}`;
+      console.log(`[${new Date().toISOString()}] Finished videoContext construction (JSON format).`);
       
       const safetySettings = [
         {
@@ -100,41 +103,39 @@ exports.chatWithPlaylist = async (req, res) => {
       ];
       const model = genAI.getGenerativeModel({ model: effectiveModelId, safetySettings }); 
       
-      const singleShotPrompt = `Analyze the following 'Video List' based on the 'User Query'.
+      const singleShotPrompt = `You are a helpful assistant. Your task is to find videos from the 'Video List' below that match the 'User Query'.
 
 User Query: "${query}"
 
-Video List:
+Video List (JSON format):
 ${videoContext}
 
-Task:
-Identify all videos from the 'Video List' where the 'User Query' text appears in either the video's 'Title' or 'Description'.
-
-Response Format:
-Return a JSON object with a single key: "matchingVideoIds".
-The value of "matchingVideoIds" MUST be an array of strings. Each string in the array MUST be the 'ID' of a video from the 'Video List' that matches the criteria.
-If no videos match, the "matchingVideoIds" array MUST be empty.
+Instructions:
+1. The 'Video List' is provided in JSON format. Parse this JSON data.
+2. For each video object in the 'Video List', check if the video's 'Title' or 'Description' (and consider 'Published' date or 'Topics' if relevant to the query) contains the exact text or concepts from the 'User Query'.
+3. If a video matches the query, consider it a match.
+4. Your response MUST be a JSON object with a single key: "matchingVideoIds".
+   The value of "matchingVideoIds" MUST be an array of strings. Each string in the array MUST be the 'ID' of a video from the 'Video List' that you identified as a match. If no videos match, this array MUST be empty.
+Output ONLY the JSON object.
 
 Example for User Query "Cory Henry":
 If a video has ID "vid2" and Title "Cory Henry Live Concert", then "vid2" should be in the "matchingVideoIds" array.
-
-Output ONLY the JSON object.
 `;
-
+      
       console.log(`[${new Date().toISOString()}] Sending single-shot prompt to Gemini...`);
-      const result = await model.generateContent(singleShotPrompt); // Using generateContent directly
+      const result = await model.generateContent(singleShotPrompt);
       const response = await result.response;
       const text = response.text();
       console.log(`[${new Date().toISOString()}] Gemini response text:`, text);
       
       let cleanedJsonText = text.trim();
       if (cleanedJsonText.startsWith("```json")) {
-        cleanedJsonText = cleanedJsonText.substring(7); // Remove ```json\n
+        cleanedJsonText = cleanedJsonText.substring(7);
       }
       if (cleanedJsonText.endsWith("```")) {
         cleanedJsonText = cleanedJsonText.substring(0, cleanedJsonText.length - 3);
       }
-      cleanedJsonText = cleanedJsonText.trim(); // Trim any remaining whitespace
+      cleanedJsonText = cleanedJsonText.trim();
 
       let parsedResponse;
       let suggestedVideoIds = [];
@@ -146,16 +147,13 @@ Output ONLY the JSON object.
           suggestedVideoIds = parsedResponse.matchingVideoIds;
           answerText = "Based on your query, I found these videos:";
         } else if (parsedResponse && parsedResponse.matchingVideoIds) {
-          // It's valid JSON with an empty array, so no matches found
           answerText = "I could not find any videos matching your query in this playlist.";
         } else {
-          // Valid JSON but not the expected format
           console.error("Gemini response was valid JSON but not the expected format. Text:", cleanedJsonText);
           answerText = "Received an unexpected format from the AI.";
         }
       } catch (parseError) {
         console.error("Failed to parse Gemini JSON response:", parseError, "Cleaned text:", cleanedJsonText, "Original text:", text);
-        // If parsing fails, use the raw text as the answer, and no suggested videos.
         answerText = `Error processing AI response. Raw AI output: ${text}`;
       }
       
@@ -172,6 +170,11 @@ Output ONLY the JSON object.
               channelId: foundVideo.channelId,
               channelTitle: foundVideo.channelTitle,
               thumbnailUrl: foundVideo.thumbnailUrl,
+              // Include other metadata if needed by frontend from chat response
+              duration: foundVideo.duration,
+              viewCount: foundVideo.viewCount,
+              likeCount: foundVideo.likeCount,
+              topicCategories: foundVideo.topicCategories
             });
           } else {
             console.error(`[${new Date().toISOString()}] Video ID ${id} suggested by Gemini was not found in the current videosForPlaylist array (length: ${videosForPlaylist.length}).`);
