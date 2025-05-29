@@ -1,15 +1,15 @@
 {
   "files": {
-    "main.css": "/YTWatchLaterAI/static/css/main.a746322b.css",
-    "main.js": "/YTWatchLaterAI/static/js/main.88ed6896.js",
+    "main.css": "/YTWatchLaterAI/static/css/main.ffb332df.css",
+    "main.js": "/YTWatchLaterAI/static/js/main.9011f93b.js",
     "static/js/453.42a88d63.chunk.js": "/YTWatchLaterAI/static/js/453.42a88d63.chunk.js",
     "index.html": "/YTWatchLaterAI/index.html",
-    "main.a746322b.css.map": "/YTWatchLaterAI/static/css/main.a746322b.css.map",
-    "main.88ed6896.js.map": "/YTWatchLaterAI/static/js/main.88ed6896.js.map",
+    "main.ffb332df.css.map": "/YTWatchLaterAI/static/css/main.ffb332df.css.map",
+    "main.9011f93b.js.map": "/YTWatchLaterAI/static/js/main.9011f93b.js.map",
     "453.42a88d63.chunk.js.map": "/YTWatchLaterAI/static/js/453.42a88d63.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.a746322b.css",
-    "static/js/main.88ed6896.js"
+    "static/css/main.ffb332df.css",
+    "static/js/main.9011f93b.js"
   ]
 }
