@@ -74,32 +74,20 @@ exports.chatWithPlaylist = async (req, res) => {
         ID: video.videoId,
         Title: video.title,
         Description: video.description ? video.description.substring(0, 800) + '...' : 'N/A',
-        Duration: video.duration, // Assuming duration is already formatted HH:MM:SS or MM:SS from getWatchLaterPlaylist
+        DurationSeconds: video.durationSeconds,
         Views: video.viewCount ? parseInt(video.viewCount, 10) : null,
         Likes: video.likeCount ? parseInt(video.likeCount, 10) : null,
         Topics: Array.isArray(video.topicCategories) ? video.topicCategories.join(', ') : '',
-        Published: video.publishedAt ? new Date(video.publishedAt).toISOString().split('T')[0] : null // Format as YYYY-MM-DD
+        PublishedTimestamp: video.publishedAt ? new Date(video.publishedAt).getTime() : null
       }));
       const videoContext = `Video List (JSON format):\n${JSON.stringify(videoListForContext, null, 2)}`;
       console.log(`[${new Date().toISOString()}] Finished videoContext construction (JSON format).`);
       
       const safetySettings = [
-        {
-          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
+        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
       ];
       const model = genAI.getGenerativeModel({ model: effectiveModelId, safetySettings }); 
       
@@ -111,15 +99,25 @@ Video List (JSON format):
 ${videoContext}
 
 Instructions:
-1. The 'Video List' is provided in JSON format. Parse this JSON data.
-2. For each video object in the 'Video List', check if the video's 'Title' or 'Description' (and consider 'Published' date or 'Topics' if relevant to the query) contains the exact text or concepts from the 'User Query'.
-3. If a video matches the query, consider it a match.
-4. Your response MUST be a JSON object with a single key: "matchingVideoIds".
-   The value of "matchingVideoIds" MUST be an array of strings. Each string in the array MUST be the 'ID' of a video from the 'Video List' that you identified as a match. If no videos match, this array MUST be empty.
+1. The 'Video List' is provided in JSON format. Parse this JSON data. Each video object includes a 'PublishedTimestamp' field (Unix timestamp in milliseconds), 'DurationSeconds', 'Topics', etc.
+2. For each video object in the 'Video List', determine if it's relevant to the 'User Query' by checking its 'Title', 'Description', and other metadata like 'Topics' or 'PublishedTimestamp' if applicable.
+3. If a video is relevant, include it in your response.
+4. Your response MUST be a JSON object with a single key: "suggestedVideos".
+   The value of "suggestedVideos" MUST be an array of objects. Each object in the array MUST have two keys:
+     - "videoId": The 'ID' of the suggested video from the 'Video List'.
+     - "reason": A brief explanation (1-2 sentences) why this specific video was selected as relevant to the User Query.
+   If no videos are relevant, the "suggestedVideos" array MUST be empty.
 Output ONLY the JSON object.
 
-Example for User Query "Cory Henry":
-If a video has ID "vid2" and Title "Cory Henry Live Concert", then "vid2" should be in the "matchingVideoIds" array.
+Example for User Query "Cory Henry piano solo":
+{
+  "suggestedVideos": [
+    {
+      "videoId": "vid2",
+      "reason": "This video titled 'Cory Henry Live Concert' is relevant as it likely features Cory Henry and may include piano solos."
+    }
+  ]
+}
 `;
       
       console.log(`[${new Date().toISOString()}] Sending single-shot prompt to Gemini...`);
@@ -128,28 +126,50 @@ If a video has ID "vid2" and Title "Cory Henry Live Concert", then "vid2" should
       const text = response.text();
       console.log(`[${new Date().toISOString()}] Gemini response text:`, text);
       
-      let cleanedJsonText = text.trim();
-      if (cleanedJsonText.startsWith("```json")) {
-        cleanedJsonText = cleanedJsonText.substring(7);
+      let jsonString = text.trim();
+      // Remove markdown fences if present
+      if (jsonString.startsWith("```json")) {
+        jsonString = jsonString.substring(7);
       }
-      if (cleanedJsonText.endsWith("```")) {
-        cleanedJsonText = cleanedJsonText.substring(0, cleanedJsonText.length - 3);
+      if (jsonString.endsWith("```")) {
+        jsonString = jsonString.substring(0, jsonString.length - 3);
       }
-      cleanedJsonText = cleanedJsonText.trim();
+      jsonString = jsonString.trim();
+
+      // Attempt to extract the main JSON object if there's extra text
+      // Find the first '{' and the last '}'
+      const firstBrace = jsonString.indexOf('{');
+      const lastBrace = jsonString.lastIndexOf('}');
+
+      let cleanedJsonText = jsonString; // Default to the cleaned string
+      if (firstBrace !== -1 && lastBrace > firstBrace) {
+        cleanedJsonText = jsonString.substring(firstBrace, lastBrace + 1);
+      }
+      // Further ensure it's just the object, in case of trailing text after valid JSON
+      try {
+        JSON.parse(cleanedJsonText); // Test if this substring is valid JSON
+      } catch (e) {
+        // If substring parsing fails, revert to jsonString which might be the full (but problematic) string
+        // This can happen if the main content isn't actually a single object.
+        // However, our prompt asks for a single JSON object.
+        console.warn(`[${new Date().toISOString()}] Substring extraction for JSON failed, trying original cleaned string. Error: ${e.message}`);
+        cleanedJsonText = jsonString; 
+      }
+
 
       let parsedResponse;
-      let suggestedVideoIds = [];
+      let suggestionsFromGemini = []; // Will store array of {videoId, reason}
       let answerText = "Could not find any videos matching your query in this playlist.";
 
       try {
         parsedResponse = JSON.parse(cleanedJsonText);
-        if (parsedResponse && parsedResponse.matchingVideoIds && parsedResponse.matchingVideoIds.length > 0) {
-          suggestedVideoIds = parsedResponse.matchingVideoIds;
+        if (parsedResponse && Array.isArray(parsedResponse.suggestedVideos) && parsedResponse.suggestedVideos.length > 0) {
+          suggestionsFromGemini = parsedResponse.suggestedVideos; 
           answerText = "Based on your query, I found these videos:";
-        } else if (parsedResponse && parsedResponse.matchingVideoIds) {
+        } else if (parsedResponse && Array.isArray(parsedResponse.suggestedVideos)) {
           answerText = "I could not find any videos matching your query in this playlist.";
         } else {
-          console.error("Gemini response was valid JSON but not the expected format. Text:", cleanedJsonText);
+          console.error("Gemini response was valid JSON but not the expected format (expected {suggestedVideos: [...]}). Text:", cleanedJsonText);
           answerText = "Received an unexpected format from the AI.";
         }
       } catch (parseError) {
@@ -158,26 +178,16 @@ If a video has ID "vid2" and Title "Cory Henry Live Concert", then "vid2" should
       }
       
       const suggestedVideosFull = [];
-      if (suggestedVideoIds.length > 0) {
-        suggestedVideoIds.forEach(id => {
-          const foundVideo = videosForPlaylist.find(v => v.videoId === id);
+      if (suggestionsFromGemini.length > 0) {
+        suggestionsFromGemini.forEach(suggestion => {
+          const foundVideo = videosForPlaylist.find(v => v.videoId === suggestion.videoId);
           if (foundVideo) {
             suggestedVideosFull.push({
-              videoId: foundVideo.videoId,
-              title: foundVideo.title,
-              description: foundVideo.description,
-              publishedAt: foundVideo.publishedAt,
-              channelId: foundVideo.channelId,
-              channelTitle: foundVideo.channelTitle,
-              thumbnailUrl: foundVideo.thumbnailUrl,
-              // Include other metadata if needed by frontend from chat response
-              duration: foundVideo.duration,
-              viewCount: foundVideo.viewCount,
-              likeCount: foundVideo.likeCount,
-              topicCategories: foundVideo.topicCategories
+              ...foundVideo, 
+              reason: suggestion.reason 
             });
           } else {
-            console.error(`[${new Date().toISOString()}] Video ID ${id} suggested by Gemini was not found in the current videosForPlaylist array (length: ${videosForPlaylist.length}).`);
+            console.error(`[${new Date().toISOString()}] Video ID ${suggestion.videoId} suggested by Gemini was not found in the current videosForPlaylist array (length: ${videosForPlaylist.length}).`);
           }
         });
       }

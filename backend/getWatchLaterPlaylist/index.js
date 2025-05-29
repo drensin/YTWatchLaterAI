@@ -78,21 +78,42 @@ async function getAuthenticatedClient() {
   return oauth2Client;
 }
 
-function formatISO8601Duration(isoDuration) {
-  if (!isoDuration || typeof isoDuration !== 'string') {
-    return "00:00"; // Default or error format
+function setsAreEqual(arr1, arr2) {
+  if (arr1.length !== arr2.length) return false;
+  const set1 = new Set(arr1);
+  for (const item of arr2) { // Check if all items in arr2 are in set1
+    if (!set1.has(item)) return false;
   }
+  return true;
+}
 
+function parseISO8601DurationToSeconds(isoDuration) {
+  if (!isoDuration || typeof isoDuration !== 'string') {
+    return null; 
+  }
+  // Regex to capture H, M, S components from ISO 8601 duration (e.g., PT1H2M3S)
   const regex = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/;
   const matches = isoDuration.match(regex);
 
   if (!matches) {
-    return "00:00"; // Invalid format
+    console.warn(`[${new Date().toISOString()}] Invalid ISO 8601 duration format: ${isoDuration}`);
+    return null; 
   }
 
   const hours = parseInt(matches[1] || "0", 10);
   const minutes = parseInt(matches[2] || "0", 10);
   const seconds = parseInt(matches[3] || "0", 10);
+
+  return (hours * 3600) + (minutes * 60) + seconds;
+}
+
+function formatSecondsToHHMMSS(totalSeconds) {
+  if (totalSeconds === null || totalSeconds === undefined || isNaN(totalSeconds)) {
+    return "00:00";
+  }
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
 
   const HH = String(hours).padStart(2, '0');
   const MM = String(minutes).padStart(2, '0');
@@ -127,47 +148,132 @@ exports.getWatchLaterPlaylist = async (req, res) => {
         return;
       }
 
-      let allVideos = [];
+      let allVideos = []; // This will store the final list of video objects for the response
+      let currentPlaylistVideoIds = []; // Store IDs from YouTube API
       let nextPageToken = null;
       
-      console.log(`Fetching items for playlist ID: ${playlistId}...`);
+      console.log(`[${new Date().toISOString()}] Fetching video IDs from playlist: ${playlistId}...`);
 
+      // Step 1: Fetch all video IDs from the YouTube playlist
       do {
         const response = await youtube.playlistItems.list({
           auth: auth,
-          part: 'snippet,contentDetails', // This part is for playlistItems.list
-          playlistId: playlistId, // Use the provided playlistId
-          maxResults: 50, // Max allowed by API
+          part: 'snippet', // Only need snippet to get videoId
+          playlistId: playlistId,
+          maxResults: 50,
           pageToken: nextPageToken,
         });
 
-        console.log('Raw YouTube API response:', JSON.stringify(response.data, null, 2)); // Log raw response
+        // console.log('Raw YouTube API snippet response:', JSON.stringify(response.data, null, 2)); 
+
+        const items = response.data.items;
+        if (items) {
+          for (const item of items) {
+            currentPlaylistVideoIds.push(item.snippet.resourceId.videoId);
+          }
+        }
+        nextPageToken = response.data.nextPageToken;
+      } while (nextPageToken);
+      console.log(`[${new Date().toISOString()}] Found ${currentPlaylistVideoIds.length} video IDs in playlist ${playlistId}.`);
+
+      // Step 2: Fetch existing video IDs from Datastore for this playlist
+      console.log(`[${new Date().toISOString()}] Fetching existing video IDs from Datastore for playlist: ${playlistId}...`);
+      const datastoreQuery = datastore.createQuery('Videos')
+        .filter('playlistId_original', '=', playlistId)
+        .select('videoId'); // Only fetch the videoId property
+      const [existingDatastoreVideos] = await datastore.runQuery(datastoreQuery);
+      const existingDatastoreVideoIds = existingDatastoreVideos.map(v => v.videoId);
+      console.log(`[${new Date().toISOString()}] Found ${existingDatastoreVideoIds.length} videos in Datastore for playlist: ${playlistId}.`);
+
+      // Step 3: Compare sets of IDs
+      if (setsAreEqual(currentPlaylistVideoIds, existingDatastoreVideoIds)) {
+        console.log(`[${new Date().toISOString()}] Playlist membership matches Datastore. Fetching full details from Datastore...`);
+        // Fetch full details for these videos from Datastore
+        const keys = currentPlaylistVideoIds.map(id => datastore.key(['Videos', id]));
+        const [videosFromDatastore] = await datastore.get(keys);
+        
+        allVideos = videosFromDatastore.map(dsVideo => {
+          // Reconstruct the videoDataForFrontend structure from Datastore entity
+          // Note: Datastore entity properties are directly on the object, not in a 'data' sub-object after a get by key.
+          // And the array structure we used for upsert is flattened.
+          // We need to ensure the fields match what the frontend expects.
+          // The 'videoDataForDatastore' array was structured as [{name: 'prop', value: 'val'}...].
+          // This means we need to reconstruct the object.
+          // However, if datastore.get(keys) returns the objects directly, it's simpler.
+          // Let's assume datastore.get(keys) returns objects with properties directly.
+          // We need to ensure the 'duration' (formatted string) is present if frontend expects it.
+          // And that topicCategories is an array.
+          return {
+            videoId: dsVideo.videoId,
+            title: dsVideo.title,
+            description: dsVideo.description,
+            publishedAt: dsVideo.publishedAt ? dsVideo.publishedAt.value : null, // Datastore Date objects have a 'value' property
+            channelId: dsVideo.channelId,
+            channelTitle: dsVideo.channelTitle,
+            thumbnailUrl: dsVideo.thumbnailUrl,
+            duration: formatSecondsToHHMMSS(dsVideo.durationSeconds), // Format for display
+            durationSeconds: dsVideo.durationSeconds,
+            viewCount: dsVideo.viewCount,
+            likeCount: dsVideo.likeCount,
+            topicCategories: Array.isArray(dsVideo.topicCategories) ? dsVideo.topicCategories : [],
+          };
+        });
+
+        console.log(`[${new Date().toISOString()}] Successfully fetched ${allVideos.length} videos from Datastore.`);
+        res.status(200).json({
+          message: `Successfully fetched ${allVideos.length} videos from cache.`,
+          videoCount: allVideos.length,
+          videos: allVideos,
+        });
+        return; // Exit early as we don't need to fetch from YouTube/Wikidata
+      }
+      
+      console.log(`[${new Date().toISOString()}] Playlist membership changed or not fully cached. Proceeding to fetch/update all video details...`);
+      // Reset allVideos as we will rebuild it with fresh data
+      allVideos = []; 
+      nextPageToken = null; // Reset for the main loop
+
+      // Main loop to fetch playlist items (again, but this time for full processing)
+      // This is slightly inefficient as we fetch snippets twice if playlist changed.
+      // Could be optimized by passing down the 'items' from the first ID fetch if needed.
+      // For now, keeping it simple by re-fetching.
+      do {
+        const response = await youtube.playlistItems.list({
+          auth: auth,
+          part: 'snippet,contentDetails', // Corrected: Need contentDetails for item.snippet.title etc.
+          playlistId: playlistId,
+          maxResults: 50,
+          pageToken: nextPageToken,
+        });
 
         const items = response.data.items;
         if (items) {
           for (const item of items) {
             const videoId = item.snippet.resourceId.videoId;
             
-            let duration = null;
+            let duration = null; 
+            let durationInSeconds = null; 
             let viewCount = null;
             let likeCount = null;
             let topicCategories = [];
-            let videoPublishedAt = null; // For video's own publish date
-            let videoChannelId = null;   // For video's own channelId
-            let videoChannelTitle = null; // For video's own channelTitle
+            let videoPublishedAt = null; 
+            let videoChannelId = null;   
+            let videoChannelTitle = null;
 
 
             try {
               console.log(`[${new Date().toISOString()}] Fetching details for video ID: ${videoId}`);
               const videoDetailsResponse = await youtube.videos.list({
                 auth: auth,
-                part: 'snippet,contentDetails,statistics,topicDetails', // Added snippet
+                part: 'snippet,contentDetails,statistics,topicDetails', 
                 id: videoId,
               });
 
               if (videoDetailsResponse.data.items && videoDetailsResponse.data.items.length > 0) {
                 const videoItem = videoDetailsResponse.data.items[0];
-                duration = formatISO8601Duration(videoItem.contentDetails?.duration); // Format the duration
+                const isoDuration = videoItem.contentDetails?.duration;
+                durationInSeconds = parseISO8601DurationToSeconds(isoDuration); // Assign to the outer scope variable
+                duration = formatSecondsToHHMMSS(durationInSeconds); 
                 viewCount = videoItem.statistics?.viewCount;
                 likeCount = videoItem.statistics?.likeCount;
                 videoPublishedAt = videoItem.snippet?.publishedAt;
@@ -213,7 +319,8 @@ exports.getWatchLaterPlaylist = async (req, res) => {
               channelId: videoChannelId || item.snippet.channelId, 
               channelTitle: videoChannelTitle || item.snippet.channelTitle, 
               thumbnailUrl: item.snippet.thumbnails?.default?.url,
-              duration: duration,
+              duration: duration, // Formatted string for display
+              durationSeconds: durationInSeconds, // Use the calculated seconds
               viewCount: viewCount,
               likeCount: likeCount,
               topicCategories: topicCategories,
@@ -230,7 +337,7 @@ exports.getWatchLaterPlaylist = async (req, res) => {
               { name: 'channelId', value: videoChannelId || item.snippet.channelId || null }, 
               { name: 'channelTitle', value: videoChannelTitle || item.snippet.channelTitle || '' }, 
               { name: 'thumbnailUrl', value: item.snippet.thumbnails?.default?.url || null, excludeFromIndexes: true },
-              { name: 'duration', value: duration || "00:00" }, 
+              { name: 'durationSeconds', value: durationInSeconds }, // Use the calculated seconds
               { name: 'viewCount', value: viewCount ? parseInt(viewCount, 10) : null },
               { name: 'likeCount', value: likeCount ? parseInt(likeCount, 10) : null },
               { name: 'topicCategories', value: topicCategories, excludeFromIndexes: true },

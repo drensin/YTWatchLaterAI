@@ -57,18 +57,19 @@ function VideoList({ videos }) {
   }
 
   return (
-    <ul>
+    <ul className="video-list"> {/* Added a class for potential styling */}
       {videos.map(video => (
-        <li key={video.videoId || video.id}> {/* Ensure key is stable */}
-          <h4>{video.title}</h4>
-          <p><strong>Description:</strong> {video.description ? video.description.substring(0, 100) + '...' : 'No description'}</p>
-          {video.duration && <p><strong>Duration:</strong> {video.duration}</p>}
-          {video.viewCount && <p><strong>Views:</strong> {Number(video.viewCount).toLocaleString()}</p>}
-          {video.likeCount && <p><strong>Likes:</strong> {Number(video.likeCount).toLocaleString()}</p>}
-          {video.topicCategories && video.topicCategories.length > 0 && (
-            <p><strong>Topics:</strong> {video.topicCategories.join(', ')}</p>
+        <li key={video.videoId || video.id} className="video-list-item"> {/* Ensure key is stable and added class */}
+          {video.thumbnailUrl && (
+            <img src={video.thumbnailUrl} alt={`Thumbnail for ${video.title}`} style={{ width: '120px', height: '90px', marginRight: '10px', float: 'left' }} />
           )}
-          {/* Add more video details as needed */}
+          <div style={{ overflow: 'hidden' }}> {/* Container to clear float */}
+            <h4>{video.title}</h4>
+            <p><strong>Description:</strong> {video.description ? video.description.substring(0, 200) + '...' : 'No description'}</p> {/* Increased substring length */}
+            {video.duration && <p><strong>Duration:</strong> {video.duration}</p>}
+            {/* Not displaying views, likes, topics for suggested videos to keep it concise, but data is available if needed */}
+            {video.reason && <p style={{ color: 'green', fontStyle: 'italic' }}><strong>Reason for suggestion:</strong> {video.reason}</p>}
+          </div>
         </li>
       ))}
     </ul>
@@ -262,15 +263,22 @@ function App() {
             {selectedPlaylistId && (
               <>
                 <ChatInterface onQuerySubmit={handleQuerySubmit} />
+                {/* Display success message after playlist items are fetched */}
+                {!isLoading && videos.length > 0 && selectedPlaylistId && (
+                  <p style={{ marginTop: '10px' }}>
+                    Successfully loaded {videos.length} videos from playlist "{userPlaylists.find(p => p.id === selectedPlaylistId)?.title}".
+                  </p>
+                )}
+                {/* Only show "Loading videos..." when videos are actually being fetched for the main list, not for suggestions */}
+                {isLoading && !suggestedVideos.length && selectedPlaylistId && <p>Loading videos...</p>}
+
                 <h2>Suggested Videos</h2>
-            {isLoading && <p>Loading suggestions...</p>}
+                {isLoading && suggestedVideos.length === 0 && <p>Loading suggestions...</p>} {/* Show loading suggestions only if suggestions are being loaded */}
                 <VideoList videos={suggestedVideos} />
-                <h2>Videos in "{userPlaylists.find(p => p.id === selectedPlaylistId)?.title}"</h2>
-                {isLoading && <p>Loading videos...</p>}
-                <VideoList videos={videos} />
+                {/* Removed the display of the full video list that was here */}
               </>
             )}
-            {!selectedPlaylistId && userPlaylists.length > 0 && <p>Select a playlist above to see its videos.</p>}
+            {!selectedPlaylistId && userPlaylists.length > 0 && <p>Select a playlist above to see its videos and get suggestions.</p>}
             {!selectedPlaylistId && userPlaylists.length === 0 && isLoggedIn && !isLoading && <p>No playlists found or still loading playlists.</p>}
           </>
         )}

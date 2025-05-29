@@ -1,10 +1,13 @@
 .App {
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
 .App-header {
   background-color: #282c34;
-  min-height: 10vh;
+  /* min-height: 10vh; */ /* Let content define height */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -12,11 +15,16 @@
   font-size: calc(10px + 2vmin);
   color: white;
   padding: 20px;
-  margin-bottom: 20px;
+  /* margin-bottom: 20px; */ /* Removed to allow main to flex-grow */
 }
 
 main {
   padding: 20px;
+  flex-grow: 1; /* Allows main to take up available space */
+  max-width: 1200px; /* Max width for content area */
+  width: 100%;
+  margin: 0 auto; /* Center content */
+  box-sizing: border-box;
 }
 
 form {
@@ -28,8 +36,9 @@ input[type="text"] {
   margin-right: 10px;
   border: 1px solid #ccc;
   border-radius: 4px;
-  width: 60%;
+  width: 70%; /* Default width */
   max-width: 400px;
+  box-sizing: border-box;
 }
 
 button {
@@ -55,15 +64,121 @@ ul {
   padding: 0;
 }
 
-li {
+/* Styles for .video-list and .video-list-item from App.js */
+.video-list-item {
   background-color: #f9f9f9;
   border: 1px solid #eee;
-  padding: 10px;
-  margin-bottom: 10px;
+  padding: 15px; /* Increased padding */
+  margin-bottom: 15px; /* Increased margin */
   border-radius: 4px;
   text-align: left;
+  display: flex; /* Use flexbox for layout */
+  flex-direction: row; /* Default: image on left, text on right */
+  align-items: flex-start; /* Align items to the top */
 }
 
-li h4 {
+.video-list-item img {
+  width: 120px;
+  height: 90px;
+  margin-right: 15px; /* Increased margin */
+  object-fit: cover; /* Ensure image covers the area without distortion */
+  flex-shrink: 0; /* Prevent image from shrinking */
+}
+
+.video-list-item div { /* Text content container */
+  flex-grow: 1; /* Allow text content to take remaining space */
+}
+
+.video-list-item h4 {
   margin-top: 0;
+  margin-bottom: 8px; /* Added margin */
+}
+
+.video-list-item p {
+  margin-top: 4px; /* Added margin */
+  margin-bottom: 4px; /* Added margin */
+  font-size: 0.9em; /* Slightly smaller paragraph text */
+}
+
+/* Media Queries for Responsiveness */
+@media (max-width: 768px) {
+  .App-header {
+    font-size: calc(12px + 2vmin); /* Adjust font size */
+  }
+
+  /* Playlist Selector Div adjustments */
+  main > div:first-child { /* Targeting the div containing playlist selector */
+    display: flex;
+    flex-direction: column;
+    align-items: stretch; /* Make children take full width */
+    margin-bottom: 15px;
+  }
+
+  main > div:first-child label {
+    margin-bottom: 5px;
+    text-align: left;
+  }
+
+  main > div:first-child select,
+  main > div:first-child button {
+    width: 100%;
+    box-sizing: border-box; /* Ensure padding and border are included in width */
+  }
+  
+  main > div:first-child select {
+    margin-bottom: 10px; /* Space between select and button when stacked */
+    padding: 10px; /* Add padding to select for better touch target */
+    font-size: 1em; /* Ensure select font size is consistent */
+  }
+
+
+  input[type="text"] {
+    width: 100%; /* Full width on smaller screens */
+    margin-right: 0;
+    margin-bottom: 10px; /* Add space below input if button stacks */
+  }
+
+  form {
+    display: flex;
+    flex-direction: column; /* Stack input and button */
+    align-items: stretch; /* Make children take full width */
+  }
+
+  form button {
+    width: 100%; /* Make button full width */
+  }
+
+  .video-list-item {
+    flex-direction: column; /* Stack image and text content */
+    align-items: center; /* Center items when stacked */
+    text-align: center; /* Center text when stacked */
+  }
+
+  .video-list-item img {
+    margin-right: 0;
+    margin-bottom: 10px; /* Space between image and text */
+    width: 80%; /* Larger image when stacked */
+    max-width: 240px; /* Max width for stacked image */
+    height: auto; /* Maintain aspect ratio */
+  }
+   .video-list-item div {
+    width: 100%; /* Ensure text div takes full width */
+  }
+}
+
+@media (max-width: 480px) {
+  main {
+    padding: 10px; /* Reduce padding on very small screens */
+  }
+  
+  .video-list-item {
+    padding: 10px;
+  }
+
+  .video-list-item h4 {
+    font-size: 1.1em; /* Adjust heading size */
+  }
+   .video-list-item p {
+    font-size: 0.85em; /* Adjust paragraph text size */
+  }
 }

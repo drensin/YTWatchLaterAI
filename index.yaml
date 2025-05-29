@@ -1,0 +1,5 @@
+indexes:
+- kind: Videos
+  properties:
+  - name: playlistId_original
+  - name: videoId
