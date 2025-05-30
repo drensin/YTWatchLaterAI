@@ -114,50 +114,32 @@ exports.chatWithPlaylist = async (req, res) => {
         { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
         { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
       ];
-      const model = genAI.getGenerativeModel({ model: effectiveModelId, safetySettings }); 
+      const generationConfig = {
+        temperature: 0,
+        responseMimeType: 'application/json',
+      };
+      const thinkingConfig = { // As per user's feedback for optimization
+        thinkingBudget: 0,
+      };
+      const model = genAI.getGenerativeModel({ model: effectiveModelId, safetySettings, generationConfig, thinkingConfig }); 
       
-      const singleShotPrompt = `You are a helpful assistant. Your task is to find videos from the 'Video List' below that match the 'User Query'.
+      const singleShotPrompt = `You are an AI assistant. I will provide a 'User Query' and a 'Video List'.
+Your task is to recommend videos from the 'Video List' that best match the 'User Query'.
+Use your best judgment. For each video you recommend, provide a short explanation for your selection.
 
 User Query: "${query}"
 
 Video List (JSON format):
 ${videoContext}
+// Each video in the list has: ID, Title, Description, DurationSeconds, Topics (an array of strings), PublishedTimestamp.
 
-Instructions:
-1. The 'Video List' is provided in JSON format. Parse this JSON data. Each video object includes fields like 'ID', 'Title', 'Description', 'DurationSeconds', 'Topics', 'PublishedTimestamp'.
-2. Carefully analyze the 'User Query' to understand all criteria (e.g., keywords, duration constraints, topic requests).
-3. For each video in the 'Video List', evaluate it against ALL criteria from the 'User Query'.
-   - For keyword matching, check 'Title' and 'Description'.
-   - For duration, use 'DurationSeconds' (total seconds). For example, "longer than 1 hr" means 'DurationSeconds' > 3600.
-   - For topics, check the 'Topics' string.
-4. A video is a match ONLY IF it satisfies ALL specified criteria in the 'User Query'.
-5. Your response MUST be a JSON object with a single key: "suggestedVideos".
-   The value of "suggestedVideos" MUST be an array of objects. Each object in the array MUST have two keys:
-     - "videoId": The 'ID' of a video from the 'Video List' that strictly matches ALL criteria.
-     - "reason": A brief explanation (1-2 sentences) detailing how this specific video meets ALL criteria from the User Query.
-   If NO videos strictly match ALL criteria, the "suggestedVideos" array MUST be empty. It is critical to return an empty array in this case, rather than an error or no response.
+Your response MUST be a valid JSON object with a single key: "suggestedVideos".
+The value of "suggestedVideos" MUST be an array.
+Each object in the array MUST have two keys:
+  - "videoId": The 'ID' of a recommended video.
+  - "reason": Your brief explanation for the recommendation.
+If NO videos match, "suggestedVideos" MUST be an empty array.
 Output ONLY the JSON object.
-
-Example for User Query "documentaries longer than 1 hour":
-If a video has ID "vid3", Topics contains "Documentary", and DurationSeconds is 4000:
-{
-  "suggestedVideos": [
-    {
-      "videoId": "vid3",
-      "reason": "This video is a Documentary and its duration of 4000 seconds is longer than 1 hour (3600 seconds)."
-    }
-  ]
-}
-
-Example for User Query "Cory Henry piano solo":
-{
-  "suggestedVideos": [
-    {
-      "videoId": "vid2",
-      "reason": "This video titled 'Cory Henry Live Concert' is relevant as it likely features Cory Henry and may include piano solos."
-    }
-  ]
-}
 `;
       
       console.log(`[${new Date().toISOString()}] Sending single-shot prompt to Gemini...`);
