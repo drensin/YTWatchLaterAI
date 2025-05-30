@@ -91,12 +91,12 @@ function VideoList({ videos }) {
     const maxLength = 200;
 
     if (description.length <= maxLength) {
-      return <p><strong>Description:</strong> {description}</p>;
+      return <p className="video-description"><strong>Description:</strong> {description}</p>;
     }
 
     if (isExpanded) {
       return (
-        <p>
+        <p className="video-description">
           <strong>Description:</strong> {description}
           <button onClick={() => toggleDescription(video.videoId || video.id)} className="more-less-button">
             Less...
@@ -105,7 +105,7 @@ function VideoList({ videos }) {
       );
     } else {
       return (
-        <p>
+        <p className="video-description">
           <strong>Description:</strong> {description.substring(0, maxLength)}...
           <button onClick={() => toggleDescription(video.videoId || video.id)} className="more-less-button">
             More...

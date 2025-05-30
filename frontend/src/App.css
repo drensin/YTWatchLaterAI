@@ -138,6 +138,10 @@ ul {
   font-size: 0.9em; /* Slightly smaller paragraph text */
 }
 
+.video-description {
+  white-space: pre-wrap; /* Preserve whitespace and newlines */
+}
+
 /* Playlist Selector Div adjustments - Apply to all screen sizes */
 main > div:first-child { /* This is the playlist selector container */
   display: flex;
