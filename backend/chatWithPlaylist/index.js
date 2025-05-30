@@ -33,6 +33,25 @@ async function initializeGenAI() {
   return genAI;
 }
 
+// Helper function to format duration (copied from getWatchLaterPlaylist)
+function formatSecondsToHHMMSS(totalSeconds) {
+  if (totalSeconds === null || totalSeconds === undefined || isNaN(totalSeconds)) {
+    return "00:00"; // Default or error format
+  }
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  const HH = String(hours).padStart(2, '0');
+  const MM = String(minutes).padStart(2, '0');
+  const SS = String(seconds).padStart(2, '0');
+
+  if (hours > 0) {
+    return `${HH}:${MM}:${SS}`;
+  }
+  return `${MM}:${SS}`;
+}
+
 // Cloud Function Entry Point
 exports.chatWithPlaylist = async (req, res) => {
   corsMiddleware(req, res, async () => {
@@ -99,15 +118,30 @@ Video List (JSON format):
 ${videoContext}
 
 Instructions:
-1. The 'Video List' is provided in JSON format. Parse this JSON data. Each video object includes a 'PublishedTimestamp' field (Unix timestamp in milliseconds), 'DurationSeconds', 'Topics', etc.
-2. For each video object in the 'Video List', determine if it's relevant to the 'User Query' by checking its 'Title', 'Description', and other metadata like 'Topics' or 'PublishedTimestamp' if applicable.
-3. If a video is relevant, include it in your response.
-4. Your response MUST be a JSON object with a single key: "suggestedVideos".
+1. The 'Video List' is provided in JSON format. Parse this JSON data. Each video object includes fields like 'ID', 'Title', 'Description', 'DurationSeconds', 'Topics', 'PublishedTimestamp'.
+2. Carefully analyze the 'User Query' to understand all criteria (e.g., keywords, duration constraints, topic requests).
+3. For each video in the 'Video List', evaluate it against ALL criteria from the 'User Query'.
+   - For keyword matching, check 'Title' and 'Description'.
+   - For duration, use 'DurationSeconds' (total seconds). For example, "longer than 1 hr" means 'DurationSeconds' > 3600.
+   - For topics, check the 'Topics' string.
+4. A video is a match ONLY IF it satisfies ALL specified criteria in the 'User Query'.
+5. Your response MUST be a JSON object with a single key: "suggestedVideos".
    The value of "suggestedVideos" MUST be an array of objects. Each object in the array MUST have two keys:
-     - "videoId": The 'ID' of the suggested video from the 'Video List'.
-     - "reason": A brief explanation (1-2 sentences) why this specific video was selected as relevant to the User Query.
-   If no videos are relevant, the "suggestedVideos" array MUST be empty.
+     - "videoId": The 'ID' of a video from the 'Video List' that strictly matches ALL criteria.
+     - "reason": A brief explanation (1-2 sentences) detailing how this specific video meets ALL criteria from the User Query.
+   If NO videos strictly match ALL criteria, the "suggestedVideos" array MUST be empty. It is critical to return an empty array in this case, rather than an error or no response.
 Output ONLY the JSON object.
+
+Example for User Query "documentaries longer than 1 hour":
+If a video has ID "vid3", Topics contains "Documentary", and DurationSeconds is 4000:
+{
+  "suggestedVideos": [
+    {
+      "videoId": "vid3",
+      "reason": "This video is a Documentary and its duration of 4000 seconds is longer than 1 hour (3600 seconds)."
+    }
+  ]
+}
 
 Example for User Query "Cory Henry piano solo":
 {
@@ -126,36 +160,47 @@ Example for User Query "Cory Henry piano solo":
       const text = response.text();
       console.log(`[${new Date().toISOString()}] Gemini response text:`, text);
       
-      let jsonString = text.trim();
-      // Remove markdown fences if present
-      if (jsonString.startsWith("```json")) {
-        jsonString = jsonString.substring(7);
-      }
-      if (jsonString.endsWith("```")) {
-        jsonString = jsonString.substring(0, jsonString.length - 3);
-      }
-      jsonString = jsonString.trim();
+      let cleanedJsonText = text.trim();
 
-      // Attempt to extract the main JSON object if there's extra text
-      // Find the first '{' and the last '}'
-      const firstBrace = jsonString.indexOf('{');
-      const lastBrace = jsonString.lastIndexOf('}');
-
-      let cleanedJsonText = jsonString; // Default to the cleaned string
-      if (firstBrace !== -1 && lastBrace > firstBrace) {
-        cleanedJsonText = jsonString.substring(firstBrace, lastBrace + 1);
+      // Step 1: Remove optional markdown fences
+      if (cleanedJsonText.startsWith("```json")) {
+        cleanedJsonText = cleanedJsonText.substring(7);
       }
-      // Further ensure it's just the object, in case of trailing text after valid JSON
-      try {
-        JSON.parse(cleanedJsonText); // Test if this substring is valid JSON
-      } catch (e) {
-        // If substring parsing fails, revert to jsonString which might be the full (but problematic) string
-        // This can happen if the main content isn't actually a single object.
-        // However, our prompt asks for a single JSON object.
-        console.warn(`[${new Date().toISOString()}] Substring extraction for JSON failed, trying original cleaned string. Error: ${e.message}`);
-        cleanedJsonText = jsonString; 
+      // Remove trailing markdown fence if it exists, even after initial strip
+      if (cleanedJsonText.endsWith("```")) {
+        cleanedJsonText = cleanedJsonText.substring(0, cleanedJsonText.length - 3);
       }
+      cleanedJsonText = cleanedJsonText.trim(); // Trim again after potential markdown removal
 
+      // Step 2: Extract the first complete JSON object using brace balancing
+      // This will run regardless of whether markdown was stripped or not.
+      const firstBrace = cleanedJsonText.indexOf('{');
+      if (firstBrace !== -1) {
+        let balance = 0;
+        let lastBraceIndex = -1;
+        for (let i = firstBrace; i < cleanedJsonText.length; i++) {
+          if (cleanedJsonText[i] === '{') {
+            balance++;
+          } else if (cleanedJsonText[i] === '}') {
+            balance--;
+            if (balance === 0) {
+              lastBraceIndex = i;
+              break; 
+            }
+          }
+        }
+        if (lastBraceIndex !== -1) {
+          cleanedJsonText = cleanedJsonText.substring(firstBrace, lastBraceIndex + 1);
+        } else {
+          // Mismatched braces, likely not valid JSON from the start
+          console.warn(`[${new Date().toISOString()}] JSON parsing warning: Mismatched braces in Gemini response after initial cleaning. Text: ${cleanedJsonText}`);
+        }
+      } else {
+        // No opening brace found, definitely not JSON
+         console.warn(`[${new Date().toISOString()}] JSON parsing warning: No opening brace found in Gemini response after initial cleaning. Text: ${cleanedJsonText}`);
+      }
+      // Final trim, though the substring should be tight
+      cleanedJsonText = cleanedJsonText.trim();
 
       let parsedResponse;
       let suggestionsFromGemini = []; // Will store array of {videoId, reason}
@@ -182,10 +227,13 @@ Example for User Query "Cory Henry piano solo":
         suggestionsFromGemini.forEach(suggestion => {
           const foundVideo = videosForPlaylist.find(v => v.videoId === suggestion.videoId);
           if (foundVideo) {
-            suggestedVideosFull.push({
-              ...foundVideo, 
-              reason: suggestion.reason 
-            });
+            // Ensure the 'duration' field (formatted string) is present for the frontend
+            const videoWithFormattedDuration = {
+              ...foundVideo,
+              duration: formatSecondsToHHMMSS(foundVideo.durationSeconds), // Add/overwrite with formatted duration
+              reason: suggestion.reason
+            };
+            suggestedVideosFull.push(videoWithFormattedDuration);
           } else {
             console.error(`[${new Date().toISOString()}] Video ID ${suggestion.videoId} suggested by Gemini was not found in the current videosForPlaylist array (length: ${videosForPlaylist.length}).`);
           }

@@ -46,14 +46,36 @@ function ChatInterface({ onQuerySubmit }) {
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Ask about your playlist..."
       />
-      <button type="submit">Send</button>
+      <button type="submit" className="send-button" title="Send query">➤</button>
     </form>
+  );
+}
+
+// --- Loading Overlay Component ---
+function LoadingOverlay() {
+  return (
+    <div className="loading-overlay">
+      <div className="spinner"></div>
+      <p>Loading...</p>
+    </div>
+  );
+}
+
+// --- Status Popup Component ---
+function StatusPopup({ message, type }) {
+  if (!message) return null;
+  return (
+    <div className={`status-popup ${type}`}>
+      {message}
+    </div>
   );
 }
 
 function VideoList({ videos }) {
   if (!videos || videos.length === 0) {
-    return <p>No videos to display. Try logging in or fetching your playlist.</p>;
+    // Return null or a more subtle message if the main list isn't shown by default
+    // For suggested videos, "No videos to display" is fine if it's empty after a query.
+    return <p>No videos to display.</p>; // Simplified message
   }
 
   return (
@@ -65,10 +87,18 @@ function VideoList({ videos }) {
           )}
           <div style={{ overflow: 'hidden' }}> {/* Container to clear float */}
             <h4>{video.title}</h4>
-            <p><strong>Description:</strong> {video.description ? video.description.substring(0, 200) + '...' : 'No description'}</p> {/* Increased substring length */}
             {video.duration && <p><strong>Duration:</strong> {video.duration}</p>}
-            {/* Not displaying views, likes, topics for suggested videos to keep it concise, but data is available if needed */}
-            {video.reason && <p style={{ color: 'green', fontStyle: 'italic' }}><strong>Reason for suggestion:</strong> {video.reason}</p>}
+            <p><strong>Description:</strong> {video.description ? video.description.substring(0, 200) + '...' : 'No description'}</p>
+            {video.reason && <p style={{ color: 'green', fontStyle: 'italic' }}><strong>Reason:</strong> {video.reason}</p>}
+            <a 
+              href={`https://www.youtube.com/watch?v=${video.videoId}`} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="watch-link"
+              title="Watch on YouTube"
+            >
+              📺 Watch
+            </a>
           </div>
         </li>
       ))}
@@ -84,11 +114,16 @@ function App() {
   const [selectedPlaylistId, setSelectedPlaylistId] = useState('');
   const [videos, setVideos] = useState([]);
   const [suggestedVideos, setSuggestedVideos] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); 
   const [error, setError] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [showOverlay, setShowOverlay] = useState(false); 
+  const [popup, setPopup] = useState({ visible: false, message: '', type: '' }); 
+  const [lastQuery, setLastQuery] = useState(''); // New state for the last submitted query
 
   const fetchUserPlaylists = useCallback(async () => {
-    setIsLoading(true);
+    setShowOverlay(true); // Show overlay
+    // setIsLoading(true); // setIsLoading can still be used for specific parts if needed
     setError(null);
     try {
       const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.listUserPlaylists, {
@@ -109,17 +144,19 @@ function App() {
       setError(err.message);
       setUserPlaylists([]);
     } finally {
-      setIsLoading(false);
+      // setIsLoading(false);
+      setShowOverlay(false); // Hide overlay
     }
-  }, []);
+  }, []); // Removed setShowOverlay from deps as it's a setter
 
   // Renamed to fetchPlaylistItems to be more specific
   const fetchPlaylistItems = useCallback(async (playlistId) => {
     if (!playlistId) {
-      setVideos([]); // Clear videos if no playlist is selected
+      setVideos([]); 
       return;
     }
-    setIsLoading(true);
+    setShowOverlay(true); // Show overlay
+    // setIsLoading(true);
     setError(null);
     try {
       // This function now needs the playlistId to be passed to the backend
@@ -139,30 +176,66 @@ function App() {
         throw new Error(`Failed to fetch playlist: ${errData.message || response.statusText}`);
       }
       const data = await response.json();
-      setVideos(data.videos || []); 
+      setVideos(data.videos || []);
+      // Show success popup
+      const playlistTitle = userPlaylists.find(p => p.id === playlistId)?.title || 'selected playlist';
+      setPopup({ 
+        visible: true, 
+        message: `Successfully loaded ${data.videos?.length || 0} videos from playlist "${playlistTitle}".`, 
+        type: 'success' 
+      });
+      setTimeout(() => setPopup(prev => ({ ...prev, visible: false })), 3000); // Hide after 3 seconds
     } catch (err) {
       console.error("Error fetching playlist items:", err);
-      setError(err.message);
+      setError(err.message); // Keep existing error handling
       setVideos([]);
+      setPopup({ visible: true, message: `Error fetching playlist: ${err.message}`, type: 'error' });
+      setTimeout(() => setPopup(prev => ({ ...prev, visible: false })), 5000); // Hide error after 5 seconds
     } finally {
-      setIsLoading(false);
+      // setIsLoading(false);
+      setShowOverlay(false); // Hide overlay
     }
-  }, []); // Dependencies might be needed if it uses state/props not defined in its scope
+  }, [userPlaylists]); // Added userPlaylists to deps for accessing title
 
-  // Effect to handle OAuth callback and set login status
+  // Effect to handle OAuth callback AND initial auth check
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const oauthStatus = urlParams.get('oauth_status');
 
     if (oauthStatus === 'success') {
-      setIsLoggedIn(true); // Set logged in status
-      // Clean the URL
+      setIsLoggedIn(true);
+      setAuthChecked(true);
       window.history.replaceState({}, document.title, window.location.pathname);
     } else if (oauthStatus === 'error') {
       setError("OAuth failed: " + urlParams.get('error_message'));
+      setAuthChecked(true);
+      setIsLoggedIn(false); // Ensure logged out on error
       window.history.replaceState({}, document.title, window.location.pathname);
+    } else {
+      // No OAuth params, try to check auth by fetching playlists
+      // This is a simplified check; a dedicated auth-check endpoint would be better.
+      const attemptAutoLogin = async () => {
+        setShowOverlay(true); // Show overlay during auth check
+        // setIsLoading(true); 
+        try {
+          const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.listUserPlaylists); 
+          if (response.ok) {
+            setIsLoggedIn(true); 
+          } else {
+            setIsLoggedIn(false); 
+          }
+        } catch (err) {
+          console.error("Auto-login check failed:", err);
+          setIsLoggedIn(false); 
+        } finally {
+          // setIsLoading(false);
+          setShowOverlay(false); // Hide overlay
+          setAuthChecked(true); 
+        }
+      };
+      attemptAutoLogin();
     }
-  }, []); // Runs once on mount to check URL params
+  }, []); // Runs once on mount
 
   // Effect to fetch user playlists when isLoggedIn becomes true
   useEffect(() => {
@@ -207,7 +280,8 @@ function App() {
         console.warn("User not logged in or chatWithPlaylist URL not set. Skipping query.");
         return;
     }
-    setIsLoading(true);
+    setShowOverlay(true); 
+    setLastQuery(query); // Store the submitted query
     setError(null);
     try {
       // This calls the 'chatWithPlaylist' Cloud Function
@@ -230,17 +304,21 @@ function App() {
       setError(err.message);
       setSuggestedVideos([]);
     } finally {
-      setIsLoading(false);
+      // setIsLoading(false);
+      setShowOverlay(false); // Hide overlay
     }
   };
 
 
   return (
     <div className="App">
+      {showOverlay && <LoadingOverlay />} 
+      {popup.visible && <StatusPopup message={popup.message} type={popup.type} />} {/* Render StatusPopup */}
       <header className="App-header">
         <h1>YT Watch Later Manager</h1>
-        {!isLoggedIn && <LoginButton onLoginSuccess={handleLoginSuccess} />}
-        {isLoggedIn && <p>Welcome! You are logged in.</p>}
+        {!authChecked && !showOverlay && <p>Checking authentication...</p>} {/* Hide "Checking auth" if overlay is shown for it */}
+        {authChecked && !isLoggedIn && <LoginButton onLoginSuccess={handleLoginSuccess} />}
+        {authChecked && isLoggedIn && <p>Welcome! You are logged in.</p>}
       </header>
       <main>
         {error && <p style={{ color: 'red' }}>Error: {error}</p>}
@@ -256,24 +334,34 @@ function App() {
                   </option>
                 ))}
               </select>
-              <button onClick={refreshSelectedPlaylistItems} disabled={isLoading || !selectedPlaylistId} style={{marginLeft: '10px'}}>
-                {isLoading && selectedPlaylistId ? 'Refreshing Items...' : 'Refresh Items'}
+              <button 
+                onClick={refreshSelectedPlaylistItems} 
+                disabled={isLoading || !selectedPlaylistId} 
+                className="refresh-button" // Added className
+                style={{ marginLeft: '10px' }} // Removed padding from inline, will handle in CSS
+                title="Refresh playlist items"
+              >
+                🔄 
               </button>
             </div>
             {selectedPlaylistId && (
               <>
                 <ChatInterface onQuerySubmit={handleQuerySubmit} />
-                {/* Display success message after playlist items are fetched */}
-                {!isLoading && videos.length > 0 && selectedPlaylistId && (
-                  <p style={{ marginTop: '10px' }}>
-                    Successfully loaded {videos.length} videos from playlist "{userPlaylists.find(p => p.id === selectedPlaylistId)?.title}".
+                {/* Removed the static success message paragraph, now handled by StatusPopup */}
+                
+                {/* Only show "Loading videos..." when videos are actually being fetched for the main list, not for suggestions */}
+                {/* This isLoading is the general one, might need more specific one if overlay is active */}
+                {isLoading && !showOverlay && !suggestedVideos.length && selectedPlaylistId && <p>Loading videos...</p>}
+
+                <h2>
+                  {suggestedVideos.length > 0 ? `${suggestedVideos.length} Suggested Videos` : (lastQuery ? "No Suggestions Found" : "Suggested Videos")}
+                </h2>
+                {lastQuery && (
+                  <p className="last-query-display">
+                    For query: <em>"{lastQuery}"</em>
                   </p>
                 )}
-                {/* Only show "Loading videos..." when videos are actually being fetched for the main list, not for suggestions */}
-                {isLoading && !suggestedVideos.length && selectedPlaylistId && <p>Loading videos...</p>}
-
-                <h2>Suggested Videos</h2>
-                {isLoading && suggestedVideos.length === 0 && <p>Loading suggestions...</p>} {/* Show loading suggestions only if suggestions are being loaded */}
+                {isLoading && suggestedVideos.length === 0 && <p>Loading suggestions...</p>} 
                 <VideoList videos={suggestedVideos} />
                 {/* Removed the display of the full video list that was here */}
               </>
