@@ -348,3 +348,14 @@ main > div:first-child select {
   background-color: #d0d0d0;
   color: #000;
 }
+
+.more-less-button {
+  background: none;
+  border: none;
+  color: blue;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 5px;
+  font-size: inherit; /* Inherit font size from parent <p> tag */
+}

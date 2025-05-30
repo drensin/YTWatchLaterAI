@@ -72,23 +72,60 @@ function StatusPopup({ message, type }) {
 }
 
 function VideoList({ videos }) {
+  const [expandedDescriptions, setExpandedDescriptions] = useState({});
+
   if (!videos || videos.length === 0) {
-    // Return null or a more subtle message if the main list isn't shown by default
-    // For suggested videos, "No videos to display" is fine if it's empty after a query.
-    return <p>No videos to display.</p>; // Simplified message
+    return <p>No videos to display.</p>;
   }
 
+  const toggleDescription = (videoId) => {
+    setExpandedDescriptions(prev => ({
+      ...prev,
+      [videoId]: !prev[videoId]
+    }));
+  };
+
+  const renderDescription = (video) => {
+    const description = video.description || 'No description';
+    const isExpanded = expandedDescriptions[video.videoId || video.id];
+    const maxLength = 200;
+
+    if (description.length <= maxLength) {
+      return <p><strong>Description:</strong> {description}</p>;
+    }
+
+    if (isExpanded) {
+      return (
+        <p>
+          <strong>Description:</strong> {description}
+          <button onClick={() => toggleDescription(video.videoId || video.id)} className="more-less-button">
+            Less...
+          </button>
+        </p>
+      );
+    } else {
+      return (
+        <p>
+          <strong>Description:</strong> {description.substring(0, maxLength)}...
+          <button onClick={() => toggleDescription(video.videoId || video.id)} className="more-less-button">
+            More...
+          </button>
+        </p>
+      );
+    }
+  };
+
   return (
-    <ul className="video-list"> {/* Added a class for potential styling */}
+    <ul className="video-list">
       {videos.map(video => (
-        <li key={video.videoId || video.id} className="video-list-item"> {/* Ensure key is stable and added class */}
+        <li key={video.videoId || video.id} className="video-list-item">
           {video.thumbnailUrl && (
             <img src={video.thumbnailUrl} alt={`Thumbnail for ${video.title}`} style={{ width: '120px', height: '90px', marginRight: '10px', float: 'left' }} />
           )}
-          <div style={{ overflow: 'hidden' }}> {/* Container to clear float */}
+          <div style={{ overflow: 'hidden' }}>
             <h4>{video.title}</h4>
             {video.duration && <p><strong>Duration:</strong> {video.duration}</p>}
-            <p><strong>Description:</strong> {video.description ? video.description.substring(0, 200) + '...' : 'No description'}</p>
+            {renderDescription(video)}
             {video.reason && <p style={{ color: 'green', fontStyle: 'italic' }}><strong>Reason:</strong> {video.reason}</p>}
             <a 
               href={`https://www.youtube.com/watch?v=${video.videoId}`} 

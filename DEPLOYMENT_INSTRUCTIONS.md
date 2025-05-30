@@ -62,7 +62,7 @@ Navigate to each function's directory in your terminal (e.g., `cd backend/handle
 
 ```bash
 gcloud functions deploy YOUR_FUNCTION_NAME \
-  --runtime nodejs18 \
+  --runtime nodejs20 \
   --trigger-http \
   --allow-unauthenticated \
   --region us-central1 \
@@ -79,7 +79,7 @@ gcloud functions deploy YOUR_FUNCTION_NAME \
     ```bash
     cd backend/handleYouTubeAuth
     gcloud functions deploy handleYouTubeAuth \
-      --runtime nodejs18 \
+      --runtime nodejs20 \
       --trigger-http \
       --allow-unauthenticated \
       --region us-central1 \
@@ -93,7 +93,7 @@ gcloud functions deploy YOUR_FUNCTION_NAME \
     ```bash
     cd backend/getWatchLaterPlaylist
     gcloud functions deploy getWatchLaterPlaylist \
-      --runtime nodejs18 \
+      --runtime nodejs20 \
       --trigger-http \
       --allow-unauthenticated \
       --region us-central1 \
@@ -107,7 +107,7 @@ gcloud functions deploy YOUR_FUNCTION_NAME \
     ```bash
     cd backend/categorizeVideo
     gcloud functions deploy categorizeVideo \
-      --runtime nodejs18 \
+      --runtime nodejs20 \
       --trigger-http \
       --allow-unauthenticated \
       --region us-central1 \
@@ -122,7 +122,7 @@ gcloud functions deploy YOUR_FUNCTION_NAME \
     ```bash
     cd backend/chatWithPlaylist
     gcloud functions deploy chatWithPlaylist \
-      --runtime nodejs18 \
+      --runtime nodejs20 \
       --trigger-http \
       --allow-unauthenticated \
       --region us-central1 \
@@ -162,7 +162,7 @@ steps:
       - 'handleYouTubeAuth'
       - '--project=${PROJECT_ID}' # PROJECT_ID is a substitution available in Cloud Build
       - '--region=us-central1' # Replace with your region
-      - '--runtime=nodejs18'
+      - '--runtime=nodejs20'
       - '--trigger-http'
       - '--allow-unauthenticated'
       - '--source=./backend/handleYouTubeAuth' # Path to the function source
@@ -178,7 +178,7 @@ steps:
       - 'getWatchLaterPlaylist'
       - '--project=${PROJECT_ID}'
       - '--region=us-central1' # Replace with your region
-      - '--runtime=nodejs18'
+      - '--runtime=nodejs20'
       - '--trigger-http'
       - '--allow-unauthenticated'
       - '--source=./backend/getWatchLaterPlaylist'

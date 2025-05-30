@@ -3,6 +3,8 @@ const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
 const { Datastore } = require('@google-cloud/datastore');
 const cors = require('cors');
 const axios = require('axios'); // Added axios
+const express = require('express');
+const compression = require('compression');
 
 // Initialize GCP clients
 const secretManagerClient = new SecretManagerServiceClient();
@@ -11,7 +13,7 @@ const youtube = google.youtube('v3');
 
 // --- CORS Configuration ---
 const corsOptions = {
-  origin: ['https://drensin.github.io', 'https://dkr.bio'], // IMPORTANT: Replace with your actual GitHub Pages URL
+  origin: ['https://drensin.github.io', 'https://dkr.bio', 'http://localhost:3000'], // IMPORTANT: Replace with your actual GitHub Pages URL
   methods: ['POST', 'OPTIONS'], // Assuming this function is called via POST
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
@@ -126,121 +128,128 @@ function formatSecondsToHHMMSS(totalSeconds) {
 }
 
 // --- Cloud Function Entry Point ---
-exports.getWatchLaterPlaylist = async (req, res) => {
-  corsMiddleware(req, res, async () => {
-    if (req.method === 'OPTIONS') {
-      // Pre-flight request. Reply successfully:
-      res.status(204).send('');
-      return;
-    }
+const app = express();
 
-    if (req.method !== 'POST') {
-        res.status(405).send('Method Not Allowed');
-        return;
-    }
+// Apply CORS middleware (corsOptions is defined above)
+// Note: The corsMiddleware variable itself is the result of cors(corsOptions)
+// We can use it directly or call cors(corsOptions) again.
+// For clarity, let's use the existing corsMiddleware.
+app.use(corsMiddleware); // This handles pre-flight OPTIONS requests automatically
+
+// Apply compression middleware
+// Using default options for gzip, which is generally good.
+// Explicitly set threshold to 0 to compress all responses for testing.
+app.use(compression({ threshold: 0 }));
+
+// Define the main logic as a POST route handler
+app.post('/', async (req, res) => {
+    // The main logic from the original function goes here
+    // Removed: if (req.method === 'OPTIONS') and if (req.method !== 'POST') checks
+    // as Express routing and CORS middleware handle these.
 
     try {
       const auth = await getAuthenticatedClient();
       const { playlistId } = req.body; // Get playlistId from request body
 
       if (!playlistId) {
+        // Express automatically sets appropriate content-type for .json()
         res.status(400).json({ error: 'Missing playlistId in request body' });
         return;
       }
 
       let allVideos = []; // This will store the final list of video objects for the response
-      let currentPlaylistVideoIds = []; // Store IDs from YouTube API
-      let nextPageToken = null;
-      
-      console.log(`[${new Date().toISOString()}] Fetching video IDs from playlist: ${playlistId}...`);
+      let currentPlaylistVideoIds = [];
+      let nextPageToken = null; 
 
-      // Step 1: Fetch all video IDs from the YouTube playlist
+      // New Step 1: Fetch all video IDs from the YouTube playlist
+      console.log(`[${new Date().toISOString()}] Step 1: Fetching all video IDs from YouTube playlist: ${playlistId}...`);
       do {
         const response = await youtube.playlistItems.list({
           auth: auth,
-          part: 'snippet', // Only need snippet to get videoId
+          part: 'snippet', 
           playlistId: playlistId,
           maxResults: 50,
           pageToken: nextPageToken,
         });
-
-        // console.log('Raw YouTube API snippet response:', JSON.stringify(response.data, null, 2)); 
-
         const items = response.data.items;
         if (items) {
           for (const item of items) {
-            currentPlaylistVideoIds.push(item.snippet.resourceId.videoId);
+            if (item.snippet && item.snippet.resourceId && item.snippet.resourceId.videoId) {
+                 currentPlaylistVideoIds.push(item.snippet.resourceId.videoId);
+            } else {
+                console.warn(`[${new Date().toISOString()}] Found playlist item without a videoId: `, JSON.stringify(item));
+            }
           }
         }
         nextPageToken = response.data.nextPageToken;
       } while (nextPageToken);
-      console.log(`[${new Date().toISOString()}] Found ${currentPlaylistVideoIds.length} video IDs in playlist ${playlistId}.`);
+      console.log(`[${new Date().toISOString()}] Step 1: Found ${currentPlaylistVideoIds.length} video IDs in YouTube playlist ${playlistId}.`);
+      
+      // New Step 2 & 3: Attempt to serve from cache using strongly consistent reads
+      console.log(`[${new Date().toISOString()}] Step 2: Attempting to fetch ${currentPlaylistVideoIds.length} videos from Datastore by keys for playlist ${playlistId}...`);
+      let canServeFromCache = true;
+      let videosToServeFromCache = [];
 
-      // Step 2: Fetch existing video IDs from Datastore for this playlist
-      console.log(`[${new Date().toISOString()}] Fetching existing video IDs from Datastore for playlist: ${playlistId}...`);
-      const datastoreQuery = datastore.createQuery('Videos')
-        .filter('playlistId_original', '=', playlistId)
-        .select('videoId'); // Only fetch the videoId property
-      const [existingDatastoreVideos] = await datastore.runQuery(datastoreQuery);
-      const existingDatastoreVideoIds = existingDatastoreVideos.map(v => v.videoId);
-      console.log(`[${new Date().toISOString()}] Found ${existingDatastoreVideoIds.length} videos in Datastore for playlist: ${playlistId}.`);
+      if (currentPlaylistVideoIds.length > 0) {
+        const keysToFetch = currentPlaylistVideoIds.map(id => datastore.key(['Videos', id]));
+        const [entitiesFromDatastore] = await datastore.get(keysToFetch); 
 
-      // Step 3: Compare sets of IDs
-      if (setsAreEqual(currentPlaylistVideoIds, existingDatastoreVideoIds)) {
-        console.log(`[${new Date().toISOString()}] Playlist membership matches Datastore. Fetching full details from Datastore...`);
-        // Fetch full details for these videos from Datastore
-        const keys = currentPlaylistVideoIds.map(id => datastore.key(['Videos', id]));
-        const [videosFromDatastore] = await datastore.get(keys);
+        for (let i = 0; i < currentPlaylistVideoIds.length; i++) {
+          const videoId = currentPlaylistVideoIds[i];
+          const entity = entitiesFromDatastore[i]; 
+
+          if (!entity) { 
+            canServeFromCache = false;
+            console.log(`[${new Date().toISOString()}] Video ${videoId} not found in Datastore. Full refresh needed for playlist ${playlistId}.`);
+            break; 
+          }
+          
+          if (entity.playlistId_original !== playlistId) { 
+            canServeFromCache = false;
+            console.log(`[${new Date().toISOString()}] Video ${videoId} in Datastore has playlistId_original '${entity.playlistId_original}', but currently processing '${playlistId}'. Full refresh needed.`);
+            break;
+          }
+
+          videosToServeFromCache.push({
+            videoId: entity.videoId,
+            title: entity.title,
+            description: entity.description,
+            publishedAt: entity.publishedAt ? entity.publishedAt.value : null,
+            channelId: entity.channelId,
+            channelTitle: entity.channelTitle,
+            thumbnailUrl: entity.thumbnailUrl,
+            duration: formatSecondsToHHMMSS(entity.durationSeconds),
+            durationSeconds: entity.durationSeconds,
+            viewCount: entity.viewCount,
+            likeCount: entity.likeCount,
+            topicCategories: Array.isArray(entity.topicCategories) ? entity.topicCategories : [],
+          });
+        }
+      } else { 
+        console.log(`[${new Date().toISOString()}] YouTube playlist ${playlistId} is empty. Serving empty list from cache.`);
+      }
+
+      if (canServeFromCache) {
+        const orderMap = new Map(currentPlaylistVideoIds.map((id, index) => [id, index]));
+        videosToServeFromCache.sort((a, b) => orderMap.get(a.videoId) - orderMap.get(b.videoId));
         
-        allVideos = videosFromDatastore.map(dsVideo => {
-          // Reconstruct the videoDataForFrontend structure from Datastore entity
-          // Note: Datastore entity properties are directly on the object, not in a 'data' sub-object after a get by key.
-          // And the array structure we used for upsert is flattened.
-          // We need to ensure the fields match what the frontend expects.
-          // The 'videoDataForDatastore' array was structured as [{name: 'prop', value: 'val'}...].
-          // This means we need to reconstruct the object.
-          // However, if datastore.get(keys) returns the objects directly, it's simpler.
-          // Let's assume datastore.get(keys) returns objects with properties directly.
-          // We need to ensure the 'duration' (formatted string) is present if frontend expects it.
-          // And that topicCategories is an array.
-          return {
-            videoId: dsVideo.videoId,
-            title: dsVideo.title,
-            description: dsVideo.description,
-            publishedAt: dsVideo.publishedAt ? dsVideo.publishedAt.value : null, // Datastore Date objects have a 'value' property
-            channelId: dsVideo.channelId,
-            channelTitle: dsVideo.channelTitle,
-            thumbnailUrl: dsVideo.thumbnailUrl,
-            duration: formatSecondsToHHMMSS(dsVideo.durationSeconds), // Format for display
-            durationSeconds: dsVideo.durationSeconds,
-            viewCount: dsVideo.viewCount,
-            likeCount: dsVideo.likeCount,
-            topicCategories: Array.isArray(dsVideo.topicCategories) ? dsVideo.topicCategories : [],
-          };
-        });
-
-        console.log(`[${new Date().toISOString()}] Successfully fetched ${allVideos.length} videos from Datastore.`);
+        console.log(`[${new Date().toISOString()}] Step 3: All ${videosToServeFromCache.length} videos for playlist ${playlistId} served from Datastore cache (strong consistency).`);
         res.status(200).json({
-          message: `Successfully fetched ${allVideos.length} videos from cache.`,
-          videoCount: allVideos.length,
-          videos: allVideos,
+          message: `Successfully fetched ${videosToServeFromCache.length} videos from cache.`,
+          videoCount: videosToServeFromCache.length,
+          videos: videosToServeFromCache,
         });
-        return; // Exit early as we don't need to fetch from YouTube/Wikidata
+        return; 
       }
       
-      console.log(`[${new Date().toISOString()}] Playlist membership changed or not fully cached. Proceeding to fetch/update all video details...`);
-      // Reset allVideos as we will rebuild it with fresh data
+      console.log(`[${new Date().toISOString()}] Step 3: Cache miss or stale data for playlist ${playlistId}. Proceeding to full fetch/update from YouTube/Wikidata...`);
       allVideos = []; 
-      nextPageToken = null; // Reset for the main loop
+      nextPageToken = null; 
 
-      // Main loop to fetch playlist items (again, but this time for full processing)
-      // This is slightly inefficient as we fetch snippets twice if playlist changed.
-      // Could be optimized by passing down the 'items' from the first ID fetch if needed.
-      // For now, keeping it simple by re-fetching.
       do {
         const response = await youtube.playlistItems.list({
           auth: auth,
-          part: 'snippet,contentDetails', // Corrected: Need contentDetails for item.snippet.title etc.
+          part: 'snippet,contentDetails', 
           playlistId: playlistId,
           maxResults: 50,
           pageToken: nextPageToken,
@@ -260,7 +269,6 @@ exports.getWatchLaterPlaylist = async (req, res) => {
             let videoChannelId = null;   
             let videoChannelTitle = null;
 
-
             try {
               console.log(`[${new Date().toISOString()}] Fetching details for video ID: ${videoId}`);
               const videoDetailsResponse = await youtube.videos.list({
@@ -272,7 +280,7 @@ exports.getWatchLaterPlaylist = async (req, res) => {
               if (videoDetailsResponse.data.items && videoDetailsResponse.data.items.length > 0) {
                 const videoItem = videoDetailsResponse.data.items[0];
                 const isoDuration = videoItem.contentDetails?.duration;
-                durationInSeconds = parseISO8601DurationToSeconds(isoDuration); // Assign to the outer scope variable
+                durationInSeconds = parseISO8601DurationToSeconds(isoDuration); 
                 duration = formatSecondsToHHMMSS(durationInSeconds); 
                 viewCount = videoItem.statistics?.viewCount;
                 likeCount = videoItem.statistics?.likeCount;
@@ -282,27 +290,18 @@ exports.getWatchLaterPlaylist = async (req, res) => {
                 
                 const topicCategoryURLs = videoItem.topicDetails?.topicCategories || [];
                 for (const topicURL of topicCategoryURLs) {
-                  let fallbackValue = topicURL; // Default fallback is the original URL
                   try {
-                    const entityId = topicURL.split('/').pop();
-                    if (entityId) {
-                      fallbackValue = entityId; // If we have an entity ID, that's a better fallback
-                      const wikidataAPIURL = `https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${entityId}&props=labels&languages=en&format=json`;
-                      const wikidataResponse = await axios.get(wikidataAPIURL);
-                      const label = wikidataResponse.data.entities[entityId]?.labels?.en?.value;
-                      if (label) {
-                        topicCategories.push(label);
-                      } else {
-                        console.warn(`[${new Date().toISOString()}] No English label found for Wikidata entity ${entityId}. Using entity ID as fallback.`);
-                        topicCategories.push(entityId);
-                      }
+                    let topicName = topicURL.split('/').pop(); 
+                    if (topicName) {
+                      topicName = decodeURIComponent(topicName).replace(/_/g, ' '); 
+                      topicCategories.push(topicName);
                     } else {
-                      console.warn(`[${new Date().toISOString()}] Could not parse entity ID from topicURL: ${topicURL}. Using full URL as fallback.`);
+                      console.warn(`[${new Date().toISOString()}] Could not parse topic name from Wikipedia URL: ${topicURL}. Using raw URL.`);
                       topicCategories.push(topicURL); 
                     }
                   } catch (e) {
-                    console.error(`[${new Date().toISOString()}] Error fetching/parsing Wikidata for ${topicURL} (fallback: ${fallbackValue}): ${e.message}`);
-                    topicCategories.push(fallbackValue); 
+                    console.error(`[${new Date().toISOString()}] Error processing topicURL ${topicURL}: ${e.message}. Using raw URL as fallback.`);
+                    topicCategories.push(topicURL); 
                   }
                 }
               }
@@ -310,7 +309,6 @@ exports.getWatchLaterPlaylist = async (req, res) => {
               console.error(`[${new Date().toISOString()}] Error fetching video details for ${videoId}: ${e.message}`);
             }
 
-            // Data for returning to frontend
             const videoDataForFrontend = {
               videoId: videoId,
               title: item.snippet.title, 
@@ -319,15 +317,14 @@ exports.getWatchLaterPlaylist = async (req, res) => {
               channelId: videoChannelId || item.snippet.channelId, 
               channelTitle: videoChannelTitle || item.snippet.channelTitle, 
               thumbnailUrl: item.snippet.thumbnails?.default?.url,
-              duration: duration, // Formatted string for display
-              durationSeconds: durationInSeconds, // Use the calculated seconds
+              duration: duration, 
+              durationSeconds: durationInSeconds, 
               viewCount: viewCount,
               likeCount: likeCount,
               topicCategories: topicCategories,
             };
             allVideos.push(videoDataForFrontend);
 
-            // Data for Datastore with indexing control
             const videoDataForDatastore = [
               { name: 'videoId', value: videoId || null },
               { name: 'playlistId_original', value: playlistId || null },
@@ -337,7 +334,7 @@ exports.getWatchLaterPlaylist = async (req, res) => {
               { name: 'channelId', value: videoChannelId || item.snippet.channelId || null }, 
               { name: 'channelTitle', value: videoChannelTitle || item.snippet.channelTitle || '' }, 
               { name: 'thumbnailUrl', value: item.snippet.thumbnails?.default?.url || null, excludeFromIndexes: true },
-              { name: 'durationSeconds', value: durationInSeconds }, // Use the calculated seconds
+              { name: 'durationSeconds', value: durationInSeconds }, 
               { name: 'viewCount', value: viewCount ? parseInt(viewCount, 10) : null },
               { name: 'likeCount', value: likeCount ? parseInt(likeCount, 10) : null },
               { name: 'topicCategories', value: topicCategories, excludeFromIndexes: true },
@@ -358,7 +355,7 @@ exports.getWatchLaterPlaylist = async (req, res) => {
       res.status(200).json({
         message: `Successfully fetched and stored ${allVideos.length} videos.`,
         videoCount: allVideos.length,
-        videos: allVideos, // Optionally return the fetched videos
+        videos: allVideos, 
       });
 
     } catch (error) {
@@ -366,7 +363,6 @@ exports.getWatchLaterPlaylist = async (req, res) => {
       if (error.message.includes('User not authenticated') || error.message.includes('Failed to refresh access token')) {
         res.status(401).json({ error: error.message, details: error.stack });
       } else if (error.response && error.response.data && error.response.data.error) {
-        // Handle Google API specific errors
         const apiError = error.response.data.error;
         console.error('Google API Error:', apiError);
         res.status(apiError.code || 500).json({
@@ -378,5 +374,7 @@ exports.getWatchLaterPlaylist = async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch Watch Later playlist.', details: error.message });
       }
     }
-  });
-};
+});
+
+// Export the Express app for Cloud Functions
+exports.getWatchLaterPlaylist = app;

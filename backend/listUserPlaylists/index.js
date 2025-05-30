@@ -10,7 +10,7 @@ const youtube = google.youtube('v3');
 
 // CORS Configuration
 const corsOptions = {
-  origin: ['https://drensin.github.io', 'https://dkr.bio'],
+  origin: ['https://drensin.github.io', 'https://dkr.bio', 'http://localhost:3000'],
   methods: ['GET', 'OPTIONS'], // This function can be GET
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,

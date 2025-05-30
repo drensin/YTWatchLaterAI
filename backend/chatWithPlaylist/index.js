@@ -1,5 +1,5 @@
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
-const { Datastore } = require('@google-cloud/datastore');
+const { Datastore, PropertyFilter } = require('@google-cloud/datastore'); // Added PropertyFilter
 const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require('@google/generative-ai');
 const cors = require('cors');
 
@@ -12,7 +12,7 @@ const VIDEOS_ENTITY = 'Videos';
 
 // CORS Configuration
 const corsOptions = {
-  origin: ['https://drensin.github.io', 'https://dkr.bio'],
+  origin: ['https://drensin.github.io', 'https://dkr.bio', 'http://localhost:3000'],
   methods: ['POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
@@ -79,7 +79,7 @@ exports.chatWithPlaylist = async (req, res) => {
 
       console.log(`[${new Date().toISOString()}] Fetching videos from Datastore for playlistId: ${playlistId}...`);
       const datastoreQuery = datastore.createQuery(VIDEOS_ENTITY)
-        .filter('playlistId_original', '=', playlistId);
+        .filter(new PropertyFilter('playlistId_original', '=', playlistId));
       const [videosForPlaylist] = await datastore.runQuery(datastoreQuery);
       console.log(`[${new Date().toISOString()}] Fetched ${videosForPlaylist ? videosForPlaylist.length : 0} videos from Datastore for playlistId: ${playlistId}`);
 
@@ -88,15 +88,21 @@ exports.chatWithPlaylist = async (req, res) => {
         return;
       }
 
-      console.log(`[${new Date().toISOString()}] Starting videoContext construction (JSON format)...`);
-      const videoListForContext = videosForPlaylist.map(video => ({
+      // User requested to remove pre-filtering and the 150 video cap.
+      // We will use the full list from Datastore.
+      // This may lead to very large prompts and potentially long latencies or timeouts from Gemini.
+      let videosToSendToGemini = videosForPlaylist;
+      console.log(`[${new Date().toISOString()}] Sending all ${videosToSendToGemini.length} fetched videos to Gemini context.`);
+      
+      console.log(`[${new Date().toISOString()}] Starting videoContext construction (JSON format) for ${videosToSendToGemini.length} videos...`);
+      const videoListForContext = videosToSendToGemini.map(video => ({
         ID: video.videoId,
         Title: video.title,
-        Description: video.description ? video.description.substring(0, 800) + '...' : 'N/A',
+        Description: video.description || 'N/A', // Removed 800 char truncation
         DurationSeconds: video.durationSeconds,
         Views: video.viewCount ? parseInt(video.viewCount, 10) : null,
         Likes: video.likeCount ? parseInt(video.likeCount, 10) : null,
-        Topics: Array.isArray(video.topicCategories) ? video.topicCategories.join(', ') : '',
+        Topics: Array.isArray(video.topicCategories) ? video.topicCategories : [], // Send as array
         PublishedTimestamp: video.publishedAt ? new Date(video.publishedAt).getTime() : null
       }));
       const videoContext = `Video List (JSON format):\n${JSON.stringify(videoListForContext, null, 2)}`;
@@ -156,11 +162,51 @@ Example for User Query "Cory Henry piano solo":
       
       console.log(`[${new Date().toISOString()}] Sending single-shot prompt to Gemini...`);
       const result = await model.generateContent(singleShotPrompt);
-      const response = await result.response;
-      const text = response.text();
-      console.log(`[${new Date().toISOString()}] Gemini response text:`, text);
+      const genResponse = result.response; // Use genResponse to avoid conflict with http res
       
-      let cleanedJsonText = text.trim();
+      let text = ""; // Declare here for broader scope
+      
+      if (!genResponse) {
+        console.error(`[${new Date().toISOString()}] Gemini returned no response object. Full API Result:`, JSON.stringify(result, null, 2));
+        // text remains ""
+      } else {
+        if (genResponse.promptFeedback && genResponse.promptFeedback.blockReason) {
+          console.error(`[${new Date().toISOString()}] Gemini prompt was blocked. Reason: ${genResponse.promptFeedback.blockReason}. Details:`, JSON.stringify(genResponse.promptFeedback.safetyRatings, null, 2));
+          // If prompt is blocked, text might be empty or contain error info not suitable for parsing.
+          // For safety, we might want to ensure text is empty if blocked.
+        }
+        if (!genResponse.candidates || genResponse.candidates.length === 0) {
+          console.error(`[${new Date().toISOString()}] Gemini returned no candidates. Full API Result:`, JSON.stringify(result, null, 2));
+          // text might still be empty or from a non-candidate part of response if any.
+        } else {
+          const candidate = genResponse.candidates[0];
+          // It's possible to have candidates but still have a blockReason at the promptFeedback level.
+          // Log finishReason even if there are candidates.
+          if (candidate.finishReason !== 'STOP' && candidate.finishReason !== 'MAX_TOKENS') {
+            console.warn(`[${new Date().toISOString()}] Gemini generation finished with reason: ${candidate.finishReason}. Content may be incomplete or missing.`);
+            if (candidate.finishReason === 'SAFETY' && candidate.safetyRatings) {
+                console.warn(`[${new Date().toISOString()}] Safety ratings for candidate:`, JSON.stringify(candidate.safetyRatings, null, 2));
+            }
+          }
+        }
+        // text() helper usually gets text from the first candidate if available.
+        // If candidates array is empty or content is missing, text() might return empty or throw.
+        // Safely get text:
+        text = (genResponse.candidates && genResponse.candidates.length > 0 && genResponse.candidates[0].content && genResponse.candidates[0].content.parts && genResponse.candidates[0].content.parts.length > 0 && genResponse.candidates[0].content.parts[0].text)
+               ? genResponse.candidates[0].content.parts[0].text
+               : "";
+        if (genResponse.text && typeof genResponse.text === 'function' && !text) { // Fallback to text() if direct access failed
+            try {
+                text = genResponse.text() || "";
+            } catch (e) {
+                console.warn(`[${new Date().toISOString()}] Error calling genResponse.text(): ${e.message}. Defaulting text to empty.`);
+                text = "";
+            }
+        }
+      }
+      
+      console.log(`[${new Date().toISOString()}] Gemini response text (length ${text.length}):`, text);
+      let cleanedJsonText = text.trim(); // Now cleanedJsonText is defined in the correct scope for subsequent logic
 
       // Step 1: Remove optional markdown fences
       if (cleanedJsonText.startsWith("```json")) {
@@ -204,22 +250,31 @@ Example for User Query "Cory Henry piano solo":
 
       let parsedResponse;
       let suggestionsFromGemini = []; // Will store array of {videoId, reason}
-      let answerText = "Could not find any videos matching your query in this playlist.";
+      let answerText = "Could not find any videos matching your query in this playlist."; // Default answer
 
-      try {
-        parsedResponse = JSON.parse(cleanedJsonText);
-        if (parsedResponse && Array.isArray(parsedResponse.suggestedVideos) && parsedResponse.suggestedVideos.length > 0) {
-          suggestionsFromGemini = parsedResponse.suggestedVideos; 
-          answerText = "Based on your query, I found these videos:";
-        } else if (parsedResponse && Array.isArray(parsedResponse.suggestedVideos)) {
-          answerText = "I could not find any videos matching your query in this playlist.";
-        } else {
-          console.error("Gemini response was valid JSON but not the expected format (expected {suggestedVideos: [...]}). Text:", cleanedJsonText);
-          answerText = "Received an unexpected format from the AI.";
+      if (!cleanedJsonText) { // Check if cleanedJsonText is empty
+        console.warn(`[${new Date().toISOString()}] Gemini response was empty after cleaning. Assuming no suggestions.`);
+        // suggestionsFromGemini remains [], answerText remains default.
+      } else {
+        try {
+          parsedResponse = JSON.parse(cleanedJsonText);
+          if (parsedResponse && Array.isArray(parsedResponse.suggestedVideos) && parsedResponse.suggestedVideos.length > 0) {
+            suggestionsFromGemini = parsedResponse.suggestedVideos; 
+            answerText = "Based on your query, I found these videos:";
+          } else if (parsedResponse && Array.isArray(parsedResponse.suggestedVideos)) {
+            // This case means suggestedVideos is an empty array, which is valid.
+            answerText = "I could not find any videos matching your query in this playlist.";
+          } else {
+            // Valid JSON, but not the expected {suggestedVideos: Array} structure
+            console.error(`[${new Date().toISOString()}] Gemini response was valid JSON but not the expected format. Expected {suggestedVideos: [...]}. Received:`, cleanedJsonText);
+            answerText = "The AI returned data in an unexpected format. Please try rephrasing your query.";
+            suggestionsFromGemini = []; // Ensure empty
+          }
+        } catch (parseError) {
+          console.error(`[${new Date().toISOString()}] Failed to parse Gemini JSON response. Error: ${parseError.message}. Cleaned text: "${cleanedJsonText}". Original text: "${text}"`);
+          answerText = `There was an issue processing the AI's response. You could try rephrasing your query. Raw AI output (if any): ${text}`;
+          suggestionsFromGemini = []; // Ensure empty on error
         }
-      } catch (parseError) {
-        console.error("Failed to parse Gemini JSON response:", parseError, "Cleaned text:", cleanedJsonText, "Original text:", text);
-        answerText = `Error processing AI response. Raw AI output: ${text}`;
       }
       
       const suggestedVideosFull = [];

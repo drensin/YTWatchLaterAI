@@ -11,7 +11,7 @@ const datastore = new Datastore();
 // Adjust the origin to your GitHub Pages URL or '*' for development (less secure)
 // For GitHub Pages, it's typically https://<YOUR_USERNAME>.github.io
 const corsOptions = {
-  origin: ['https://drensin.github.io', 'https://dkr.bio'], // IMPORTANT: Replace with your actual GitHub Pages URL
+  origin: ['https://drensin.github.io', 'https://dkr.bio', 'http://localhost:3000'], // IMPORTANT: Replace with your actual GitHub Pages URL
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true, // If you need to handle cookies or authorization headers

@@ -6,9 +6,11 @@
   "dependencies": {
     "@google-cloud/datastore": "^7.0.0",
     "@google-cloud/secret-manager": "^4.0.0",
-    "googleapis": "^100.0.0",
+    "axios": "^1.6.0",
+    "compression": "^1.8.0",
     "cors": "^2.8.5",
-    "axios": "^1.6.0"
+    "express": "^5.1.0",
+    "googleapis": "^100.0.0"
   },
   "engines": {
     "node": "20"
