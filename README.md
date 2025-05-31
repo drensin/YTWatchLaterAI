@@ -31,6 +31,10 @@ YTWatchLaterManager/
     └── chatWithPlaylist/
         ├── index.js
         └── package.json
+    ├── gemini-chat-service/  (Cloud Run service)
+    │   ├── server.js
+    │   ├── package.json
+    │   └── Dockerfile
 ├── cloudbuild.yaml  (Example)
 └── DEPLOYMENT_INSTRUCTIONS.md
 ```
@@ -39,11 +43,21 @@ YTWatchLaterManager/
 
 Located in the `frontend/` directory. See `frontend/README.md` for setup and deployment instructions (including GitHub Pages).
 
-## Backend (Google Cloud Functions)
+## Backend
 
-Located in the `backend/` directory. Each subdirectory is a separate Node.js Cloud Function.
+The backend consists of Google Cloud Functions for most operations and a Google Cloud Run service for the chat functionality.
 
-### Common Setup for Backend Functions:
+### Google Cloud Functions
+
+Located in the `backend/` directory (excluding `gemini-chat-service`). Each subdirectory like `handleYouTubeAuth`, `getWatchLaterPlaylist`, etc., is a separate Node.js Cloud Function. The `chatWithPlaylist` Cloud Function has been replaced by the `gemini-chat-service` on Cloud Run.
+
+### Google Cloud Run Service (`gemini-chat-service`)
+
+Located in the `gemini-chat-service/` directory. This is a Node.js application packaged as a Docker container and deployed on Cloud Run.
+*   **Purpose:** Provides a WebSocket endpoint for real-time chat interactions with Gemini. It maintains Gemini chat sessions in memory for the duration of a client's connection to provide context persistence for queries related to a specific playlist.
+*   **Technology:** Node.js, Express.js, `ws` (WebSocket library), Docker.
+
+### Common Setup for Backend Services (Cloud Functions & Cloud Run):
 
 1.  **Prerequisites:**
     *   Google Cloud SDK (`gcloud`) installed and configured.
@@ -54,15 +68,15 @@ Located in the `backend/` directory. Each subdirectory is a separate Node.js Clo
     Before deploying functions, create the following secrets in Google Cloud Secret Manager for your project:
     *   `YOUTUBE_CLIENT_ID`: Your Google OAuth 2.0 Client ID.
     *   `YOUTUBE_CLIENT_SECRET`: Your Google OAuth 2.0 Client Secret.
-    *   `GEMINI_API_KEY`: Your API key for the Gemini API (if using it directly, Vertex AI SDK might use service account auth).
-    *   `GCP_PROJECT_ID`: Your Google Cloud Project ID (used by Vertex AI SDK).
+    *   `GEMINI_API_KEY`: Your API key for the Gemini API. This is used by the `gemini-chat-service` on Cloud Run and potentially other functions if they interact directly with Gemini.
+    *   `GCP_PROJECT_ID`: Your Google Cloud Project ID (can be useful for SDKs).
 
-    Grant the service accounts of your Cloud Functions the "Secret Manager Secret Accessor" role for these secrets.
+    Grant the service accounts of your Cloud Functions and the Cloud Run service the "Secret Manager Secret Accessor" role for these secrets.
 
-3.  **Placeholders to Update in Code:**
-    *   `watchlaterai-460918`: This has been updated in the backend `*.js` files.
-    *   `drensin.github.io/YTWatchLaterAI/`: This has been updated in the backend `*.js` files for CORS origins, redirect URLs, and in `frontend/package.json`.
-    *   `YOUR_HANDLE_YOUTUBE_AUTH_FUNCTION_URL`: Replace with the actual HTTP trigger URL of your deployed `handleYouTubeAuth` function. This is used as the OAuth redirect URI.
+3.  **Placeholders/Configuration:**
+    *   Project ID `watchlaterai-460918` and frontend URL `drensin.github.io/YTWatchLaterAI/` have been updated in the backend code and frontend configuration where necessary.
+    *   The `handleYouTubeAuth` Cloud Function URL needs to be correctly configured as an OAuth redirect URI in your Google Cloud Console OAuth client settings.
+    *   The `frontend/src/App.js` now uses `WEBSOCKET_SERVICE_URL` to connect to the deployed `gemini-chat-service` on Cloud Run.
 
 ## Datastore Data Model
 
