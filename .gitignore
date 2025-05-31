@@ -15,3 +15,6 @@ backend/*/node_modules/
 # If you have other build artifacts or sensitive files at the root or in backend, add them here.
 # For example, if you were to create a local .env file for testing backend functions:
 # backend/*/.env
+
+# New Cloud Run service specific
+gemini-chat-service/node_modules/

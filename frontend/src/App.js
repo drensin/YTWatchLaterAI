@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
 
 // Placeholder for Cloud Function URLs - replace with your actual URLs
@@ -7,8 +7,11 @@ const CLOUD_FUNCTIONS_BASE_URL = {
   getWatchLaterPlaylist: "https://us-central1-watchlaterai-460918.cloudfunctions.net/getWatchLaterPlaylist", // This will be for fetching items from a selected playlist
   listUserPlaylists: "https://us-central1-watchlaterai-460918.cloudfunctions.net/listUserPlaylists",
   categorizeVideo: "YOUR_CATEGORIZE_VIDEO_FUNCTION_URL",
-  chatWithPlaylist: "https://us-central1-watchlaterai-460918.cloudfunctions.net/chatWithPlaylist"
+  // chatWithPlaylist: "https://us-central1-watchlaterai-460918.cloudfunctions.net/chatWithPlaylist" // Replaced by WebSocket
 };
+
+// Cloud Run WebSocket Service URL
+const WEBSOCKET_SERVICE_URL = "wss://gemini-chat-service-679260739905.us-central1.run.app";
 
 // --- Components ---
 
@@ -146,6 +149,12 @@ function VideoList({ videos }) {
 // --- Main App ---
 
 function App() {
+  // Refs for WebSocket and timers
+  const ws = useRef(null); 
+  const pingIntervalRef = useRef(null); 
+  const reconnectTimeoutRef = useRef(null); 
+
+  // State variables
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userPlaylists, setUserPlaylists] = useState([]);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState('');
@@ -156,15 +165,143 @@ function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false); 
   const [popup, setPopup] = useState({ visible: false, message: '', type: '' }); 
-  const [lastQuery, setLastQuery] = useState(''); // New state for the last submitted query
+  const [lastQuery, setLastQuery] = useState(''); 
+
+  // Reconnection state
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [reconnectAttempt, setReconnectAttempt] = useState(0); 
+  const MAX_RECONNECT_ATTEMPTS = 5; 
+  const INITIAL_RECONNECT_DELAY_MS = 1000; // 1 second
+  const MAX_RECONNECT_DELAY_MS = 30000; // 30 seconds
+
+  // Function to clear all WebSocket related timers/refs
+  const clearWebSocketTimers = useCallback(() => {
+    if (pingIntervalRef.current) {
+      clearInterval(pingIntervalRef.current);
+      pingIntervalRef.current = null;
+    }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+  }, [pingIntervalRef, reconnectTimeoutRef]); 
+
+  // Function to close WebSocket and clear timers
+  const closeWebSocket = useCallback(() => {
+    clearWebSocketTimers();
+    if (ws.current) {
+      ws.current.close();
+      ws.current = null;
+    }
+  }, [clearWebSocketTimers, ws]); 
+
+  // Function to establish WebSocket connection
+  const startWebSocketConnection = useCallback((playlistIdToConnect) => {
+    if (!playlistIdToConnect) {
+      console.error("Cannot start WebSocket connection: playlistId is null or undefined.");
+      return;
+    }
+
+    // Ensure any existing connection is closed before opening a new one
+    closeWebSocket(); 
+    
+    console.log('Attempting to establish WebSocket connection...');
+    ws.current = new WebSocket(WEBSOCKET_SERVICE_URL);
+
+    ws.current.onopen = () => {
+      console.log('WebSocket connected. Initializing chat...');
+      // Reset reconnection state on successful connection
+      setReconnectAttempt(0);
+      setIsReconnecting(false);
+      clearWebSocketTimers(); // Clear any pending reconnect timeouts
+
+      // Send INIT_CHAT message with playlistId
+      ws.current.send(JSON.stringify({ type: 'INIT_CHAT', payload: { playlistId: playlistIdToConnect } }));
+      setPopup({ visible: true, message: 'Connecting to chat service...', type: 'info' });
+      setTimeout(() => setPopup(prev => ({ ...prev, visible: false })), 2000);
+
+      // Start heartbeat (ping)
+      pingIntervalRef.current = setInterval(() => {
+        if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+          ws.current.send(JSON.stringify({ type: 'PING' }));
+          console.log('Sent PING to server.');
+        }
+      }, 30000); // Send ping every 30 seconds
+    };
+
+    ws.current.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      console.log('Received from server:', message);
+
+      if (message.type === 'CHAT_INITIALIZED') {
+        setPopup({ visible: true, message: 'Chat session ready!', type: 'success' });
+        setTimeout(() => setPopup(prev => ({ ...prev, visible: false })), 2000);
+      } else if (message.type === 'AI_RESPONSE') {
+        setSuggestedVideos(message.payload.suggestedVideos || []);
+        setShowOverlay(false); // Hide overlay after AI response
+        setPopup({ visible: true, message: 'Suggestions received!', type: 'success' });
+        setTimeout(() => setPopup(prev => ({ ...prev, visible: false })), 2000);
+      } else if (message.type === 'ERROR') {
+        setError(message.error);
+        setShowOverlay(false); // Hide overlay on error
+        setPopup({ visible: true, message: `Chat Error: ${message.error}`, type: 'error' });
+        setTimeout(() => setPopup(prev => ({ ...prev, visible: false })), 5000);
+      } else if (message.type === 'PONG') {
+        console.log('Received PONG from server.');
+        // No specific action needed, just keeps connection alive
+      }
+    };
+
+    const handleCloseOrError = (event) => {
+      console.log('WebSocket disconnected or error occurred.', event, ws.current?.readyState); 
+      closeWebSocket(); // Clear timers and close WS if not already closed
+
+      // Attempt reconnection if not intentionally closed and within limits
+      if (selectedPlaylistId && reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
+        const nextAttempt = reconnectAttempt + 1;
+        setReconnectAttempt(nextAttempt);
+        setIsReconnecting(true);
+
+        const delay = Math.min(
+          MAX_RECONNECT_DELAY_MS,
+          INITIAL_RECONNECT_DELAY_MS * Math.pow(2, nextAttempt - 1)
+        );
+
+        console.log(`Attempting reconnect ${nextAttempt}/${MAX_RECONNECT_ATTEMPTS} in ${delay / 1000}s...`);
+        setPopup({ visible: true, message: `Connection lost. Reconnecting (${nextAttempt}/${MAX_RECONNECT_ATTEMPTS})...`, type: 'warning' });
+        
+        reconnectTimeoutRef.current = setTimeout(() => {
+          startWebSocketConnection(selectedPlaylistId); // Try to reconnect
+        }, delay);
+      } else if (selectedPlaylistId) {
+        // Max attempts reached
+        setIsReconnecting(false);
+        setPopup({ visible: true, message: 'Failed to reconnect to chat service. Please refresh the page.', type: 'error' });
+        setError('Failed to reconnect to chat service.');
+      } else {
+        // No playlist selected, so no reconnection needed
+        setPopup({ visible: true, message: 'Chat service disconnected.', type: 'warning' });
+      }
+    };
+
+    ws.current.onclose = handleCloseOrError;
+    ws.current.onerror = handleCloseOrError;
+
+  }, [selectedPlaylistId, reconnectAttempt, clearWebSocketTimers, closeWebSocket, setPopup, setError, setIsReconnecting, setReconnectAttempt, ws]); 
+
+  // Effect to close WebSocket and clear all timers on component unmount
+  useEffect(() => {
+    return () => {
+      closeWebSocket(); 
+    };
+  }, [closeWebSocket]);
 
   const fetchUserPlaylists = useCallback(async () => {
-    setShowOverlay(true); // Show overlay
-    // setIsLoading(true); // setIsLoading can still be used for specific parts if needed
+    setShowOverlay(true); 
     setError(null);
     try {
       const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.listUserPlaylists, {
-        method: 'GET', // As defined in the cloud function
+        method: 'GET', 
       });
       if (!response.ok) {
         const errData = await response.json().catch(() => ({ message: response.statusText }));
@@ -181,10 +318,9 @@ function App() {
       setError(err.message);
       setUserPlaylists([]);
     } finally {
-      // setIsLoading(false);
-      setShowOverlay(false); // Hide overlay
+      setShowOverlay(false); 
     }
-  }, []); // Removed setShowOverlay from deps as it's a setter
+  }, [setShowOverlay, setError, setUserPlaylists]); 
 
   // Renamed to fetchPlaylistItems to be more specific
   const fetchPlaylistItems = useCallback(async (playlistId) => {
@@ -192,21 +328,15 @@ function App() {
       setVideos([]); 
       return;
     }
-    setShowOverlay(true); // Show overlay
-    // setIsLoading(true);
+    setShowOverlay(true); 
     setError(null);
     try {
-      // This function now needs the playlistId to be passed to the backend
-      // The backend 'getWatchLaterPlaylist' function will need to be modified to accept a playlistId
-      const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.getWatchLaterPlaylist, { // This URL might need to change if the backend function is renamed/refactored
+      const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.getWatchLaterPlaylist, { 
         method: 'POST', 
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ playlistId: playlistId }), // Send playlistId in the body
-        // headers: {
-        //   'Authorization': `Bearer YOUR_ID_TOKEN_OR_ACCESS_TOKEN`, // If needed
-        // },
+        body: JSON.stringify({ playlistId: playlistId }), 
       });
       if (!response.ok) {
         const errData = await response.json().catch(() => ({ message: response.statusText }));
@@ -214,25 +344,23 @@ function App() {
       }
       const data = await response.json();
       setVideos(data.videos || []);
-      // Show success popup
       const playlistTitle = userPlaylists.find(p => p.id === playlistId)?.title || 'selected playlist';
       setPopup({ 
         visible: true, 
         message: `Successfully loaded ${data.videos?.length || 0} videos from playlist "${playlistTitle}".`, 
         type: 'success' 
       });
-      setTimeout(() => setPopup(prev => ({ ...prev, visible: false })), 3000); // Hide after 3 seconds
+      setTimeout(() => setPopup(prev => ({ ...prev, visible: false })), 3000); 
     } catch (err) {
       console.error("Error fetching playlist items:", err);
-      setError(err.message); // Keep existing error handling
+      setError(err.message); 
       setVideos([]);
       setPopup({ visible: true, message: `Error fetching playlist: ${err.message}`, type: 'error' });
-      setTimeout(() => setPopup(prev => ({ ...prev, visible: false })), 5000); // Hide error after 5 seconds
+      setTimeout(() => setPopup(prev => ({ ...prev, visible: false })), 5000); 
     } finally {
-      // setIsLoading(false);
-      setShowOverlay(false); // Hide overlay
+      setShowOverlay(false); 
     }
-  }, [userPlaylists]); // Added userPlaylists to deps for accessing title
+  }, [userPlaylists, setShowOverlay, setError, setVideos, setPopup]); 
 
   // Effect to handle OAuth callback AND initial auth check
   useEffect(() => {
@@ -246,14 +374,11 @@ function App() {
     } else if (oauthStatus === 'error') {
       setError("OAuth failed: " + urlParams.get('error_message'));
       setAuthChecked(true);
-      setIsLoggedIn(false); // Ensure logged out on error
+      setIsLoggedIn(false); 
       window.history.replaceState({}, document.title, window.location.pathname);
     } else {
-      // No OAuth params, try to check auth by fetching playlists
-      // This is a simplified check; a dedicated auth-check endpoint would be better.
       const attemptAutoLogin = async () => {
-        setShowOverlay(true); // Show overlay during auth check
-        // setIsLoading(true); 
+        setShowOverlay(true); 
         try {
           const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.listUserPlaylists); 
           if (response.ok) {
@@ -265,84 +390,101 @@ function App() {
           console.error("Auto-login check failed:", err);
           setIsLoggedIn(false); 
         } finally {
-          // setIsLoading(false);
-          setShowOverlay(false); // Hide overlay
+          setShowOverlay(false); 
           setAuthChecked(true); 
         }
       };
       attemptAutoLogin();
     }
-  }, []); // Runs once on mount
+  }, [setShowOverlay, setIsLoggedIn, setAuthChecked, setError]); 
 
   // Effect to fetch user playlists when isLoggedIn becomes true
   useEffect(() => {
     if (isLoggedIn) {
       fetchUserPlaylists();
-      // We don't fetch playlist items immediately, user needs to select a playlist first
-      // Or, if we auto-select a playlist in fetchUserPlaylists, then fetchPlaylistItems could be called.
     } else {
-      // Clear data if user logs out (not implemented yet, but good for future)
       setUserPlaylists([]);
       setSelectedPlaylistId('');
       setVideos([]);
     }
-  }, [isLoggedIn, fetchUserPlaylists]);
+  }, [isLoggedIn, fetchUserPlaylists, setUserPlaylists, setSelectedPlaylistId, setVideos]); 
 
   const handleLoginSuccess = () => {
     setIsLoggedIn(true); 
   };
 
   // Handler for when a playlist is selected from the dropdown
-  const handlePlaylistSelection = (event) => {
+  const handlePlaylistSelection = useCallback((event) => {
     const newPlaylistId = event.target.value;
     setSelectedPlaylistId(newPlaylistId);
+    setSuggestedVideos([]); 
+
     if (newPlaylistId) {
-      fetchPlaylistItems(newPlaylistId);
+      fetchPlaylistItems(newPlaylistId); 
+
+      // Close existing WebSocket connection if open
+      if (ws.current) {
+        ws.current.close();
+        ws.current = null;
+        console.log('Existing WebSocket closed.');
+      }
+
+      // Start new WebSocket connection
+      startWebSocketConnection(newPlaylistId);
+
     } else {
-      setVideos([]); // Clear videos if "Select a playlist" is chosen
+      setVideos([]); 
+      closeWebSocket(); // Close WS if no playlist selected
+      console.log('WebSocket closed due to no playlist selected.');
     }
-  };
-  
+  }, [fetchPlaylistItems, setSuggestedVideos, startWebSocketConnection, closeWebSocket]); 
+
   // Button to refresh items for the currently selected playlist
   const refreshSelectedPlaylistItems = () => {
     if (selectedPlaylistId) {
       fetchPlaylistItems(selectedPlaylistId);
+      // Re-initialize chat session if refreshing playlist items
+      if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+        ws.current.send(JSON.stringify({ type: 'INIT_CHAT', payload: { playlistId: selectedPlaylistId } }));
+        setPopup({ visible: true, message: 'Re-initializing chat session...', type: 'info' });
+        setTimeout(() => setPopup(prev => ({ ...prev, visible: false })), 2000);
+      } else if (selectedPlaylistId) {
+        // If WS not open but playlist selected, try to re-establish
+        startWebSocketConnection(selectedPlaylistId);
+      }
     } else {
       alert("Please select a playlist first.");
     }
   };
 
   const handleQuerySubmit = async (query) => {
-    if (!isLoggedIn && !CLOUD_FUNCTIONS_BASE_URL.chatWithPlaylist.startsWith("YOUR_")) {
-        console.warn("User not logged in or chatWithPlaylist URL not set. Skipping query.");
+    if (!selectedPlaylistId) {
+        setPopup({ visible: true, message: 'Please select a playlist before chatting.', type: 'error' });
+        setTimeout(() => setPopup(prev => ({ ...prev, visible: false })), 3000);
         return;
     }
+    if (!ws.current || ws.current.readyState !== WebSocket.OPEN) {
+        setPopup({ visible: true, message: 'Chat service not connected. Please try selecting the playlist again.', type: 'error' });
+        setTimeout(() => setPopup(prev => ({ ...prev, visible: false })), 5000);
+        console.error('WebSocket not open for sending query.');
+        return;
+    }
+
     setShowOverlay(true); 
-    setLastQuery(query); // Store the submitted query
+    setLastQuery(query); 
     setError(null);
+    setSuggestedVideos([]); 
+
     try {
-      // This calls the 'chatWithPlaylist' Cloud Function
-      const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.chatWithPlaylist, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // 'Authorization': `Bearer YOUR_ID_TOKEN_OR_ACCESS_TOKEN`, // If needed
-        },
-        body: JSON.stringify({ query: query, playlistId: selectedPlaylistId, userId: "currentUser" }), // Added userId
-      });
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({ message: response.statusText }));
-        throw new Error(`Failed to submit query: ${errData.message || response.statusText}`);
-      }
-      const data = await response.json();
-      setSuggestedVideos(data.suggestedVideos || []); // Assuming { suggestedVideos: [...] }
+      // Send query via WebSocket
+      ws.current.send(JSON.stringify({ type: 'USER_QUERY', payload: { query: query } }));
+      // Response will be handled by ws.current.onmessage
     } catch (err) {
-      console.error("Error submitting query:", err);
+      console.error("Error sending query via WebSocket:", err);
       setError(err.message);
-      setSuggestedVideos([]);
-    } finally {
-      // setIsLoading(false);
-      setShowOverlay(false); // Hide overlay
+      setShowOverlay(false);
+      setPopup({ visible: true, message: `Error sending query: ${err.message}`, type: 'error' });
+      setTimeout(() => setPopup(prev => ({ ...prev, visible: false })), 5000);
     }
   };
 
@@ -350,10 +492,10 @@ function App() {
   return (
     <div className="App">
       {showOverlay && <LoadingOverlay />} 
-      {popup.visible && <StatusPopup message={popup.message} type={popup.type} />} {/* Render StatusPopup */}
+      {popup.visible && <StatusPopup message={popup.message} type={popup.type} />} 
       <header className="App-header">
         <h1>YT Watch Later Manager</h1>
-        {!authChecked && !showOverlay && <p>Checking authentication...</p>} {/* Hide "Checking auth" if overlay is shown for it */}
+        {!authChecked && !showOverlay && <p>Checking authentication...</p>} 
         {authChecked && !isLoggedIn && <LoginButton onLoginSuccess={handleLoginSuccess} />}
         {authChecked && isLoggedIn && <p>Welcome! You are logged in.</p>}
       </header>
@@ -374,8 +516,8 @@ function App() {
               <button 
                 onClick={refreshSelectedPlaylistItems} 
                 disabled={isLoading || !selectedPlaylistId} 
-                className="refresh-button" // Added className
-                style={{ marginLeft: '10px' }} // Removed padding from inline, will handle in CSS
+                className="refresh-button" 
+                style={{ marginLeft: '10px' }} 
                 title="Refresh playlist items"
               >
                 🔄 
@@ -384,10 +526,7 @@ function App() {
             {selectedPlaylistId && (
               <>
                 <ChatInterface onQuerySubmit={handleQuerySubmit} />
-                {/* Removed the static success message paragraph, now handled by StatusPopup */}
                 
-                {/* Only show "Loading videos..." when videos are actually being fetched for the main list, not for suggestions */}
-                {/* This isLoading is the general one, might need more specific one if overlay is active */}
                 {isLoading && !showOverlay && !suggestedVideos.length && selectedPlaylistId && <p>Loading videos...</p>}
 
                 <h2>
@@ -400,7 +539,6 @@ function App() {
                 )}
                 {isLoading && suggestedVideos.length === 0 && <p>Loading suggestions...</p>} 
                 <VideoList videos={suggestedVideos} />
-                {/* Removed the display of the full video list that was here */}
               </>
             )}
             {!selectedPlaylistId && userPlaylists.length > 0 && <p>Select a playlist above to see its videos and get suggestions.</p>}
