@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Cloud Function to fetch a YouTube playlist's items,
+ * synchronize them with Datastore (including video details like duration),
+ * and manage associations between videos and playlists.
+ * It handles YouTube API authentication, token refresh, and data transformation.
+ */
 const {Datastore} = require('@google-cloud/datastore');
 const {OAuth2Client} = require('google-auth-library');
 const {google} = require('googleapis');
@@ -61,6 +67,26 @@ function parseISO8601Duration(durationString) {
   return (days * 24 * 60 * 60) + (hours * 60 * 60) + (minutes * 60) + seconds;
 }
 
+/**
+ * HTTP Cloud Function to fetch items from a specific YouTube playlist.
+ * It synchronizes video data with Datastore, including fetching full video details
+ * like duration, and manages video-playlist associations using an 'associatedPlaylistIds'
+ * array on each video entity. Stale associations or video entities (if no longer
+ * in any associated playlist) are removed from Datastore.
+ *
+ * Requires a Firebase ID token in the Authorization header for user authentication,
+ * and a 'playlistId' in the JSON request body.
+ *
+ * Responds with a JSON object containing a 'videos' array, where each video
+ * object includes details like videoId, title, description, thumbnails,
+ * channel information, and durationSeconds.
+ *
+ * @param {object} req The HTTP request object. Expected body: { playlistId: string }.
+ *     The 'Authorization' header should contain 'Bearer <Firebase ID Token>'.
+ * @param {object} res The HTTP response object.
+ * @return {Promise<void>} A promise that resolves when the response has been sent,
+ *     or rejects if an unrecoverable error occurs.
+ */
 exports.getWatchLaterPlaylist = async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -147,8 +173,8 @@ exports.getWatchLaterPlaylist = async (req, res) => {
     console.log(`[SYNC] Fetched ${existingVideosMap.size} existing video entities from Datastore for current YouTube playlist items.`);
 
     // 3. Handle Stale Associations/Deletions
-    const datastoreEntitiesToUpdate = [];
-    const datastoreKeysToDelete = [];
+    const datastoreEntitiesToUpdate = []; // For entities that need their associatedPlaylistIds updated
+    const datastoreKeysToDelete = [];   // For entities that should be deleted entirely
     for (const [videoId, videoData] of videosCurrentlyAssociatedInDsMap) {
       if (!currentYouTubeVideoIds.has(videoId)) { // Video removed from YouTube playlist
         const updatedAssociatedPlaylists = (videoData.associatedPlaylistIds || []).filter(pId => pId !== playlistId);
@@ -156,8 +182,9 @@ exports.getWatchLaterPlaylist = async (req, res) => {
           datastoreKeysToDelete.push(datastore.key([VIDEOS_KIND, videoId]));
           console.log(`[SYNC] Marking video ${videoId} for deletion (no longer in any associated playlists).`);
         } else {
-          videoData.associatedPlaylistIds = updatedAssociatedPlaylists;
-          datastoreEntitiesToUpdate.push({key: datastore.key([VIDEOS_KIND, videoId]), data: videoData});
+          // Create a new object for update to avoid modifying the object from videosCurrentlyAssociatedInDsMap directly
+          const updatedVideoData = {...videoData, associatedPlaylistIds: updatedAssociatedPlaylists};
+          datastoreEntitiesToUpdate.push({key: datastore.key([VIDEOS_KIND, videoId]), data: updatedVideoData});
           console.log(`[SYNC] Updating video ${videoId}, removing association with playlist ${playlistId}.`);
         }
       }
@@ -178,7 +205,7 @@ exports.getWatchLaterPlaylist = async (req, res) => {
     if (videoIdsNeedingFullDetails.length > 0) {
       for (let i = 0; i < videoIdsNeedingFullDetails.length; i += MAX_RESULTS_PER_PAGE) {
         const batchIds = videoIdsNeedingFullDetails.slice(i, i + MAX_RESULTS_PER_PAGE);
-        const response = await youtube.videos.list({ part: 'contentDetails,snippet', id: batchIds.join(',') });
+        const response = await youtube.videos.list({ part: 'contentDetails,snippet,statistics,topicDetails', id: batchIds.join(',') });
         response.data.items.forEach(video => fullVideoDetailsMap.set(video.id, video));
       }
       console.log(`[SYNC] Fetched full details for ${fullVideoDetailsMap.size} videos.`);
@@ -186,39 +213,38 @@ exports.getWatchLaterPlaylist = async (req, res) => {
 
     // 6. Prepare Datastore Upserts (for current items) & Data for Frontend
     const videosForFrontend = [];
-    const datastoreEntitiesToUpsert = [];
+    const datastoreEntitiesToUpsert = []; // Primarily for new/updated current items
 
     for (const playlistItem of allYouTubePlaylistItems) {
       const videoId = playlistItem.snippet.resourceId.videoId;
-      const existingVideoData = existingVideosMap.get(videoId) || {}; // Data from datastore if video existed
-      const fullYtVideoDetails = fullVideoDetailsMap.get(videoId); // Data from videos.list if fetched
+      const existingVideoData = existingVideosMap.get(videoId) || {}; 
+      const fullYtVideoDetails = fullVideoDetailsMap.get(videoId); 
 
       let durationSeconds = existingVideoData.durationSeconds;
       if (fullYtVideoDetails && fullYtVideoDetails.contentDetails?.duration) {
         durationSeconds = parseISO8601Duration(fullYtVideoDetails.contentDetails.duration);
       } else if (durationSeconds === undefined) {
-          durationSeconds = null; // Ensure it's null if never fetched
+          durationSeconds = null; 
       }
       
       const associatedPlaylists = new Set(existingVideoData.associatedPlaylistIds || []);
       associatedPlaylists.add(playlistId);
 
       const finalVideoDataForDatastore = {
-        ...existingVideoData, // Preserve fields like geminiCategories, lastCategorized
+        ...existingVideoData, 
         videoId: videoId,
-        title: fullYtVideoDetails?.snippet?.title || playlistItem.snippet.title, // Prefer canonical title
-        description: fullYtVideoDetails?.snippet?.description || playlistItem.snippet.description, // Prefer canonical desc
-        publishedAt: fullYtVideoDetails?.snippet?.publishedAt || playlistItem.snippet.publishedAt, // Video's own publish date
-        addedToPlaylistAt: playlistItem.snippet.publishedAt, // When item was added to this playlist
+        title: fullYtVideoDetails?.snippet?.title || playlistItem.snippet.title, 
+        description: fullYtVideoDetails?.snippet?.description || playlistItem.snippet.description, 
+        publishedAt: fullYtVideoDetails?.snippet?.publishedAt || playlistItem.snippet.publishedAt, 
+        addedToPlaylistAt: playlistItem.snippet.publishedAt, 
         thumbnailUrl: playlistItem.snippet.thumbnails?.default?.url,
         channelId: playlistItem.snippet.videoOwnerChannelId || playlistItem.snippet.channelId,
         channelTitle: playlistItem.snippet.videoOwnerChannelTitle || playlistItem.snippet.channelTitle,
         durationSeconds: durationSeconds,
         associatedPlaylistIds: Array.from(associatedPlaylists),
-        // Initialize if new, preserve if existing
         viewCount: existingVideoData.viewCount !== undefined ? existingVideoData.viewCount : (fullYtVideoDetails?.statistics?.viewCount || null),
         likeCount: existingVideoData.likeCount !== undefined ? existingVideoData.likeCount : (fullYtVideoDetails?.statistics?.likeCount || null),
-        topicCategories: existingVideoData.topicCategories || (fullYtVideoDetails?.topicDetails?.topicCategories || []),
+        topicCategories: existingVideoData.topicCategories || (fullYtVideoDetails?.topicDetails?.topicCategories?.map(tc => tc.replace('https://en.wikipedia.org/wiki/', '')) || []),
         geminiCategories: existingVideoData.geminiCategories || [],
         lastCategorized: existingVideoData.lastCategorized !== undefined ? existingVideoData.lastCategorized : null,
       };
@@ -241,16 +267,18 @@ exports.getWatchLaterPlaylist = async (req, res) => {
       });
     }
     
-    datastoreEntitiesToUpdate.forEach(entity => datastoreEntitiesToUpsert.push(entity)); // Add entities marked for update (playlist removal)
+    // Combine entities that had playlistId removed (but not deleted) with new/updated entities
+    const finalUpserts = [...datastoreEntitiesToUpsert, ...datastoreEntitiesToUpdate];
+
 
     // 7. Execute Datastore Operations
     if (datastoreKeysToDelete.length > 0) {
       console.log(`[SYNC] Executing ${datastoreKeysToDelete.length} deletions.`);
       await datastore.delete(datastoreKeysToDelete);
     }
-    if (datastoreEntitiesToUpsert.length > 0) {
-      console.log(`[SYNC] Executing ${datastoreEntitiesToUpsert.length} upserts.`);
-      await datastore.upsert(datastoreEntitiesToUpsert);
+    if (finalUpserts.length > 0) {
+      console.log(`[SYNC] Executing ${finalUpserts.length} upserts.`);
+      await datastore.upsert(finalUpserts);
     }
 
     console.log(`[SYNC] Synchronization complete for playlist ${playlistId}.`);

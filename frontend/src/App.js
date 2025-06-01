@@ -1,3 +1,8 @@
+/**
+ * @fileoverview This file defines the main React application component for ReelWorthy.
+ * It handles user authentication, YouTube API interactions, playlist management,
+ * and the chat interface with the Gemini AI service.
+ */
 import React, {useState, useEffect, useCallback, useRef} from 'react';
 import './App.css';
 import {auth} from './firebase'; // Import Firebase auth instance
@@ -149,6 +154,12 @@ function VideoList({videos}) {
 }
 
 // --- Main App ---
+/**
+ * The main application component for ReelWorthy.
+ * Manages application state, user authentication, YouTube data fetching,
+ * and interactions with the AI chat service.
+ * @returns {React.ReactElement} The rendered App component.
+ */
 function App() {
   const ws = useRef(null);
   const pingIntervalRef = useRef(null);
@@ -258,18 +269,16 @@ function App() {
     };
     ws.current.onclose = handleWSCloseOrError;
     ws.current.onerror = handleWSCloseOrError;
-  }, [selectedPlaylistId, reconnectAttempt, closeWebSocket, clearWebSocketTimers, setPopup, setError, setIsReconnecting, setReconnectAttempt, pingIntervalRef, reconnectTimeoutRef]); // ws removed as it's a ref
+  }, [selectedPlaylistId, reconnectAttempt, closeWebSocket, clearWebSocketTimers, setPopup, setError, setIsReconnecting, setReconnectAttempt, pingIntervalRef, reconnectTimeoutRef]);
 
   useEffect(() => closeWebSocket, [closeWebSocket]);
 
   const fetchUserPlaylists = useCallback(async () => {
     setShowOverlay(true);
     setError(null);
-    // setIsYouTubeLinked(true); // REMOVED optimistic set
 
     if (!currentUser) {
       setError('User not logged in. Cannot fetch playlists.');
-      // setIsYouTubeLinked(false); // Ensure it's false if not already
       setShowOverlay(false);
       return;
     }
@@ -278,7 +287,6 @@ function App() {
       const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.listUserPlaylists, {headers: {'Authorization': `Bearer ${idToken}`}});
       let data = {};
       try {
-        // Log headers and status before attempting to parse JSON
         const responseHeaders = {};
         response.headers.forEach((value, name) => {
           responseHeaders[name] = value;
@@ -289,12 +297,10 @@ function App() {
         if (!response.ok) {
           const rawText = await response.text();
           console.log('listUserPlaylists non-OK raw response text:', rawText);
-          // Try to parse it as JSON, as it might still be a JSON error from the server
           try {
             data = JSON.parse(rawText);
           } catch (parseError) {
             console.error('Failed to parse non-OK listUserPlaylists response text as JSON:', parseError);
-            // Use the raw text or a generic error if parsing fails
             data = {error: `Server returned non-OK status ${response.status} with non-JSON body: ${rawText.substring(0, 100)}`, code: 'SERVER_ERROR_NON_JSON'};
           }
         } else {
@@ -322,20 +328,20 @@ function App() {
         setUserPlaylists([]);
       } else { // response.ok
         setUserPlaylists(data.playlists || []);
-        setIsYouTubeLinked(true); // Correctly set to true on success
+        setIsYouTubeLinked(true);
         setAuthorizationError(null);
       }
     } catch (err) {
       console.error('Error fetching user playlists (catch block):', err);
       setUserPlaylists([]);
-      setIsYouTubeLinked(false); // SET TO FALSE on caught error
+      setIsYouTubeLinked(false);
       setError(err.message || 'An unexpected error occurred while fetching playlists.');
       setPopup({visible: true, message: `Error fetching playlists: ${err.message}`, type: 'error'});
       setTimeout(() => setPopup((p) => ({...p, visible: false})), 5000);
     } finally {
       setShowOverlay(false);
     }
-  }, [currentUser, setAuthorizationError, setError, setIsYouTubeLinked, setPopup, setShowOverlay, setUserPlaylists]); // isYouTubeLinked REMOVED from dependencies
+  }, [currentUser, setAuthorizationError, setError, setIsYouTubeLinked, setPopup, setShowOverlay, setUserPlaylists]);
 
   const fetchPlaylistItems = useCallback(async (playlistId) => {
     if (!playlistId || !currentUser) {
@@ -370,13 +376,12 @@ function App() {
     } catch (err) {
       console.error('Error fetching playlist items:', err);
       setVideos([]);
-      // No longer need to check isYouTubeLinked here for popup, as errors should be clearer
       setPopup({visible: true, message: `Error fetching playlist: ${err.message}`, type: 'error'});
       setTimeout(() => setPopup((p) => ({...p, visible: false})), 5000);
     } finally {
       setShowOverlay(false);
     }
-  }, [currentUser, userPlaylists, setAuthorizationError, setError, setIsYouTubeLinked, setPopup, setShowOverlay, setVideos]); // isYouTubeLinked REMOVED from dependencies
+  }, [currentUser, userPlaylists, setAuthorizationError, setError, setIsYouTubeLinked, setPopup, setShowOverlay, setVideos]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -439,7 +444,6 @@ function App() {
           const authZData = await response.json();
           if (response.ok && authZData.authorized) {
             setIsAuthorizedUser(true);
-            // Set isYouTubeLinked based on the backend response
             if (authZData.youtubeLinked) {
               setIsYouTubeLinked(true);
               console.log('User is authorized by allow-list and YouTube is linked per backend check.');
@@ -447,12 +451,10 @@ function App() {
               setIsYouTubeLinked(false);
               console.log('User is authorized by allow-list but YouTube is NOT linked per backend check.');
             }
-            // The useEffect watching isLoggedIn, isAuthorizedUser, isYouTubeLinked, etc.
-            // will now handle calling fetchUserPlaylists when all conditions are met.
           } else {
             setIsAuthorizedUser(false);
-            setIsYouTubeLinked(false); // Ensure YouTube linked is false if app auth fails
-            if (!authorizationError && !handledRedirect) { // Don't overwrite specific redirect error
+            setIsYouTubeLinked(false);
+            if (!authorizationError && !handledRedirect) {
               setAuthorizationError(authZData.error || 'User not on allow-list.');
             }
             console.warn('User not on allow-list:', user.email, authZData.error);
@@ -460,7 +462,7 @@ function App() {
         } catch (err) {
           console.error('Error checking user authorization (allow-list):', err);
           setIsAuthorizedUser(false);
-          setIsYouTubeLinked(false); // Ensure YouTube linked is false on error
+          setIsYouTubeLinked(false);
           if (!authorizationError && !handledRedirect) {
             setAuthorizationError('Failed to verify app authorization status.');
           }
@@ -469,37 +471,29 @@ function App() {
         setCurrentUser(null);
         setIsLoggedIn(false);
         setIsAuthorizedUser(false);
-        setIsYouTubeLinked(false); // Correctly reset to false on logout
+        setIsYouTubeLinked(false);
         setAuthorizationError(null);
       }
       setAuthChecked(true);
       setShowOverlay(false);
     });
     return () => unsubscribe();
-  }, []); // REMOVED fetchUserPlaylists from dependencies, added authorizationError back if needed after testing
+  }, []);
 
   useEffect(() => {
-    // This effect now more clearly handles fetching playlists when auth state is stable
-    // and YouTube is believed to be linked (or has just been linked).
     if (isLoggedIn && isAuthorizedUser && isYouTubeLinked && !isLoading) {
-      // Check if playlists are empty AND we didn't *just* try to fetch them (to avoid loops on error)
-      // The `justLinkedYouTube` flag in the other useEffect handles the immediate fetch after linking.
-      // This one handles subsequent loads or if isYouTubeLinked was true from a previous session (hypothetically).
       if (userPlaylists.length === 0 && !error && !(authorizationError && authorizationError.includes('not linked'))) {
-        // Avoid fetching if an error already exists or if it's a "not linked" error
-        // as that state should lead to the "Connect YouTube" button.
         console.log('useEffect[auth,ytLinked]: Fetching playlists because user is logged in, authorized, YT linked, not loading, no critical errors, and playlists are empty.');
         fetchUserPlaylists();
       }
     } else if (!isLoggedIn || !isAuthorizedUser) {
-      // Clear data if user logs out or is not authorized
       setUserPlaylists([]);
       setSelectedPlaylistId('');
       setVideos([]);
       setSuggestedVideos([]);
       if (ws.current) closeWebSocket();
     }
-  }, [isLoggedIn, isAuthorizedUser, isYouTubeLinked, isLoading, userPlaylists.length, error, authorizationError, fetchUserPlaylists, closeWebSocket]); // setError, setAuthorizationError removed as they are stable setters
+  }, [isLoggedIn, isAuthorizedUser, isYouTubeLinked, isLoading, userPlaylists.length, error, authorizationError, fetchUserPlaylists, closeWebSocket]);
 
   useEffect(() => {
     if (activeOutputTab === 'Thinking' && thinkingOutputContainerRef.current) {
@@ -525,7 +519,6 @@ function App() {
     }
     const nonce = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     localStorage.setItem('youtubeOAuthNonce', nonce);
-    // Construct the finalRedirectUri from the current page's origin and pathname
     const finalRedirectUri = window.location.origin + window.location.pathname;
     const stateObject = {uid: currentUser.uid, nonce: nonce, finalRedirectUri: finalRedirectUri};
     const encodedState = btoa(JSON.stringify(stateObject));
@@ -551,17 +544,11 @@ function App() {
     setThinkingOutput('');
     setLastQuery(''); // Clear the last query
     setActiveOutputTab('Results');
-    // Clear previous playlist-specific errors when changing selection
     setError(null);
     setAuthorizationError(null);
 
     if (newPlaylistId) {
-      await fetchPlaylistItems(newPlaylistId); // Await completion
-      // Check error states before starting WebSocket.
-      // Note: error/authorizationError state might not be updated here due to closure.
-      // A more robust way would be for fetchPlaylistItems to return a status or for
-      // startWebSocketConnection to be triggered by an effect watching `videos` and `selectedPlaylistId`.
-      // For now, this await helps ensure Datastore is populated before gemini-chat-service queries.
+      await fetchPlaylistItems(newPlaylistId);
       startWebSocketConnection(newPlaylistId);
     } else {
       setVideos([]);
@@ -571,19 +558,15 @@ function App() {
 
   const refreshSelectedPlaylistItems = async () => {
     if (selectedPlaylistId) {
-      // Clear previous errors before fetching
       setError(null);
       setAuthorizationError(null);
-      await fetchPlaylistItems(selectedPlaylistId); // Await completion
+      await fetchPlaylistItems(selectedPlaylistId);
 
-      // Similar caution about error state checking here.
       if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-        // If WS is open, just re-init chat with potentially updated video list context
         ws.current.send(JSON.stringify({type: 'INIT_CHAT', payload: {playlistId: selectedPlaylistId}}));
         setPopup({visible: true, message: 'Playlist refreshed and chat re-initialized.', type: 'info'});
         setTimeout(() => setPopup((p) => ({...p, visible: false})), 2000);
       } else {
-        // If WS is not open, start a new connection
         startWebSocketConnection(selectedPlaylistId);
       }
     } else {

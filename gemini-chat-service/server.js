@@ -1,3 +1,9 @@
+/**
+ * @fileoverview WebSocket server for the ReelWorthy Gemini chat service.
+ * Handles chat initialization with playlist context from Datastore,
+ * processes user queries with the Gemini API, and streams responses.
+ * It maintains active chat sessions in memory.
+ */
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
@@ -6,7 +12,7 @@ const { Datastore } = require('@google-cloud/datastore');
 
 // --- Configuration ---
 const PORT = process.env.PORT || 8080;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY; 
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 if (!GEMINI_API_KEY) {
     console.error("GEMINI_API_KEY environment variable is not set.");
     process.exit(1);
@@ -21,7 +27,8 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 // In-memory store for active Gemini chat sessions
-const activeSessions = new Map(); // ws -> { chat: GeminiChatSession, playlistId: string, modelId: string, videosForPlaylist: Array }
+// ws -> { chat: GeminiChatSession, playlistId: string, modelId: string, videosForPlaylist: Array }
+const activeSessions = new Map();
 
 // --- WebSocket Server Logic ---
 wss.on('connection', (ws) => {
@@ -41,8 +48,15 @@ wss.on('connection', (ws) => {
         const currentSession = activeSessions.get(ws);
 
         if (message.type === 'INIT_CHAT') {
+            /**
+             * Handles the 'INIT_CHAT' message from a client.
+             * Initializes a new Gemini chat session for the specified playlist.
+             * Fetches video data for the playlist from Datastore to provide context.
+             * Expected message.payload: { playlistId: string, modelId?: string }
+             * Sends 'CHAT_INITIALIZED' on success or 'ERROR' on failure.
+             */
             const { playlistId, modelId: clientModelId } = message.payload;
-            const effectiveModelId = clientModelId || "gemini-2.5-flash-preview-05-20"; 
+            const effectiveModelId = clientModelId || "gemini-2.5-flash-preview-05-20";
 
             if (!playlistId) {
                 ws.send(JSON.stringify({ type: 'ERROR', error: 'playlistId is required for INIT_CHAT' }));
@@ -51,13 +65,13 @@ wss.on('connection', (ws) => {
 
             try {
                 console.log(`[INIT_CHAT] Fetching videos for playlist: ${playlistId}`);
-                const videosQuery = datastore.createQuery('Videos') 
-                    .filter('associatedPlaylistIds', '=', playlistId); // Changed to query associatedPlaylistIds
+                const videosQuery = datastore.createQuery('Videos')
+                    .filter('associatedPlaylistIds', '=', playlistId);
                 const [videosForPlaylist] = await datastore.runQuery(videosQuery);
                 
                 if (!videosForPlaylist || videosForPlaylist.length === 0) {
                     ws.send(JSON.stringify({ type: 'ERROR', error: `No videos found for playlist ${playlistId}` }));
-                    activeSessions.delete(ws); 
+                    activeSessions.delete(ws);
                     return;
                 }
                 console.log(`[INIT_CHAT] Fetched ${videosForPlaylist.length} videos.`);
@@ -85,7 +99,7 @@ wss.on('connection', (ws) => {
                         { role: "model", parts: [{ text: "Understood. I will use the provided video list and user query to make recommendations in the specified JSON format." }] },
                         { role: "user", parts: [{ text: videoContextString }] }
                     ],
-                    generationConfig: generationConfig 
+                    generationConfig: generationConfig
                 });
 
                 activeSessions.set(ws, { chat, playlistId, modelId: effectiveModelId, videosForPlaylist });
@@ -95,16 +109,24 @@ wss.on('connection', (ws) => {
             } catch (error) {
                 console.error('[INIT_CHAT] Error initializing chat:', error);
                 ws.send(JSON.stringify({ type: 'ERROR', error: 'Failed to initialize chat session: ' + error.message }));
-                activeSessions.delete(ws); 
+                activeSessions.delete(ws);
             }
 
         } else if (message.type === 'USER_QUERY') {
+            /**
+             * Handles a 'USER_QUERY' message from a client.
+             * Uses the existing chat session to send the query to Gemini.
+             * Streams 'STREAM_CHUNK' messages back to the client for the response,
+             * followed by a 'STREAM_END' message with the full answer and suggested videos.
+             * Expected message.payload: { query: string }
+             * Sends 'ERROR' if the chat is not initialized or other issues occur.
+             */
             if (!currentSession || !currentSession.chat) {
                 ws.send(JSON.stringify({ type: 'ERROR', error: 'Chat not initialized. Send INIT_CHAT first.' }));
                 return;
             }
             const { query } = message.payload;
-            const { videosForPlaylist, chat: userChatSession } = currentSession; 
+            const { videosForPlaylist, chat: userChatSession } = currentSession;
 
             if (!query) {
                 ws.send(JSON.stringify({ type: 'ERROR', error: 'Query is required for USER_QUERY' }));
@@ -116,69 +138,56 @@ wss.on('connection', (ws) => {
                 
                 const streamResult = await userChatSession.sendMessageStream(query);
                 let accumulatedText = "";
-                let firstByteReceived = false; // Flag to log only the first chunk event
+                let firstByteReceived = false;
 
                 for await (const chunk of streamResult.stream) {
                     if (!firstByteReceived) {
-                        // Log for the first byte received
                         console.log(`[USER_QUERY_RESPONSE_START][${new Date().toISOString()}] First byte received from Gemini for playlist ${currentSession.playlistId}, query: "${query}"`);
                         firstByteReceived = true;
                     }
 
                     if (ws.readyState !== WebSocket.OPEN) {
                         console.log(`[USER_QUERY][${new Date().toISOString()}] WebSocket closed by client during stream. Aborting.`);
-                        return; // Stop processing if client disconnected
+                        return; 
                     }
                     const chunkText = chunk.text();
                     accumulatedText += chunkText;
                     ws.send(JSON.stringify({ type: 'STREAM_CHUNK', payload: { textChunk: chunkText } }));
                 }
 
-                // Log for the complete response received
                 let numSuggestedItems = 0;
                 try {
                     const parsedResponse = JSON.parse(accumulatedText);
                     if (parsedResponse && Array.isArray(parsedResponse.suggestedVideos)) {
                         numSuggestedItems = parsedResponse.suggestedVideos.length;
                     }
-                } catch (e) {
-                    // If parsing fails, numSuggestedItems remains 0, which is fine for this log.
-                }
+                } catch (e) { /* Ignore parsing error for logging num items */ }
                 console.log(`[USER_QUERY_RESPONSE_END][${new Date().toISOString()}] Full response received from Gemini for playlist ${currentSession.playlistId}, query: "${query}". Number of suggested items: ${numSuggestedItems}`);
                 
                 console.log(`[USER_QUERY][${new Date().toISOString()}] Stream finished. Accumulated text length: ${accumulatedText.length}`);
 
-                // Sanitize accumulated text
                 let sanitizedText = accumulatedText.replace(/[\u0000-\u001F\u007F-\u009F]/g, (match) => {
                     if (match === '\t' || match === '\n' || match === '\r') return match;
-                    return ''; 
+                    return '';
                 });
 
                 let allSuggestedVideos = [];
                 let currentTextToParse = sanitizedText.trim();
-                let startIndex = 0;
-
-                if (currentTextToParse.startsWith("```json")) {
-                    currentTextToParse = currentTextToParse.substring(7);
-                }
-                if (currentTextToParse.endsWith("```")) {
-                    currentTextToParse = currentTextToParse.substring(0, currentTextToParse.length - 3);
-                }
+                if (currentTextToParse.startsWith("```json")) currentTextToParse = currentTextToParse.substring(7);
+                if (currentTextToParse.endsWith("```")) currentTextToParse = currentTextToParse.substring(0, currentTextToParse.length - 3);
                 currentTextToParse = currentTextToParse.trim();
-
+                
+                let startIndex = 0;
                 while (startIndex < currentTextToParse.length) {
                     const firstBrace = currentTextToParse.indexOf('{', startIndex);
-                    if (firstBrace === -1) break; 
+                    if (firstBrace === -1) break;
                     let balance = 0;
                     let lastBraceIndex = -1;
                     for (let i = firstBrace; i < currentTextToParse.length; i++) {
                         if (currentTextToParse[i] === '{') balance++;
                         else if (currentTextToParse[i] === '}') {
                             balance--;
-                            if (balance === 0) {
-                                lastBraceIndex = i;
-                                break; 
-                            }
+                            if (balance === 0) { lastBraceIndex = i; break; }
                         }
                     }
                     if (lastBraceIndex !== -1) {
@@ -193,10 +202,10 @@ wss.on('connection', (ws) => {
                         } catch (parseError) {
                             console.warn(`[JSON_PARSE] Failed to parse JSON part. Error: ${parseError.message}. Snippet: ${jsonCandidate.substring(0, 200)}`);
                         }
-                        startIndex = lastBraceIndex + 1; 
+                        startIndex = lastBraceIndex + 1;
                     } else {
                         console.warn(`[JSON_PARSE] Mismatched braces in remaining text. Snippet: ${currentTextToParse.substring(startIndex, startIndex + 200)}`);
-                        break; 
+                        break;
                     }
                 }
 
@@ -209,11 +218,16 @@ wss.on('connection', (ws) => {
                     answerText = `The AI returned data but no matching videos were found or the format was unexpected.`;
                 }
                 
+                /**
+                 * Formats total seconds into HH:MM:SS or MM:SS string.
+                 * @param {number|null|undefined} totalSeconds The total seconds.
+                 * @return {string} The formatted time string (e.g., "01:23:45" or "23:45"). Returns "00:00" if input is invalid.
+                 */
                 function formatSecondsToHHMMSS(totalSeconds) {
                     if (totalSeconds === null || totalSeconds === undefined || isNaN(totalSeconds)) return "00:00";
                     const h = Math.floor(totalSeconds / 3600);
                     const m = Math.floor((totalSeconds % 3600) / 60);
-                    const s = totalSeconds % 60;
+                    const s = Math.floor(totalSeconds % 60); // Ensure seconds are integers
                     return `${h > 0 ? String(h).padStart(2, '0') + ':' : ''}${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
                 }
                 
@@ -241,12 +255,12 @@ wss.on('connection', (ws) => {
 
     ws.on('close', () => {
         console.log('[WebSocket] Client disconnected');
-        activeSessions.delete(ws); 
+        activeSessions.delete(ws);
     });
 
     ws.on('error', (error) => {
         console.error('[WebSocket] Error:', error);
-        activeSessions.delete(ws); 
+        activeSessions.delete(ws);
     });
 });
 
