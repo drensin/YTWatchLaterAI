@@ -7,16 +7,54 @@
 
 .App-header {
   background-color: #282c34;
-  /* min-height: 10vh; */ /* Let content define height */
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  flex-direction: row; 
+  align-items: center; 
+  justify-content: space-between; 
   font-size: calc(10px + 2vmin);
   color: white;
-  padding: 20px;
-  /* margin-bottom: 20px; */ /* Removed to allow main to flex-grow */
+  padding: 10px 20px; 
 }
+
+#app-logo {
+  max-height: 50px; 
+  width: auto;
+  flex-shrink: 0; /* Prevent logo from shrinking */
+}
+
+.header-title-text {
+  flex-grow: 1; /* Allows this to take up space */
+  text-align: center; /* Centers the <p> tag within it */
+  margin: 0 15px; /* Add some horizontal margin */
+  font-size: 0.8em; /* Slightly smaller text for the title/status */
+  white-space: nowrap; /* Prevent wrapping if possible */
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.header-title-text p {
+   display: inline-block; 
+   margin: 0; /* Reset paragraph margin */
+}
+
+.header-login-control {
+  flex-shrink: 0; /* Prevent login icon from shrinking */
+}
+
+.login-icon-button {
+  background: none;
+  border: none;
+  color: white; /* Icon color */
+  font-size: 1.8em; /* Adjust icon size */
+  cursor: pointer;
+  padding: 0 10px; /* Add some padding */
+  margin-left: 15px; /* Space from "Welcome" message or auth check message */
+}
+
+.login-icon-button:hover {
+  color: #61dafb; /* Icon color change on hover */
+}
+
 
 main {
   padding: 20px;

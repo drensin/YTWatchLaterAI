@@ -27,7 +27,8 @@ function LoginButton({onLoginSuccess}) {
   const handleLogin = () => {
     window.location.href = CLOUD_FUNCTIONS_BASE_URL.handleYouTubeAuth;
   };
-  return <button onClick={handleLogin}>Login with YouTube</button>;
+  // Return an icon button instead of text
+  return <button onClick={handleLogin} className="login-icon-button" title="Login with YouTube">👤</button>;
 }
 
 /**
@@ -448,6 +449,7 @@ function App() {
     const oauthStatus = urlParams.get('oauth_status');
     if (oauthStatus === 'success') {
       setIsLoggedIn(true); setAuthChecked(true);
+      // Removed success popup
       window.history.replaceState({}, document.title, window.location.pathname);
     } else if (oauthStatus === 'error') {
       const errorMsg = 'OAuth failed: ' + urlParams.get('error_message');
@@ -586,10 +588,14 @@ function App() {
       {showOverlay && <LoadingOverlay />}
       {popup.visible && <StatusPopup message={popup.message} type={popup.type} />}
       <header className="App-header">
-        <h1>ReelWorthy</h1>
-        {!authChecked && !showOverlay && <p>Checking auth...</p>}
-        {authChecked && !isLoggedIn && <LoginButton onLoginSuccess={handleLoginSuccess} />}
-        {authChecked && isLoggedIn && <p>Welcome! You are logged in. {isReconnecting && `(Reconnecting... ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS})`}</p>}
+        <img src={process.env.PUBLIC_URL + '/ReelWorthyLogo.png'} alt="ReelWorthy Logo" id="app-logo" />
+        <div className="header-title-text">
+          {!authChecked && !showOverlay && <p style={{margin: '0'}}>Checking auth...</p>}
+          {authChecked && isLoggedIn && <p style={{margin: '0'}}>ReelWorthy - Chat With Your Playlists {isReconnecting && `(Reconnecting... ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS})`}</p>}
+        </div>
+        <div className="header-login-control">
+          {authChecked && !isLoggedIn && <LoginButton onLoginSuccess={handleLoginSuccess} />}
+        </div>
       </header>
       <main>
         {error && <p style={{color: 'red'}}>Error: {error}</p>}
