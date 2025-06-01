@@ -60,14 +60,24 @@ exports.checkUserAuthorization = async (req, res) => {
 
     // Check if the email exists in the AuthorizedEmail Kind in Datastore
     const emailKey = datastore.key([AUTHORIZED_EMAIL_KIND, userEmail]);
-    const [entity] = await datastore.get(emailKey);
+    const [allowListEntity] = await datastore.get(emailKey);
 
-    if (entity) {
-      // Email is in the allow-list
-      return res.status(200).send({authorized: true, email: userEmail, uid: decodedToken.uid});
+    if (allowListEntity) {
+      // Email is in the allow-list, now check for YouTube tokens
+      const tokenKey = datastore.key(['Tokens', decodedToken.uid]);
+      const [tokenEntity] = await datastore.get(tokenKey);
+
+      const youtubeLinked = !!(tokenEntity && tokenEntity.refresh_token); // Changed to snake_case
+
+      return res.status(200).send({
+        authorized: true,
+        email: userEmail,
+        uid: decodedToken.uid,
+        youtubeLinked: youtubeLinked,
+      });
     } else {
       // Email is not in the allow-list
-      return res.status(403).send({authorized: false, error: 'User email not authorized.'});
+      return res.status(403).send({authorized: false, error: 'User email not authorized.', youtubeLinked: false});
     }
   } catch (error) {
     console.error('Error verifying Firebase ID token or checking Datastore:', error);

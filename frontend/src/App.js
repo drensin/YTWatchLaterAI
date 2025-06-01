@@ -439,15 +439,19 @@ function App() {
           const authZData = await response.json();
           if (response.ok && authZData.authorized) {
             setIsAuthorizedUser(true);
-            console.log('User is authorized by allow-list:', user.email);
-            // Removed direct call to fetchUserPlaylists(); rely on useEffect.
-            // if (justLinkedYouTube) {
-            //   fetchUserPlaylists();
-            // }
+            // Set isYouTubeLinked based on the backend response
+            if (authZData.youtubeLinked) {
+              setIsYouTubeLinked(true);
+              console.log('User is authorized by allow-list and YouTube is linked per backend check.');
+            } else {
+              setIsYouTubeLinked(false);
+              console.log('User is authorized by allow-list but YouTube is NOT linked per backend check.');
+            }
             // The useEffect watching isLoggedIn, isAuthorizedUser, isYouTubeLinked, etc.
             // will now handle calling fetchUserPlaylists when all conditions are met.
           } else {
             setIsAuthorizedUser(false);
+            setIsYouTubeLinked(false); // Ensure YouTube linked is false if app auth fails
             if (!authorizationError && !handledRedirect) { // Don't overwrite specific redirect error
               setAuthorizationError(authZData.error || 'User not on allow-list.');
             }
@@ -456,6 +460,7 @@ function App() {
         } catch (err) {
           console.error('Error checking user authorization (allow-list):', err);
           setIsAuthorizedUser(false);
+          setIsYouTubeLinked(false); // Ensure YouTube linked is false on error
           if (!authorizationError && !handledRedirect) {
             setAuthorizationError('Failed to verify app authorization status.');
           }
@@ -464,7 +469,7 @@ function App() {
         setCurrentUser(null);
         setIsLoggedIn(false);
         setIsAuthorizedUser(false);
-        setIsYouTubeLinked(false); // Correctly reset to false
+        setIsYouTubeLinked(false); // Correctly reset to false on logout
         setAuthorizationError(null);
       }
       setAuthChecked(true);
