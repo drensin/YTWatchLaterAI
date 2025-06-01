@@ -440,11 +440,12 @@ function App() {
           if (response.ok && authZData.authorized) {
             setIsAuthorizedUser(true);
             console.log('User is authorized by allow-list:', user.email);
-            if (justLinkedYouTube) { // If YouTube was just linked successfully
-              fetchUserPlaylists(); // Call fetchUserPlaylists directly
-            }
-            // Otherwise, fetchUserPlaylists might be called by the other useEffect
-            // that watches isLoggedIn and isAuthorizedUser, if isYouTubeLinked is already true.
+            // Removed direct call to fetchUserPlaylists(); rely on useEffect.
+            // if (justLinkedYouTube) {
+            //   fetchUserPlaylists();
+            // }
+            // The useEffect watching isLoggedIn, isAuthorizedUser, isYouTubeLinked, etc.
+            // will now handle calling fetchUserPlaylists when all conditions are met.
           } else {
             setIsAuthorizedUser(false);
             if (!authorizationError && !handledRedirect) { // Don't overwrite specific redirect error
@@ -479,10 +480,10 @@ function App() {
       // Check if playlists are empty AND we didn't *just* try to fetch them (to avoid loops on error)
       // The `justLinkedYouTube` flag in the other useEffect handles the immediate fetch after linking.
       // This one handles subsequent loads or if isYouTubeLinked was true from a previous session (hypothetically).
-      if (userPlaylists.length === 0 && !error && !authorizationError?.includes('not linked')) {
-         // Avoid fetching if an error already exists or if it's a "not linked" error
-         // as that state should lead to the "Connect YouTube" button.
-        console.log('isLoggedIn, isAuthorizedUser, isYouTubeLinked are all true. Attempting to fetch playlists.');
+      if (userPlaylists.length === 0 && !error && !(authorizationError && authorizationError.includes('not linked'))) {
+        // Avoid fetching if an error already exists or if it's a "not linked" error
+        // as that state should lead to the "Connect YouTube" button.
+        console.log('useEffect[auth,ytLinked]: Fetching playlists because user is logged in, authorized, YT linked, not loading, no critical errors, and playlists are empty.');
         fetchUserPlaylists();
       }
     } else if (!isLoggedIn || !isAuthorizedUser) {
@@ -493,7 +494,7 @@ function App() {
       setSuggestedVideos([]);
       if (ws.current) closeWebSocket();
     }
-  }, [isLoggedIn, isAuthorizedUser, closeWebSocket]); // Removed fetchUserPlaylists from here
+  }, [isLoggedIn, isAuthorizedUser, isYouTubeLinked, isLoading, userPlaylists.length, error, authorizationError, fetchUserPlaylists, closeWebSocket]);
 
   useEffect(() => {
     if (activeOutputTab === 'Thinking' && thinkingOutputContainerRef.current) {
@@ -610,12 +611,12 @@ function App() {
       <main>
         {error && <p style={{color: 'red', fontWeight: 'bold'}}>App Error: {error}</p>}
         {authorizationError && <p style={{color: 'orange', fontWeight: 'bold'}}>Authorization Error: {authorizationError}</p>}
-        
+
         {isLoggedIn && isAuthorizedUser && !isYouTubeLinked && authChecked && (
           <div style={{padding: '20px', textAlign: 'center'}}>
             <p>{authorizationError || 'Your YouTube account is not connected or the connection has expired.'}</p>
             <button onClick={handleConnectYouTube} style={{padding: '10px 20px', fontSize: '1em'}}>
-              🔗 Connect YouTube Account
+        🔗 Connect YouTube Account
             </button>
           </div>
         )}
@@ -667,7 +668,7 @@ function App() {
             }
           </>
         )}
-        {isLoggedIn && !isAuthorizedUser && authChecked && (
+        {isLoggedIn && !isAuthorizedUser && authChecked &&(
           <p>Your account ({currentUser?.email}) is not authorized to use this application. Please contact the administrator.</p>
         )}
         {!isLoggedIn && authChecked && (
