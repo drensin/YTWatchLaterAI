@@ -18,3 +18,5 @@ backend/*/node_modules/
 
 # New Cloud Run service specific
 gemini-chat-service/node_modules/
+
+state.md
