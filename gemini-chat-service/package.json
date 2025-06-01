@@ -1,7 +1,7 @@
 {
   "name": "gemini-chat-service",
   "version": "1.0.0",
-  "description": "Backend service for persistent Gemini chat sessions via WebSockets on Cloud Run.",
+  "description": "Backend chat service for ReelWorthy.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

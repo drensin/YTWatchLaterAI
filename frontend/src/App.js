@@ -173,7 +173,7 @@ function VideoList({videos}) {
               rel="noopener noreferrer"
               className="watch-link"
               title="Watch on YouTube">
-                📺 Watch
+                ▶ Watch
             </a>
           </div>
         </li>
@@ -586,7 +586,7 @@ function App() {
       {showOverlay && <LoadingOverlay />}
       {popup.visible && <StatusPopup message={popup.message} type={popup.type} />}
       <header className="App-header">
-        <h1>YT Watch Later Manager</h1>
+        <h1>ReelWorthy</h1>
         {!authChecked && !showOverlay && <p>Checking auth...</p>}
         {authChecked && !isLoggedIn && <LoginButton onLoginSuccess={handleLoginSuccess} />}
         {authChecked && isLoggedIn && <p>Welcome! You are logged in. {isReconnecting && `(Reconnecting... ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS})`}</p>}
@@ -601,7 +601,7 @@ function App() {
                 <option value="">-- Select a playlist --</option>
                 {userPlaylists.map((pl) => <option key={pl.id} value={pl.id}>{pl.title} ({pl.itemCount} items)</option>)}
               </select>
-              <button onClick={refreshSelectedPlaylistItems} disabled={isLoading || !selectedPlaylistId} className="refresh-button" style={{marginLeft: '10px'}} title="Refresh playlist items">🔄</button>
+              <button onClick={refreshSelectedPlaylistItems} disabled={isLoading || !selectedPlaylistId} className="refresh-button" style={{marginLeft: '10px'}} title="Refresh playlist items">↺</button>
             </div>
             {selectedPlaylistId && (
               <>

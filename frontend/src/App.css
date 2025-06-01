@@ -338,19 +338,23 @@ main > div:first-child select {
 }
 
 .watch-link {
-  display: inline-block;
+  display: inline-block; /* Or 'inline-flex' if more complex alignment needed */
+  align-items: center;
   margin-top: 8px;
-  padding: 5px 10px;
-  background-color: #e0e0e0;
-  color: #333;
+  padding: 0; /* Remove padding if it's just icon + text */
+  background-color: transparent; /* No background */
+  color: #282c34; /* Default text/icon color, same as .refresh-button */
   text-decoration: none;
-  border-radius: 4px;
-  font-size: 0.9em;
+  border: none; /* No border */
+  border-radius: 4px; /* Optional: keep if slight rounding is desired on hover/focus */
+  font-size: 0.9em; /* Adjust as needed, or inherit */
+  cursor: pointer;
 }
 
 .watch-link:hover {
-  background-color: #d0d0d0;
-  color: #000;
+  background-color: transparent; /* No background on hover */
+  color: #61dafb; /* Icon/text color change on hover, same as .refresh-button */
+  text-decoration: underline; /* Optional: underline on hover for link affordance */
 }
 
 .more-less-button {

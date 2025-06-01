@@ -1,6 +1,6 @@
-# Deployment Instructions for YT Watch Later Manager
+# Deployment Instructions for ReelWorthy
 
-This document provides instructions for deploying the backend Cloud Functions and notes on frontend deployment.
+This document provides instructions for deploying the backend Cloud Functions and notes on frontend deployment for ReelWorthy.
 
 ## Prerequisites
 
@@ -143,7 +143,7 @@ The `gemini-chat-service` is a Node.js application that provides a WebSocket end
     gcloud artifacts repositories create yt-watchlater-ai-repo \
       --repository-format=docker \
       --location=us-central1 \
-      --description="Docker repository for YTWatchLaterAI services" \
+      --description="Docker repository for ReelWorthy services" \
       --project="watchlaterai-460918"
     ```
 

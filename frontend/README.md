@@ -1,6 +1,6 @@
-# YT Watch Later Manager - Frontend
+# ReelWorthy - Frontend
 
-This directory contains the React frontend for the YT Watch Later Manager application.
+This directory contains the React frontend for the ReelWorthy application.
 
 ## Getting Started
 
