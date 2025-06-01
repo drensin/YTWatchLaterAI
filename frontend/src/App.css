@@ -16,56 +16,45 @@
   padding: 10px 20px; 
 }
 
-#app-logo {
-  max-height: 50px; 
-  width: auto;
-  flex-shrink: 0; /* Prevent logo from shrinking */
+/* Removed #app-logo styles */
+
+.app-header-title { /* New style for the ReelWorthy text title */
+  font-size: 1.6em; /* Adjust as needed */
+  font-weight: bold;
+  margin: 0; /* Remove default h1 margin */
+  color: white; /* Ensure it's white */
+  flex-shrink: 0; /* Prevent shrinking if header gets crowded */
 }
 
-.header-title-text {
-  flex-grow: 1; /* Allows this to take up space */
-  text-align: center; /* Centers the <p> tag within it */
-  margin: 0 15px; /* Add some horizontal margin */
-  font-size: 0.8em; /* Slightly smaller text for the title/status */
-  white-space: nowrap; /* Prevent wrapping if possible */
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.header-title-text p {
-   display: inline-block; 
-   margin: 0; /* Reset paragraph margin */
-}
+/* Removed .header-title-text and .header-title-text p styles */
 
 .header-login-control {
   flex-shrink: 0; /* Prevent login icon from shrinking */
 }
 
-.login-icon-button, .logout-icon-button {
-  background: none;
-  border: 1px solid black; /* Flat border */
+/* Styles for the new text-based Login/Logout button */
+.auth-button {
+  background-color: #fff; /* White background */
+  color: #000; /* Black text */
+  border: 1px solid #ccc; /* Subtle border, or none if preferred */
+  padding: 6px 12px; /* Adjust padding */
+  margin-left: 15px; /* Space from the status text */
   cursor: pointer;
-  padding: 4px; /* Adjust padding around the image */
-  margin-left: 15px;
-  display: inline-flex; /* Helps align image if needed */
-  align-items: center;
-  justify-content: center;
-  /* Remove text-specific properties */
-  /* color: black; */
-  /* font-size: 0.9em; */
-  /* line-height: 1; */
+  font-size: 0.85em; /* Adjust font size */
+  border-radius: 4px; /* Optional rounded corners */
+  text-decoration: none;
+  display: inline-block;
+  line-height: normal; /* Ensure text is vertically centered if needed */
+  height: auto; /* Override general button height if necessary */
 }
 
-.login-icon-button img, .logout-icon-button img {
-  width: 16px; /* Desired icon size */
-  height: 16px; /* Desired icon size */
-  display: block; /* Remove extra space below image */
+.auth-button:hover {
+  background-color: #f0f0f0; /* Light grey on hover */
 }
 
-.login-icon-button:hover, .logout-icon-button:hover {
-  background-color: #f0f0f0; /* Slight background change on hover */
-  /* color: #333; */ /* Not needed for img unless SVG with currentColor */
-}
+/* Remove old icon button styles if they are no longer used by anything else */
+/* .login-icon-button, .logout-icon-button { ... } */
+/* .login-icon-button img, .logout-icon-button img { ... } */
 
 
 main {

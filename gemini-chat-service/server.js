@@ -52,7 +52,7 @@ wss.on('connection', (ws) => {
             try {
                 console.log(`[INIT_CHAT] Fetching videos for playlist: ${playlistId}`);
                 const videosQuery = datastore.createQuery('Videos') 
-                    .filter('playlistId_original', '=', playlistId); 
+                    .filter('associatedPlaylistIds', '=', playlistId); // Changed to query associatedPlaylistIds
                 const [videosForPlaylist] = await datastore.runQuery(videosQuery);
                 
                 if (!videosForPlaylist || videosForPlaylist.length === 0) {

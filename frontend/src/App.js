@@ -33,8 +33,8 @@ function LoginButton() {
     }
   };
   return (
-    <button onClick={handleFirebaseLogin} className='login-icon-button' title='Login with Google'>
-      <img src={process.env.PUBLIC_URL + '/login.png'} alt="Login" />
+    <button onClick={handleFirebaseLogin} className='auth-button'>
+      Login
     </button>
   );
 }
@@ -499,7 +499,7 @@ function App() {
       setSuggestedVideos([]);
       if (ws.current) closeWebSocket();
     }
-  }, [isLoggedIn, isAuthorizedUser, isYouTubeLinked, isLoading, userPlaylists.length, error, authorizationError, fetchUserPlaylists, closeWebSocket]);
+  }, [isLoggedIn, isAuthorizedUser, isYouTubeLinked, isLoading, userPlaylists.length, error, authorizationError, fetchUserPlaylists, closeWebSocket]); // setError, setAuthorizationError removed as they are stable setters
 
   useEffect(() => {
     if (activeOutputTab === 'Thinking' && thinkingOutputContainerRef.current) {
@@ -544,28 +544,51 @@ function App() {
     window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams(params).toString()}`;
   };
 
-  const handlePlaylistSelection = useCallback((event) => {
+  const handlePlaylistSelection = useCallback(async (event) => {
     const newPlaylistId = event.target.value;
     setSelectedPlaylistId(newPlaylistId);
-    setSuggestedVideos([]); setThinkingOutput(''); setActiveOutputTab('Results');
+    setSuggestedVideos([]);
+    setThinkingOutput('');
+    setLastQuery(''); // Clear the last query
+    setActiveOutputTab('Results');
+    // Clear previous playlist-specific errors when changing selection
+    setError(null);
+    setAuthorizationError(null);
+
     if (newPlaylistId) {
-      fetchPlaylistItems(newPlaylistId);
+      await fetchPlaylistItems(newPlaylistId); // Await completion
+      // Check error states before starting WebSocket.
+      // Note: error/authorizationError state might not be updated here due to closure.
+      // A more robust way would be for fetchPlaylistItems to return a status or for
+      // startWebSocketConnection to be triggered by an effect watching `videos` and `selectedPlaylistId`.
+      // For now, this await helps ensure Datastore is populated before gemini-chat-service queries.
       startWebSocketConnection(newPlaylistId);
     } else {
-      setVideos([]); closeWebSocket();
+      setVideos([]);
+      closeWebSocket();
     }
-  }, [fetchPlaylistItems, startWebSocketConnection, closeWebSocket]);
+  }, [fetchPlaylistItems, startWebSocketConnection, closeWebSocket, setSelectedPlaylistId, setSuggestedVideos, setThinkingOutput, setActiveOutputTab, setVideos, setError, setAuthorizationError]);
 
-  const refreshSelectedPlaylistItems = () => {
+  const refreshSelectedPlaylistItems = async () => {
     if (selectedPlaylistId) {
-      fetchPlaylistItems(selectedPlaylistId);
+      // Clear previous errors before fetching
+      setError(null);
+      setAuthorizationError(null);
+      await fetchPlaylistItems(selectedPlaylistId); // Await completion
+
+      // Similar caution about error state checking here.
       if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+        // If WS is open, just re-init chat with potentially updated video list context
         ws.current.send(JSON.stringify({type: 'INIT_CHAT', payload: {playlistId: selectedPlaylistId}}));
+        setPopup({visible: true, message: 'Playlist refreshed and chat re-initialized.', type: 'info'});
+        setTimeout(() => setPopup((p) => ({...p, visible: false})), 2000);
       } else {
+        // If WS is not open, start a new connection
         startWebSocketConnection(selectedPlaylistId);
       }
     } else {
-      alert('Please select a playlist first.');
+      setPopup({visible: true, message: 'Please select a playlist first.', type: 'error'});
+      setTimeout(() => setPopup((p) => ({...p, visible: false})), 3000);
     }
   };
 
@@ -596,19 +619,13 @@ function App() {
       {showOverlay && <LoadingOverlay />}
       {popup.visible && <StatusPopup message={popup.message} type={popup.type} />}
       <header className="App-header">
-        <img src={process.env.PUBLIC_URL + '/ReelWorthyLogo.png'} alt="ReelWorthy Logo" id="app-logo" />
-        <div className="header-title-text">
-          {authChecked && isLoggedIn && isAuthorizedUser && isYouTubeLinked && <p style={{margin: '0'}}>ReelWorthy - Chat With Your Playlists {isReconnecting && `(Reconnecting... ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS})`}</p>}
-          {authChecked && isLoggedIn && isAuthorizedUser && !isYouTubeLinked && <p style={{margin: '0', color: 'yellow'}}>YouTube Not Connected</p>}
-          {authChecked && isLoggedIn && !isAuthorizedUser && <p style={{margin: '0', color: 'orange'}}>Access Denied</p>}
-          {!isLoggedIn && authChecked && <p style={{margin: '0'}}>Please log in</p>}
-          {!authChecked && <p style={{margin: '0'}}>Checking auth...</p>}
-        </div>
+        <h1 className="app-header-title">ReelWorthy</h1>
+        {/* header-title-text div and its contents removed */}
         <div className="header-login-control">
           {authChecked && !isLoggedIn && <LoginButton />}
           {authChecked && isLoggedIn && (
-            <button onClick={handleFirebaseLogout} className='logout-icon-button' title='Logout'>
-              <img src={process.env.PUBLIC_URL + '/logout.png'} alt="Logout" />
+            <button onClick={handleFirebaseLogout} className='auth-button'>
+              Logout
             </button>
           )}
         </div>

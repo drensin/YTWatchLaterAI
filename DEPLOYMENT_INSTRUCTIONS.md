@@ -177,10 +177,10 @@ The `gemini-chat-service` is a Node.js application that provides a WebSocket end
       --cpu 1 \
       --memory 512Mi \
       --set-secrets=GEMINI_API_KEY=GEMINI_API_KEY:latest \ # Mounts the 'GEMINI_API_KEY' secret as an environment variable
-      --service-account YOUR_CLOUD_RUN_SERVICE_ACCOUNT_EMAIL \ # e.g., PROJECT_NUMBER-compute@developer.gserviceaccount.com
+      --service-account youtube-watchlater-fn@watchlaterai-460918.iam.gserviceaccount.com \
       --project watchlaterai-460918
     ```
-    *   **Service Account Permissions:** Ensure the service account used by Cloud Run (e.g., `PROJECT_NUMBER-compute@developer.gserviceaccount.com` or a custom one) has:
+    *   **Service Account Permissions:** Ensure the service account used by Cloud Run (e.g., `youtube-watchlater-fn@watchlaterai-460918.iam.gserviceaccount.com`) has:
         *   `roles/secretmanager.secretAccessor` for the `GEMINI_API_KEY` secret.
         *   `roles/datastore.viewer` (or `roles/datastore.user`) for accessing Datastore.
     *   Note the **Service URL** provided after successful deployment. This will be your `WEBSOCKET_SERVICE_URL` (prepended with `wss://` and potentially with a path if your WebSocket server is not at the root).
@@ -279,7 +279,7 @@ steps:
       - '--port=8080'
       - '--min-instances=0'
       - '--set-secrets=GEMINI_API_KEY=GEMINI_API_KEY:latest'
-      - '--service-account=PROJECT_NUMBER-compute@developer.gserviceaccount.com' # Replace PROJECT_NUMBER
+      - '--service-account=youtube-watchlater-fn@watchlaterai-460918.iam.gserviceaccount.com'
       - '--project=${PROJECT_ID}'
 
 images:
