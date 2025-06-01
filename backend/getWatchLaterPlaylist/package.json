@@ -4,13 +4,14 @@
   "description": "Cloud Function to fetch YouTube Watch Later playlist.",
   "main": "index.js",
   "dependencies": {
-    "@google-cloud/datastore": "^7.0.0",
-    "@google-cloud/secret-manager": "^4.0.0",
+    "@google-cloud/datastore": "^10.0.1",
+    "@google-cloud/secret-manager": "^6.0.1",
     "axios": "^1.6.0",
     "compression": "^1.8.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",
-    "googleapis": "^100.0.0"
+    "googleapis": "^100.0.0",
+    "firebase-admin": "^12.0.0"
   },
   "engines": {
     "node": "20"

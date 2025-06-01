@@ -41,18 +41,30 @@
   flex-shrink: 0; /* Prevent login icon from shrinking */
 }
 
-.login-icon-button {
+.login-icon-button, .logout-icon-button {
   background: none;
-  border: none;
-  color: white; /* Icon color */
-  font-size: 1.8em; /* Adjust icon size */
+  border: 1px solid black; /* Flat border */
   cursor: pointer;
-  padding: 0 10px; /* Add some padding */
-  margin-left: 15px; /* Space from "Welcome" message or auth check message */
+  padding: 4px; /* Adjust padding around the image */
+  margin-left: 15px;
+  display: inline-flex; /* Helps align image if needed */
+  align-items: center;
+  justify-content: center;
+  /* Remove text-specific properties */
+  /* color: black; */
+  /* font-size: 0.9em; */
+  /* line-height: 1; */
 }
 
-.login-icon-button:hover {
-  color: #61dafb; /* Icon color change on hover */
+.login-icon-button img, .logout-icon-button img {
+  width: 16px; /* Desired icon size */
+  height: 16px; /* Desired icon size */
+  display: block; /* Remove extra space below image */
+}
+
+.login-icon-button:hover, .logout-icon-button:hover {
+  background-color: #f0f0f0; /* Slight background change on hover */
+  /* color: #333; */ /* Not needed for img unless SVG with currentColor */
 }
 
 

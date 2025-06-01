@@ -1,12 +1,16 @@
 import React, {useState, useEffect, useCallback, useRef} from 'react';
 import './App.css';
+import {auth} from './firebase'; // Import Firebase auth instance
+import {GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut} from 'firebase/auth';
 
 // Placeholder for Cloud Function URLs - replace with your actual URLs
 const CLOUD_FUNCTIONS_BASE_URL = {
-  handleYouTubeAuth: 'https://us-central1-watchlaterai-460918.cloudfunctions.net/handleYouTubeAuth',
+  // handleYouTubeAuth: 'https://us-central1-watchlaterai-460918.cloudfunctions.net/handleYouTubeAuth', // To be replaced/removed
   getWatchLaterPlaylist: 'https://us-central1-watchlaterai-460918.cloudfunctions.net/getWatchLaterPlaylist',
   listUserPlaylists: 'https://us-central1-watchlaterai-460918.cloudfunctions.net/listUserPlaylists',
-  categorizeVideo: 'YOUR_CATEGORIZE_VIDEO_FUNCTION_URL',
+  categorizeVideo: 'YOUR_CATEGORIZE_VIDEO_FUNCTION_URL', // TODO: Update this if needed
+  checkUserAuthorization: 'https://us-central1-watchlaterai-460918.cloudfunctions.net/checkUserAuthorization',
+  handleYouTubeAuth: 'https://us-central1-watchlaterai-460918.cloudfunctions.net/handleYouTubeAuth', // Added for handleConnectYouTube
 };
 
 // Cloud Run WebSocket Service URL
@@ -15,20 +19,24 @@ const WEBSOCKET_SERVICE_URL = 'wss://gemini-chat-service-679260739905.us-central
 // --- Components ---
 
 /**
- * Renders a login button that redirects to the YouTube authentication flow.
- * @param {object} props - The component's props.
- * @param {Function} props.onLoginSuccess - Callback function (currently unused).
+ * Renders a login button that uses Firebase Google Sign-In.
  * @returns {React.ReactElement} The rendered login button.
  */
-function LoginButton({onLoginSuccess}) {
-  /**
-   * Handles the login button click by redirecting to the auth URL.
-   */
-  const handleLogin = () => {
-    window.location.href = CLOUD_FUNCTIONS_BASE_URL.handleYouTubeAuth;
+function LoginButton() {
+  const handleFirebaseLogin = async () => {
+    const provider = new GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/youtube.readonly');
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      console.error('Firebase login error:', error);
+    }
   };
-  // Return an icon button instead of text
-  return <button onClick={handleLogin} className="login-icon-button" title="Login with YouTube">👤</button>;
+  return (
+    <button onClick={handleFirebaseLogin} className='login-icon-button' title='Login with Google'>
+      <img src={process.env.PUBLIC_URL + '/login.png'} alt="Login" />
+    </button>
+  );
 }
 
 /**
@@ -40,10 +48,6 @@ function LoginButton({onLoginSuccess}) {
  */
 function ChatInterface({onQuerySubmit, disabled}) {
   const [query, setQuery] = useState('');
-  /**
-   * Handles the form submission for the chat query.
-   * @param {React.SyntheticEvent} e - The form submission event.
-   */
   const handleSubmit = (e) => {
     e.preventDefault();
     if (query.trim() && !disabled) {
@@ -54,13 +58,13 @@ function ChatInterface({onQuerySubmit, disabled}) {
   return (
     <form onSubmit={handleSubmit}>
       <input
-        type="text"
+        type='text'
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Ask about your playlist..."
+        placeholder='Ask about your playlist...'
         disabled={disabled}
       />
-      <button type="submit" className="send-button" title="Send query" disabled={disabled}>➤</button>
+      <button type='submit' className='send-button' title='Send query' disabled={disabled}>➤</button>
     </form>
   );
 }
@@ -101,41 +105,22 @@ function VideoList({videos}) {
   if (!videos || videos.length === 0) {
     return <p>No videos to display.</p>;
   }
-  /**
-   * Toggles the expanded state of a video's description.
-   * @param {string} videoId - The ID of the video.
-   */
   const toggleDescription = (videoId) =>
     setExpandedDescriptions((prev) => ({
       ...prev, [videoId]: !prev[videoId],
     }));
 
-  /**
-   * Renders the description for a video, with a toggle for long descriptions.
-   * @param {object} video - The video object.
-   * @returns {React.ReactElement} The rendered video description.
-   */
   const renderDescription = (video) => {
     const description = video.description || 'No description';
     const isExpanded = expandedDescriptions[video.videoId || video.id];
     const maxLength = 200;
     if (description.length <= maxLength) {
-      return (
-        <p className="video-description">
-          <strong>Description:</strong> {description}
-        </p>
-      );
+      return <p className="video-description"><strong>Description:</strong> {description}</p>;
     }
     return (
       <p className="video-description">
-        <strong>Description:</strong> {
-          isExpanded ?
-            description :
-            `${description.substring(0, maxLength)}...`
-        }
-        <button
-          onClick={() => toggleDescription(video.videoId || video.id)}
-          className="more-less-button">
+        <strong>Description:</strong> {isExpanded ? description : `${description.substring(0, maxLength)}...`}
+        <button onClick={() => toggleDescription(video.videoId || video.id)} className="more-less-button">
           {isExpanded ? 'Less...' : 'More...'}
         </button>
       </p>
@@ -146,35 +131,15 @@ function VideoList({videos}) {
       {videos.map((video) => (
         <li key={video.videoId || video.id} className="video-list-item">
           {video.thumbnailUrl && (
-            <img
-              src={video.thumbnailUrl}
-              alt={`Thumbnail for ${video.title}`}
-              style={{
-                width: '120px',
-                height: '90px',
-                marginRight: '10px',
-                float: 'left',
-              }}
-            />
+            <img src={video.thumbnailUrl} alt={`Thumbnail for ${video.title}`} />
           )}
-          <div style={{overflow: 'hidden'}}>
+          <div>
             <h4>{video.title}</h4>
-            {video.duration && (
-              <p><strong>Duration:</strong> {video.duration}</p>
-            )}
+            {video.duration && <p><strong>Duration:</strong> {video.duration}</p>}
             {renderDescription(video)}
-            {video.reason && (
-              <p style={{color: 'green', fontStyle: 'italic'}}>
-                <strong>Reason:</strong> {video.reason}
-              </p>
-            )}
-            <a
-              href={`https://www.youtube.com/watch?v=${video.videoId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="watch-link"
-              title="Watch on YouTube">
-                ▶ Watch
+            {video.reason && <p style={{color: 'green', fontStyle: 'italic'}}><strong>Reason:</strong> {video.reason}</p>}
+            <a href={`https://www.youtube.com/watch?v=${video.videoId}`} target="_blank" rel="noopener noreferrer" className="watch-link" title="Watch on YouTube">
+              ▶ Watch
             </a>
           </div>
         </li>
@@ -184,60 +149,43 @@ function VideoList({videos}) {
 }
 
 // --- Main App ---
-/**
- * Main application component.
- * Manages state for authentication, playlists, videos, chat, and UI.
- * @returns {React.ReactElement} The rendered App component.
- */
 function App() {
   const ws = useRef(null);
   const pingIntervalRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
-  // Ref for the thinking output container
   const thinkingOutputContainerRef = useRef(null);
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isAuthorizedUser, setIsAuthorizedUser] = useState(false);
+  const [authorizationError, setAuthorizationError] = useState(null);
+  const [isYouTubeLinked, setIsYouTubeLinked] = useState(false);
   const [userPlaylists, setUserPlaylists] = useState([]);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState('');
-  const [videos, setVideos] = useState([]); // Main playlist videos
+  const [videos, setVideos] = useState([]);
   const [suggestedVideos, setSuggestedVideos] = useState([]);
-  const [isLoading, setIsLoading] = useState(false); // General loading
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
-  const [showOverlay, setShowOverlay] = useState(false); // Auth/playlist load
-  const [popup, setPopup] = useState({
-    visible: false, message: '', type: '',
-  });
+  const [showOverlay, setShowOverlay] = useState(true);
+  const [popup, setPopup] = useState({visible: false, message: '', type: ''});
   const [lastQuery, setLastQuery] = useState('');
-
   const [thinkingOutput, setThinkingOutput] = useState('');
   const [activeOutputTab, setActiveOutputTab] = useState('Results');
   const [isStreaming, setIsStreaming] = useState(false);
-
-  // Reconnection state
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const MAX_RECONNECT_ATTEMPTS = 5;
   const INITIAL_RECONNECT_DELAY_MS = 1000;
   const MAX_RECONNECT_DELAY_MS = 30000;
 
-  /**
-   * Clears WebSocket related timers (ping and reconnect).
-   */
   const clearWebSocketTimers = useCallback(() => {
-    if (pingIntervalRef.current) {
-      clearInterval(pingIntervalRef.current);
-    }
+    if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
     pingIntervalRef.current = null;
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-    }
+    if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
     reconnectTimeoutRef.current = null;
-  }, [pingIntervalRef, reconnectTimeoutRef]);
+  }, []);
 
-  /**
-   * Closes the WebSocket connection and clears associated timers.
-   */
   const closeWebSocket = useCallback(() => {
     clearWebSocketTimers();
     if (ws.current) {
@@ -247,50 +195,32 @@ function App() {
       ws.current = null;
       console.log('WebSocket connection intentionally closed.');
     }
-  }, [clearWebSocketTimers, ws]);
+  }, [clearWebSocketTimers]); // ws removed as it's a ref
 
-  /**
-   * Starts or restarts the WebSocket connection.
-   * @param {string} playlistIdToConnect - The ID of the playlist to connect for.
-   */
   const startWebSocketConnection = useCallback((playlistIdToConnect) => {
-    if (!playlistIdToConnect) {
-      return;
-    }
+    if (!playlistIdToConnect) return;
     closeWebSocket();
-
     console.log('Attempting WebSocket connection...');
     ws.current = new WebSocket(WEBSOCKET_SERVICE_URL);
     setIsStreaming(false);
-
     ws.current.onopen = () => {
       console.log('WebSocket connected. Initializing chat...');
       setReconnectAttempt(0);
       setIsReconnecting(false);
       clearWebSocketTimers();
-
-      ws.current.send(JSON.stringify({
-        type: 'INIT_CHAT', payload: {playlistId: playlistIdToConnect},
-      }));
-      setPopup({
-        visible: true, message: 'Chat service connected.', type: 'info',
-      });
+      ws.current.send(JSON.stringify({type: 'INIT_CHAT', payload: {playlistId: playlistIdToConnect}}));
+      setPopup({visible: true, message: 'Chat service connected.', type: 'info'});
       setTimeout(() => setPopup((p) => ({...p, visible: false})), 2000);
-
       pingIntervalRef.current = setInterval(() => {
         if (ws.current && ws.current.readyState === WebSocket.OPEN) {
           ws.current.send(JSON.stringify({type: 'PING'}));
         }
       }, 30000);
     };
-
     ws.current.onmessage = (event) => {
       const message = JSON.parse(event.data);
-      console.log('WS Message:', message);
       if (message.type === 'CHAT_INITIALIZED') {
-        setPopup({
-          visible: true, message: 'Chat session ready!', type: 'success',
-        });
+        setPopup({visible: true, message: 'Chat session ready!', type: 'success'});
         setTimeout(() => setPopup((p) => ({...p, visible: false})), 2000);
         setIsStreaming(false);
       } else if (message.type === 'STREAM_CHUNK') {
@@ -299,241 +229,327 @@ function App() {
         setActiveOutputTab('Thinking');
       } else if (message.type === 'STREAM_END') {
         setSuggestedVideos(message.payload.suggestedVideos || []);
-        setPopup({
-          visible: true, message: 'Suggestions received!', type: 'success',
-        });
+        setPopup({visible: true, message: 'Suggestions received!', type: 'success'});
         setTimeout(() => setPopup((p) => ({...p, visible: false})), 2000);
         setActiveOutputTab('Results');
         setIsStreaming(false);
       } else if (message.type === 'ERROR') {
         setError(message.error);
-        setPopup({
-          visible: true, message: `Chat Error: ${message.error}`, type: 'error',
-        });
+        setPopup({visible: true, message: `Chat Error: ${message.error}`, type: 'error'});
         setTimeout(() => setPopup((p) => ({...p, visible: false})), 5000);
         setActiveOutputTab('Results');
         setIsStreaming(false);
-      } else if (message.type === 'PONG') {
-        console.log('Received PONG.');
       }
     };
-
-    const handleCloseOrError = (evt) => {
-      console.log('WebSocket closed or error.', evt);
+    const handleWSCloseOrError = () => {
       clearWebSocketTimers();
-
       if (selectedPlaylistId && reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
         const nextAttempt = reconnectAttempt + 1;
         setReconnectAttempt(nextAttempt);
         setIsReconnecting(true);
-        const delay = Math.min(
-            MAX_RECONNECT_DELAY_MS,
-            INITIAL_RECONNECT_DELAY_MS * Math.pow(2, nextAttempt - 1),
-        );
-        const reconnectMsg =
-          `Attempting reconnect ${nextAttempt}/` +
-          `${MAX_RECONNECT_ATTEMPTS} in ${delay / 1000}s...`;
-        console.log(reconnectMsg);
-        setPopup({
-          visible: true,
-          message: `Connection lost. Reconnecting ` +
-                   `(${nextAttempt}/${MAX_RECONNECT_ATTEMPTS})...`,
-          type: 'warning',
-        });
-        reconnectTimeoutRef.current = setTimeout(
-            () => startWebSocketConnection(selectedPlaylistId), delay,
-        );
+        const delay = Math.min(MAX_RECONNECT_DELAY_MS, INITIAL_RECONNECT_DELAY_MS * Math.pow(2, nextAttempt - 1));
+        setPopup({visible: true, message: `Connection lost. Reconnecting (${nextAttempt}/${MAX_RECONNECT_ATTEMPTS})...`, type: 'warning'});
+        reconnectTimeoutRef.current = setTimeout(() => startWebSocketConnection(selectedPlaylistId), delay);
       } else if (selectedPlaylistId) {
         setIsReconnecting(false);
         setError('Failed to reconnect to chat service.');
-        setPopup({
-          visible: true,
-          message: 'Failed to reconnect. ' +
-                   'Please select playlist again or refresh.',
-          type: 'error',
-        });
+        setPopup({visible: true, message: 'Failed to reconnect. Please select playlist again or refresh.', type: 'error'});
       }
     };
-
-    ws.current.onclose = handleCloseOrError;
-    ws.current.onerror = handleCloseOrError;
-  }, [
-    selectedPlaylistId,
-    reconnectAttempt,
-    closeWebSocket,
-    clearWebSocketTimers,
-    setPopup,
-    setError,
-    setIsReconnecting,
-    setReconnectAttempt,
-    ws,
-    pingIntervalRef,
-    reconnectTimeoutRef,
-  ]);
+    ws.current.onclose = handleWSCloseOrError;
+    ws.current.onerror = handleWSCloseOrError;
+  }, [selectedPlaylistId, reconnectAttempt, closeWebSocket, clearWebSocketTimers, setPopup, setError, setIsReconnecting, setReconnectAttempt, pingIntervalRef, reconnectTimeoutRef]); // ws removed as it's a ref
 
   useEffect(() => closeWebSocket, [closeWebSocket]);
 
-  /**
-   * Fetches the list of user's playlists from the backend.
-   */
   const fetchUserPlaylists = useCallback(async () => {
-    setShowOverlay(true); setError(null);
-    try {
-      const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.listUserPlaylists);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || response.statusText);
-      }
-      const data = await response.json();
-      setUserPlaylists(data.playlists || []);
-    } catch (err) {
-      console.error('Error fetching user playlists:', err);
-      setError(err.message);
-      setUserPlaylists([]);
-    } finally {
-      setShowOverlay(false);
-    }
-  }, [setShowOverlay, setError, setUserPlaylists]);
+    setShowOverlay(true);
+    setError(null);
+    // setIsYouTubeLinked(true); // REMOVED optimistic set
 
-  /**
-   * Fetches items for a specific playlist from the backend.
-   * @param {string} playlistId - The ID of the playlist to fetch items for.
-   */
-  const fetchPlaylistItems = useCallback(async (playlistId) => {
-    if (!playlistId) {
-      setVideos([]); return;
+    if (!currentUser) {
+      setError('User not logged in. Cannot fetch playlists.');
+      // setIsYouTubeLinked(false); // Ensure it's false if not already
+      setShowOverlay(false);
+      return;
     }
-    setShowOverlay(true); setError(null);
     try {
-      const response = await fetch(
-          CLOUD_FUNCTIONS_BASE_URL.getWatchLaterPlaylist,
-          {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({playlistId}),
-          },
-      );
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || response.statusText);
+      const idToken = await currentUser.getIdToken();
+      const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.listUserPlaylists, {headers: {'Authorization': `Bearer ${idToken}`}});
+      let data = {};
+      try {
+        // Log headers and status before attempting to parse JSON
+        const responseHeaders = {};
+        response.headers.forEach((value, name) => {
+          responseHeaders[name] = value;
+        });
+        console.log('listUserPlaylists response status:', response.status);
+        console.log('listUserPlaylists response headers:', responseHeaders);
+
+        if (!response.ok) {
+          const rawText = await response.text();
+          console.log('listUserPlaylists non-OK raw response text:', rawText);
+          // Try to parse it as JSON, as it might still be a JSON error from the server
+          try {
+            data = JSON.parse(rawText);
+          } catch (parseError) {
+            console.error('Failed to parse non-OK listUserPlaylists response text as JSON:', parseError);
+            // Use the raw text or a generic error if parsing fails
+            data = {error: `Server returned non-OK status ${response.status} with non-JSON body: ${rawText.substring(0, 100)}`, code: 'SERVER_ERROR_NON_JSON'};
+          }
+        } else {
+          data = await response.json();
+        }
+      } catch (e) {
+        console.error('Error processing listUserPlaylists response (e.g., network error before .json() or .text()):', e);
+        setError('Failed to get playlist data (network or processing error).');
+        setIsYouTubeLinked(false);
+        setUserPlaylists([]);
+        setShowOverlay(false);
+        return;
       }
-      const data = await response.json();
-      setVideos(data.videos || []);
-      const playlistTitle =
-        userPlaylists.find((p) => p.id === playlistId)?.title ||
-        'selected playlist';
-      const popupMsg =
-        `Loaded ${data.videos?.length || 0} videos from "${playlistTitle}".`;
-      setPopup({visible: true, message: popupMsg, type: 'success'});
-      setTimeout(() => setPopup((p) => ({...p, visible: false})), 3000);
+      console.log('Response from listUserPlaylists (parsed data):', {status: response.status, ok: response.ok, data});
+
+      if (!response.ok) {
+        setIsYouTubeLinked(false);
+        if (data && data.code === 'YOUTUBE_AUTH_REQUIRED') {
+          setAuthorizationError(data.error || 'YouTube account not linked. Please connect it.');
+        } else if (data && data.code === 'YOUTUBE_REAUTH_REQUIRED') {
+          setAuthorizationError(data.error || 'YouTube re-authentication required. Please connect your YouTube account again.');
+        } else {
+          setError(data.error || data.message || response.statusText || `Failed to fetch playlists (${response.status}).`);
+        }
+        setUserPlaylists([]);
+      } else { // response.ok
+        setUserPlaylists(data.playlists || []);
+        setIsYouTubeLinked(true); // Correctly set to true on success
+        setAuthorizationError(null);
+      }
     } catch (err) {
-      console.error('Error fetching playlist items:', err);
-      setError(err.message);
-      setVideos([]);
-      setPopup({
-        visible: true,
-        message: `Error fetching playlist: ${err.message}`,
-        type: 'error',
-      });
+      console.error('Error fetching user playlists (catch block):', err);
+      setUserPlaylists([]);
+      setIsYouTubeLinked(false); // SET TO FALSE on caught error
+      setError(err.message || 'An unexpected error occurred while fetching playlists.');
+      setPopup({visible: true, message: `Error fetching playlists: ${err.message}`, type: 'error'});
       setTimeout(() => setPopup((p) => ({...p, visible: false})), 5000);
     } finally {
       setShowOverlay(false);
     }
-  }, [userPlaylists, setShowOverlay, setError, setVideos, setPopup]);
+  }, [currentUser, setAuthorizationError, setError, setIsYouTubeLinked, setPopup, setShowOverlay, setUserPlaylists]); // isYouTubeLinked REMOVED from dependencies
 
-  /**
-   * useEffect hook to handle OAuth status from URL parameters on initial load
-   * and attempt auto-login if no OAuth status is present.
-   */
+  const fetchPlaylistItems = useCallback(async (playlistId) => {
+    if (!playlistId || !currentUser) {
+      setVideos([]);
+      if (!currentUser) setError('User not logged in. Cannot fetch playlist items.');
+      setShowOverlay(false); return;
+    }
+    setShowOverlay(true); setError(null); setIsYouTubeLinked(true);
+    try {
+      const idToken = await currentUser.getIdToken();
+      const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.getWatchLaterPlaylist, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}`},
+        body: JSON.stringify({playlistId}),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (data.code === 'YOUTUBE_AUTH_REQUIRED') {
+          setIsYouTubeLinked(false);
+          setAuthorizationError(data.error || 'YouTube account not linked for this playlist.');
+        } else {
+          setError(data.message || response.statusText || 'Failed to fetch playlist items.');
+        }
+        setVideos([]); return;
+      }
+      setVideos(data.videos || []);
+      setIsYouTubeLinked(true);
+      setAuthorizationError(null);
+      const playlistTitle = userPlaylists.find((p) => p.id === playlistId)?.title || 'selected playlist';
+      setPopup({visible: true, message: `Loaded ${data.videos?.length || 0} videos from "${playlistTitle}".`, type: 'success'});
+      setTimeout(() => setPopup((p) => ({...p, visible: false})), 3000);
+    } catch (err) {
+      console.error('Error fetching playlist items:', err);
+      setVideos([]);
+      // No longer need to check isYouTubeLinked here for popup, as errors should be clearer
+      setPopup({visible: true, message: `Error fetching playlist: ${err.message}`, type: 'error'});
+      setTimeout(() => setPopup((p) => ({...p, visible: false})), 5000);
+    } finally {
+      setShowOverlay(false);
+    }
+  }, [currentUser, userPlaylists, setAuthorizationError, setError, setIsYouTubeLinked, setPopup, setShowOverlay, setVideos]); // isYouTubeLinked REMOVED from dependencies
+
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const oauthStatus = urlParams.get('oauth_status');
-    if (oauthStatus === 'success') {
-      setIsLoggedIn(true); setAuthChecked(true);
-      // Removed success popup
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } else if (oauthStatus === 'error') {
-      const errorMsg = 'OAuth failed: ' + urlParams.get('error_message');
-      setError(errorMsg);
-      setAuthChecked(true);
-      setIsLoggedIn(false);
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } else {
-      const attemptAutoLogin = async () => {
-        setShowOverlay(true);
-        try {
-          const response = await fetch(
-              CLOUD_FUNCTIONS_BASE_URL.listUserPlaylists,
-          );
-          setIsLoggedIn(response.ok);
-        } catch (err) {
-          console.error('Auto-login check failed:', err);
-          setIsLoggedIn(false);
-        } finally {
-          setShowOverlay(false); setAuthChecked(true);
-        }
-      };
-      attemptAutoLogin();
-    }
-  }, [setShowOverlay, setIsLoggedIn, setAuthChecked, setError]);
+    const youtubeAuthStatus = urlParams.get('youtube_auth_status');
+    const stateFromRedirect = urlParams.get('state');
+    const oauthError = urlParams.get('error_message');
+    let handledRedirect = false;
+    let justLinkedYouTube = false; // Flag to indicate YouTube was just linked
 
-  /**
-   * useEffect hook to fetch user playlists when loggedIn state changes to true,
-   * or clear user data and close WebSocket if loggedOut.
-   */
+    if (youtubeAuthStatus) {
+      handledRedirect = true;
+      const storedNonce = localStorage.getItem('youtubeOAuthNonce');
+      let stateObjectFromRedirect = {};
+      if (stateFromRedirect) {
+        try {
+          stateObjectFromRedirect = JSON.parse(atob(stateFromRedirect));
+        } catch (e) {
+          console.error('Error parsing state from redirect:', e);
+          setAuthorizationError('Invalid state received from YouTube auth redirect.');
+          setPopup({visible: true, message: 'YouTube connection failed (invalid state).', type: 'error'});
+        }
+      }
+      if (stateObjectFromRedirect.nonce && storedNonce === stateObjectFromRedirect.nonce) {
+        if (youtubeAuthStatus === 'success') {
+          setPopup({visible: true, message: 'YouTube account connected successfully!', type: 'success'});
+          setIsYouTubeLinked(true);
+          justLinkedYouTube = true; // Set flag
+        } else {
+          const detailedError = oauthError || 'Unknown YouTube connection error';
+          setAuthorizationError(`YouTube connection failed: ${detailedError}`);
+          setPopup({visible: true, message: `YouTube connection error: ${detailedError}`, type: 'error'});
+          setIsYouTubeLinked(false);
+        }
+      } else if (stateFromRedirect) {
+        setAuthorizationError('YouTube authorization failed (security check). Please try again.');
+        setPopup({visible: true, message: 'YouTube connection security check failed.', type: 'error'});
+        setIsYouTubeLinked(false);
+      } else if (!stateFromRedirect && youtubeAuthStatus === 'error') {
+        setAuthorizationError(`YouTube connection failed: ${oauthError || 'Unknown error during OAuth flow.'}`);
+        setPopup({visible: true, message: `YouTube connection error: ${oauthError || 'Unknown error.'}`, type: 'error'});
+        setIsYouTubeLinked(false);
+      }
+      localStorage.removeItem('youtubeOAuthNonce');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    setShowOverlay(true);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setShowOverlay(true);
+      if (!handledRedirect) setAuthorizationError(null);
+
+      if (user) {
+        setCurrentUser(user);
+        setIsLoggedIn(true);
+        try {
+          const idToken = await user.getIdToken();
+          const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.checkUserAuthorization, {
+            method: 'POST', headers: {'Authorization': `Bearer ${idToken}`, 'Content-Type': 'application/json'},
+          });
+          const authZData = await response.json();
+          if (response.ok && authZData.authorized) {
+            setIsAuthorizedUser(true);
+            console.log('User is authorized by allow-list:', user.email);
+            if (justLinkedYouTube) { // If YouTube was just linked successfully
+              fetchUserPlaylists(); // Call fetchUserPlaylists directly
+            }
+            // Otherwise, fetchUserPlaylists might be called by the other useEffect
+            // that watches isLoggedIn and isAuthorizedUser, if isYouTubeLinked is already true.
+          } else {
+            setIsAuthorizedUser(false);
+            if (!authorizationError && !handledRedirect) { // Don't overwrite specific redirect error
+              setAuthorizationError(authZData.error || 'User not on allow-list.');
+            }
+            console.warn('User not on allow-list:', user.email, authZData.error);
+          }
+        } catch (err) {
+          console.error('Error checking user authorization (allow-list):', err);
+          setIsAuthorizedUser(false);
+          if (!authorizationError && !handledRedirect) {
+            setAuthorizationError('Failed to verify app authorization status.');
+          }
+        }
+      } else {
+        setCurrentUser(null);
+        setIsLoggedIn(false);
+        setIsAuthorizedUser(false);
+        setIsYouTubeLinked(false); // Correctly reset to false
+        setAuthorizationError(null);
+      }
+      setAuthChecked(true);
+      setShowOverlay(false);
+    });
+    return () => unsubscribe();
+  }, []); // REMOVED fetchUserPlaylists from dependencies, added authorizationError back if needed after testing
+
   useEffect(() => {
-    if (isLoggedIn) {
-      fetchUserPlaylists();
-    } else {
+    // This effect now more clearly handles fetching playlists when auth state is stable
+    // and YouTube is believed to be linked (or has just been linked).
+    if (isLoggedIn && isAuthorizedUser && isYouTubeLinked && !isLoading) {
+      // Check if playlists are empty AND we didn't *just* try to fetch them (to avoid loops on error)
+      // The `justLinkedYouTube` flag in the other useEffect handles the immediate fetch after linking.
+      // This one handles subsequent loads or if isYouTubeLinked was true from a previous session (hypothetically).
+      if (userPlaylists.length === 0 && !error && !authorizationError?.includes('not linked')) {
+         // Avoid fetching if an error already exists or if it's a "not linked" error
+         // as that state should lead to the "Connect YouTube" button.
+        console.log('isLoggedIn, isAuthorizedUser, isYouTubeLinked are all true. Attempting to fetch playlists.');
+        fetchUserPlaylists();
+      }
+    } else if (!isLoggedIn || !isAuthorizedUser) {
+      // Clear data if user logs out or is not authorized
       setUserPlaylists([]);
       setSelectedPlaylistId('');
       setVideos([]);
-      closeWebSocket();
+      setSuggestedVideos([]);
+      if (ws.current) closeWebSocket();
     }
-  }, [
-    isLoggedIn,
-    fetchUserPlaylists,
-    setUserPlaylists,
-    setSelectedPlaylistId,
-    setVideos,
-    closeWebSocket,
-  ]);
+  }, [isLoggedIn, isAuthorizedUser, closeWebSocket]); // Removed fetchUserPlaylists from here
 
-  // Auto-scroll for thinking output
   useEffect(() => {
     if (activeOutputTab === 'Thinking' && thinkingOutputContainerRef.current) {
-      thinkingOutputContainerRef.current.scrollTop =
-        thinkingOutputContainerRef.current.scrollHeight;
+      thinkingOutputContainerRef.current.scrollTop = thinkingOutputContainerRef.current.scrollHeight;
     }
   }, [thinkingOutput, activeOutputTab]);
 
-  /**
-   * Handles successful login.
-   */
-  const handleLoginSuccess = () => setIsLoggedIn(true);
+  const handleFirebaseLogout = async () => {
+    try {
+      await signOut(auth);
+      setThinkingOutput('');
+      closeWebSocket();
+    } catch (error) {
+      console.error('Firebase logout error:', error);
+      setError('Failed to log out. Please try again.');
+    }
+  };
 
-  /**
-   * Handles the selection of a playlist from the dropdown.
-   * @param {React.ChangeEvent<HTMLSelectElement>} event - The select change event.
-   */
+  const handleConnectYouTube = async () => {
+    if (!currentUser) {
+      setPopup({visible: true, message: 'Please log in with Firebase first.', type: 'error'});
+      setTimeout(() => setPopup((p) => ({...p, visible: false})), 3000); return;
+    }
+    const nonce = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    localStorage.setItem('youtubeOAuthNonce', nonce);
+    // Construct the finalRedirectUri from the current page's origin and pathname
+    const finalRedirectUri = window.location.origin + window.location.pathname;
+    const stateObject = {uid: currentUser.uid, nonce: nonce, finalRedirectUri: finalRedirectUri};
+    const encodedState = btoa(JSON.stringify(stateObject));
+    const scopes = 'https://www.googleapis.com/auth/youtube.readonly';
+    const youtubeClientId = process.env.REACT_APP_YOUTUBE_CLIENT_ID;
+    if (!youtubeClientId) {
+      console.error('YouTube Client ID (REACT_APP_YOUTUBE_CLIENT_ID) is not configured.');
+      setPopup({visible: true, message: 'YouTube Client ID not configured for the app.', type: 'error'});
+      setTimeout(() => setPopup((p) => ({...p, visible: false})), 4000); return;
+    }
+    const params = {
+      client_id: youtubeClientId,
+      redirect_uri: CLOUD_FUNCTIONS_BASE_URL.handleYouTubeAuth,
+      response_type: 'code', scope: scopes, access_type: 'offline', prompt: 'consent', state: encodedState,
+    };
+    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams(params).toString()}`;
+  };
+
   const handlePlaylistSelection = useCallback((event) => {
     const newPlaylistId = event.target.value;
     setSelectedPlaylistId(newPlaylistId);
-    setSuggestedVideos([]);
-    setThinkingOutput('');
-    setActiveOutputTab('Results');
-
+    setSuggestedVideos([]); setThinkingOutput(''); setActiveOutputTab('Results');
     if (newPlaylistId) {
       fetchPlaylistItems(newPlaylistId);
       startWebSocketConnection(newPlaylistId);
     } else {
-      setVideos([]);
-      closeWebSocket();
+      setVideos([]); closeWebSocket();
     }
   }, [fetchPlaylistItems, startWebSocketConnection, closeWebSocket]);
 
-  /**
-   * Refreshes the items for the currently selected playlist.
-   */
   const refreshSelectedPlaylistItems = () => {
     if (selectedPlaylistId) {
       fetchPlaylistItems(selectedPlaylistId);
@@ -542,44 +558,30 @@ function App() {
       } else {
         startWebSocketConnection(selectedPlaylistId);
       }
-    } else alert('Please select a playlist first.');
+    } else {
+      alert('Please select a playlist first.');
+    }
   };
 
-  /**
-   * Handles the submission of a query to the chat interface.
-   * @param {string} query - The user's query string.
-   */
   const handleQuerySubmit = async (query) => {
     if (!selectedPlaylistId) {
-      setPopup({
-        visible: true, message: 'Please select playlist.', type: 'error',
-      });
+      setPopup({visible: true, message: 'Please select playlist.', type: 'error'});
       setTimeout(() => setPopup((p) => ({...p, visible: false})), 3000); return;
     }
     if (!ws.current || ws.current.readyState !== WebSocket.OPEN) {
-      setPopup({
-        visible: true,
-        message: 'Chat not connected. Try re-selecting playlist.',
-        type: 'error',
-      });
+      setPopup({visible: true, message: 'Chat not connected. Try re-selecting playlist.', type: 'error'});
       setTimeout(() => setPopup((p) => ({...p, visible: false})), 5000); return;
     }
     setLastQuery(query); setError(null); setSuggestedVideos([]);
-    setThinkingOutput('');
-    setActiveOutputTab('Thinking');
-    setIsStreaming(true);
-
+    setThinkingOutput(''); setActiveOutputTab('Thinking'); setIsStreaming(true);
     try {
       ws.current.send(JSON.stringify({type: 'USER_QUERY', payload: {query}}));
     } catch (err) {
       console.error('Error sending query via WebSocket:', err);
       setError(err.message);
-      setPopup({
-        visible: true, message: `Query error: ${err.message}`, type: 'error',
-      });
+      setPopup({visible: true, message: `Query error: ${err.message}`, type: 'error'});
       setTimeout(() => setPopup((p) => ({...p, visible: false})), 5000);
-      setActiveOutputTab('Results');
-      setIsStreaming(false);
+      setActiveOutputTab('Results'); setIsStreaming(false);
     }
   };
 
@@ -590,85 +592,87 @@ function App() {
       <header className="App-header">
         <img src={process.env.PUBLIC_URL + '/ReelWorthyLogo.png'} alt="ReelWorthy Logo" id="app-logo" />
         <div className="header-title-text">
-          {!authChecked && !showOverlay && <p style={{margin: '0'}}>Checking auth...</p>}
-          {authChecked && isLoggedIn && <p style={{margin: '0'}}>ReelWorthy - Chat With Your Playlists {isReconnecting && `(Reconnecting... ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS})`}</p>}
+          {authChecked && isLoggedIn && isAuthorizedUser && isYouTubeLinked && <p style={{margin: '0'}}>ReelWorthy - Chat With Your Playlists {isReconnecting && `(Reconnecting... ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS})`}</p>}
+          {authChecked && isLoggedIn && isAuthorizedUser && !isYouTubeLinked && <p style={{margin: '0', color: 'yellow'}}>YouTube Not Connected</p>}
+          {authChecked && isLoggedIn && !isAuthorizedUser && <p style={{margin: '0', color: 'orange'}}>Access Denied</p>}
+          {!isLoggedIn && authChecked && <p style={{margin: '0'}}>Please log in</p>}
+          {!authChecked && <p style={{margin: '0'}}>Checking auth...</p>}
         </div>
         <div className="header-login-control">
-          {authChecked && !isLoggedIn && <LoginButton onLoginSuccess={handleLoginSuccess} />}
+          {authChecked && !isLoggedIn && <LoginButton />}
+          {authChecked && isLoggedIn && (
+            <button onClick={handleFirebaseLogout} className='logout-icon-button' title='Logout'>
+              <img src={process.env.PUBLIC_URL + '/logout.png'} alt="Logout" />
+            </button>
+          )}
         </div>
       </header>
       <main>
-        {error && <p style={{color: 'red'}}>Error: {error}</p>}
-        {isLoggedIn && (
+        {error && <p style={{color: 'red', fontWeight: 'bold'}}>App Error: {error}</p>}
+        {authorizationError && <p style={{color: 'orange', fontWeight: 'bold'}}>Authorization Error: {authorizationError}</p>}
+        
+        {isLoggedIn && isAuthorizedUser && !isYouTubeLinked && authChecked && (
+          <div style={{padding: '20px', textAlign: 'center'}}>
+            <p>{authorizationError || 'Your YouTube account is not connected or the connection has expired.'}</p>
+            <button onClick={handleConnectYouTube} style={{padding: '10px 20px', fontSize: '1em'}}>
+              🔗 Connect YouTube Account
+            </button>
+          </div>
+        )}
+
+        {isLoggedIn && isAuthorizedUser && isYouTubeLinked && (
           <>
             <div>
-              <label htmlFor="playlist-select">Choose a playlist: </label>
-              <select id="playlist-select" value={selectedPlaylistId} onChange={handlePlaylistSelection} disabled={isLoading || userPlaylists.length === 0}>
-                <option value="">-- Select a playlist --</option>
+              <label htmlFor='playlist-select'>Choose a playlist: </label>
+              <select id='playlist-select' value={selectedPlaylistId} onChange={handlePlaylistSelection} disabled={isLoading || !userPlaylists || userPlaylists.length === 0}>
+                <option value=''>-- Select a playlist --</option>
                 {userPlaylists.map((pl) => <option key={pl.id} value={pl.id}>{pl.title} ({pl.itemCount} items)</option>)}
               </select>
-              <button onClick={refreshSelectedPlaylistItems} disabled={isLoading || !selectedPlaylistId} className="refresh-button" style={{marginLeft: '10px'}} title="Refresh playlist items">↺</button>
+              <button onClick={refreshSelectedPlaylistItems} disabled={isLoading || !selectedPlaylistId} className='refresh-button' style={{marginLeft: '10px'}} title='Refresh playlist items'>↺</button>
             </div>
             {selectedPlaylistId && (
               <>
                 <ChatInterface onQuerySubmit={handleQuerySubmit} disabled={isStreaming} />
-                <div className="tabs">
-                  <button
-                    onClick={() => setActiveOutputTab('Results')}
-                    className={activeOutputTab === 'Results' ? 'active' : ''}
-                    disabled={isStreaming}>
-                      Results
+                <div className='tabs'>
+                  <button onClick={() => setActiveOutputTab('Results')} className={activeOutputTab === 'Results' ? 'active' : ''} disabled={isStreaming}>
+                    Results
                   </button>
-                  <button
-                    onClick={() => setActiveOutputTab('Thinking')}
-                    className={activeOutputTab === 'Thinking' ? 'active' : ''}
-                    disabled={isStreaming && activeOutputTab !== 'Thinking'}>
-                      Thinking
+                  <button onClick={() => setActiveOutputTab('Thinking')} className={activeOutputTab === 'Thinking' ? 'active' : ''} disabled={isStreaming && activeOutputTab !== 'Thinking'}>
+                    Thinking
                   </button>
                 </div>
                 {activeOutputTab === 'Results' && (
                   <>
-                    <h2>
-                      {suggestedVideos.length > 0 ?
-                       `${suggestedVideos.length} Suggested Videos` :
-                       (lastQuery ? 'No Suggestions Found' : 'Suggested Videos')}
-                    </h2>
-                    {lastQuery &&
-                      <p className="last-query-display">
-                        For query: <em>"{lastQuery}"</em>
-                      </p>
-                    }
+                    <h2>{suggestedVideos.length > 0 ? `${suggestedVideos.length} Suggested Videos` : (lastQuery ? 'No Suggestions Found' : 'Suggested Videos')}</h2>
+                    {lastQuery && <p className='last-query-display'>For query: <em>"{lastQuery}"</em></p>}
                     <VideoList videos={suggestedVideos} />
                   </>
                 )}
                 {activeOutputTab === 'Thinking' && (
                   <>
                     <h2>Gemini is Thinking...</h2>
-                    {lastQuery &&
-                      <p className="last-query-display">
-                        For query: <em>"{lastQuery}"</em>
-                      </p>
-                    }
-                    <div
-                      ref={thinkingOutputContainerRef}
-                      className="thinking-output-container">
-                      <pre className="thinking-output">{thinkingOutput}</pre>
+                    {lastQuery && <p className='last-query-display'>For query: <em>"{lastQuery}"</em></p>}
+                    <div ref={thinkingOutputContainerRef} className='thinking-output-container'>
+                      <pre className='thinking-output'>{thinkingOutput}</pre>
                     </div>
                   </>
                 )}
               </>
             )}
-            {!selectedPlaylistId && userPlaylists.length > 0 &&
+            {!selectedPlaylistId && userPlaylists && userPlaylists.length > 0 && !isLoading &&
               <p>Select a playlist to see videos and get suggestions.</p>
             }
-            {!selectedPlaylistId && userPlaylists.length === 0 && isLoggedIn &&
-              !isLoading && <p>No playlists found or loading.</p>
+            {(!userPlaylists || userPlaylists.length === 0) && isLoggedIn && isAuthorizedUser && isYouTubeLinked &&
+              !isLoading && <p>No playlists found. Try connecting YouTube or refreshing if you recently added some.</p>
             }
           </>
         )}
-        {!isLoggedIn &&
+        {isLoggedIn && !isAuthorizedUser && authChecked && (
+          <p>Your account ({currentUser?.email}) is not authorized to use this application. Please contact the administrator.</p>
+        )}
+        {!isLoggedIn && authChecked && (
           <p>Please log in to manage your YouTube playlists.</p>
-        }
+        )}
       </main>
     </div>
   );

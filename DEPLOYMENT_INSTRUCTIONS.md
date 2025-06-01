@@ -82,6 +82,7 @@ gcloud functions deploy YOUR_FUNCTION_NAME \
   --project watchlaterai-460918
   # Optional: --service-account YOUR_FUNCTION_SERVICE_ACCOUNT_EMAIL
   # Optional: --set-env-vars KEY1=VALUE1,KEY2=VALUE2 (if not using Secret Manager for some configs)
+  # Optional: --set-secrets SECRET_NAME1=SECRET_NAME1_IN_SECRET_MANAGER:latest,SECRET_NAME2=SECRET_NAME2_IN_SECRET_MANAGER:latest
 ```
 
 **Specific Commands:**
@@ -96,7 +97,8 @@ gcloud functions deploy YOUR_FUNCTION_NAME \
       --region us-central1 \
       --source . \
       --entry-point handleYouTubeAuth \
-      --project watchlaterai-460918
+      --project watchlaterai-460918 \
+      --set-secrets YOUTUBE_CLIENT_ID=YOUTUBE_CLIENT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest
     ```
     *After deployment, note its HTTP trigger URL.*
 
@@ -110,7 +112,8 @@ gcloud functions deploy YOUR_FUNCTION_NAME \
       --region us-central1 \
       --source . \
       --entry-point getWatchLaterPlaylist \
-      --project watchlaterai-460918
+      --project watchlaterai-460918 \
+      --set-secrets YOUTUBE_CLIENT_ID=YOUTUBE_CLIENT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest
     ```
     *Note its HTTP trigger URL.*
 
@@ -124,7 +127,8 @@ gcloud functions deploy YOUR_FUNCTION_NAME \
       --region us-central1 \
       --source . \
       --entry-point categorizeVideo \
-      --project watchlaterai-460918
+      --project watchlaterai-460918 \
+      --set-secrets GEMINI_API_KEY=GEMINI_API_KEY:latest # Add YOUTUBE_CLIENT_ID/SECRET if this function also makes direct YouTube API calls
     ```
     *(If this were Pub/Sub triggered, you'd use `--trigger-topic YOUR_TOPIC_NAME` instead of `--trigger-http` and `--allow-unauthenticated`)*.
     *Note its HTTP trigger URL.*
@@ -216,6 +220,7 @@ steps:
       - '--allow-unauthenticated'
       - '--source=./backend/handleYouTubeAuth' # Path to the function source
       - '--entry-point=handleYouTubeAuth'
+      - '--set-secrets=YOUTUBE_CLIENT_ID=YOUTUBE_CLIENT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest'
       # - '--service-account=YOUR_SERVICE_ACCOUNT_EMAIL' # Optional
 
   # Example for another function: getWatchLaterPlaylist
@@ -232,8 +237,24 @@ steps:
       - '--allow-unauthenticated'
       - '--source=./backend/getWatchLaterPlaylist'
       - '--entry-point=getWatchLaterPlaylist'
+      - '--set-secrets=YOUTUBE_CLIENT_ID=YOUTUBE_CLIENT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest'
   
-  # Add similar steps for categorizeVideo
+  # Add similar steps for categorizeVideo, including its specific secrets
+  # Example for categorizeVideo:
+  # - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  #   args:
+  #     - 'gcloud'
+  #     - 'functions'
+  #     - 'deploy'
+  #     - 'categorizeVideo'
+  #     - '--project=${PROJECT_ID}'
+  #     - '--region=us-central1'
+  #     - '--runtime=nodejs20'
+  #     - '--trigger-http'
+  #     - '--allow-unauthenticated'
+  #     - '--source=./backend/categorizeVideo'
+  #     - '--entry-point=categorizeVideo'
+  #     - '--set-secrets=GEMINI_API_KEY=GEMINI_API_KEY:latest' # Add other secrets if needed
 
   # Step for building the gemini-chat-service Docker image
   - name: 'gcr.io/cloud-builders/docker'

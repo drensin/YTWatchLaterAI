@@ -1,7 +1,7 @@
 {
-  "name": "list-user-playlists",
+  "name": "check-user-authorization",
   "version": "1.0.0",
-  "description": "Cloud Function to list user's YouTube playlists.",
+  "description": "Cloud Function to check if a user is authorized based on Firebase ID token and Datastore allow-list.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -11,8 +11,6 @@
   },
   "dependencies": {
     "@google-cloud/datastore": "^8.0.0",
-    "google-auth-library": "^9.0.0",
-    "googleapis": "^126.0.0",
     "firebase-admin": "^12.0.0"
   }
 }

@@ -1,142 +1,156 @@
-const { google } = require('googleapis');
-const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
-const { Datastore } = require('@google-cloud/datastore');
-const cors = require('cors');
+const {Datastore} = require('@google-cloud/datastore');
+const {OAuth2Client} = require('google-auth-library');
+const {google} = require('googleapis');
+const admin = require('firebase-admin');
 
-// Initialize GCP clients
-const secretManagerClient = new SecretManagerServiceClient();
+// Initialize Firebase Admin SDK
+try {
+  admin.initializeApp();
+} catch (e) {
+  if (!e.message.includes('already initialized')) {
+    console.error('Firebase Admin SDK initialization error:', e);
+    throw e; // Critical error if not 'already initialized'
+  }
+  // console.log('Firebase Admin SDK was already initialized.');
+}
+
 const datastore = new Datastore();
-const youtube = google.youtube('v3');
+const TOKEN_KIND = 'Tokens'; // Kind for storing YouTube OAuth tokens
 
-// CORS Configuration
-const corsOptions = {
-  origin: ['https://drensin.github.io', 'https://dkr.bio', 'http://localhost:3000'],
-  methods: ['GET', 'OPTIONS'], // This function can be GET
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
-};
-const corsMiddleware = cors(corsOptions);
+// These would ideally be environment variables or from Secret Manager
+const YOUTUBE_CLIENT_ID = process.env.YOUTUBE_CLIENT_ID;
+const YOUTUBE_CLIENT_SECRET = process.env.YOUTUBE_CLIENT_SECRET;
+// The redirect URI is for the handleYouTubeAuth function, not directly used here for calls
+// but good to have for context if the OAuth2Client needs it for token refresh in some scenarios.
+const REDIRECT_URI = `https://us-central1-${process.env.GOOGLE_CLOUD_PROJECT || 'watchlaterai-460918'}.cloudfunctions.net/handleYouTubeAuth`;
 
-// Helper function to get secrets (same as other functions)
-async function getSecret(secretName) {
-  const [version] = await secretManagerClient.accessSecretVersion({
-    name: `projects/watchlaterai-460918/secrets/${secretName}/versions/latest`,
-  });
-  return version.payload.data.toString('utf8');
+
+/**
+ * Retrieves stored OAuth2 tokens for a given Firebase UID.
+ * @param {string} firebaseUid The Firebase User ID.
+ * @return {Promise<object|null>} The stored tokens or null if not found.
+ */
+async function getTokens(firebaseUid) {
+  const key = datastore.key([TOKEN_KIND, firebaseUid]);
+  const [entity] = await datastore.get(key);
+  return entity || null;
 }
 
-// Helper function to get OAuth2 client with stored tokens (same as other functions)
-async function getAuthenticatedClient() {
-  const clientId = await getSecret('YOUTUBE_CLIENT_ID');
-  const clientSecret = await getSecret('YOUTUBE_CLIENT_SECRET');
-  const redirectUri = 'https://us-central1-watchlaterai-460918.cloudfunctions.net/handleYouTubeAuth';
-
-  const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
-
-  const tokenKey = datastore.key(['Tokens', 'default']);
-  const [tokenEntity] = await datastore.get(tokenKey);
-
-  if (!tokenEntity) {
-    throw new Error('User not authenticated. No tokens found.');
-  }
-  
-  console.log('Token scopes from Datastore for listUserPlaylists:', tokenEntity.scopes);
-
-  oauth2Client.setCredentials({
-    access_token: tokenEntity.accessToken,
-    refresh_token: tokenEntity.refreshToken,
-    expiry_date: tokenEntity.expiryDate,
-    scope: tokenEntity.scopes
-  });
-
-  if (oauth2Client.isTokenExpiring()) {
-    console.log('Access token is expiring, attempting to refresh for listUserPlaylists...');
-    try {
-      const { credentials } = await oauth2Client.refreshAccessToken();
-      oauth2Client.setCredentials(credentials);
-      const updatedTokenData = {
-        accessToken: credentials.access_token,
-        refreshToken: credentials.refresh_token || tokenEntity.refreshToken,
-        expiryDate: credentials.expiry_date,
-        scopes: credentials.scope || tokenEntity.scopes,
-      };
-      console.log('Refreshed token scopes for listUserPlaylists:', updatedTokenData.scopes);
-      await datastore.save({ key: tokenKey, data: updatedTokenData });
-      console.log('Tokens refreshed and updated in Datastore for listUserPlaylists.');
-    } catch (refreshError) {
-      console.error('Failed to refresh access token for listUserPlaylists:', refreshError);
-      throw new Error('Failed to refresh access token. Please re-authenticate.');
-    }
-  }
-  return oauth2Client;
-}
-
-// Cloud Function Entry Point
+/**
+ * HTTP Cloud Function to list user's YouTube playlists.
+ * Requires a Firebase ID token for authentication.
+ *
+ * @param {Object} req Cloud Function request context.
+ * @param {Object} res Cloud Function response context.
+ */
 exports.listUserPlaylists = async (req, res) => {
-  corsMiddleware(req, res, async () => {
-    if (req.method === 'OPTIONS') {
-      res.status(204).send('');
-      return;
+  // Set CORS headers
+  res.set('Access-Control-Allow-Origin', '*'); // Adjust for production
+  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'); // Allow POST if frontend sends it
+  res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log('No auth header or not Bearer');
+    return res.status(401).json({error: 'Unauthorized: Missing or invalid Firebase ID token.'});
+  }
+  const idToken = authHeader.split('Bearer ')[1];
+
+  let decodedToken;
+  try {
+    decodedToken = await admin.auth().verifyIdToken(idToken);
+  } catch (error) {
+    console.error('Error verifying Firebase ID token:', error);
+    return res.status(401).json({error: 'Unauthorized: Invalid Firebase ID token.'});
+  }
+
+  const firebaseUid = decodedToken.uid;
+  if (!firebaseUid) {
+    return res.status(400).json({error: 'Invalid token: UID missing.'});
+  }
+
+  console.log(`Fetching playlists for Firebase UID: ${firebaseUid}`);
+
+  const tokens = await getTokens(firebaseUid);
+  if (!tokens) {
+    console.log(`No YouTube tokens found for Firebase UID: ${firebaseUid}. User needs to authenticate with YouTube.`);
+    // It's important to distinguish this from a general "not logged in" state.
+    // The user IS logged into Firebase, but hasn't connected their YouTube account via our app.
+    return res.status(403).json({
+      error: 'YouTube account not linked. Please connect your YouTube account through the application.',
+      code: 'YOUTUBE_AUTH_REQUIRED', // Custom code for frontend to handle
+    });
+  }
+
+  const oauth2Client = new OAuth2Client(
+      YOUTUBE_CLIENT_ID,
+      YOUTUBE_CLIENT_SECRET,
+      REDIRECT_URI,
+  );
+  oauth2Client.setCredentials(tokens);
+
+  // Handle token refresh if necessary
+  oauth2Client.on('tokens', async (newTokens) => {
+    console.log('YouTube access token refreshed during listUserPlaylists for UID:', firebaseUid);
+    let updatedTokens = {...tokens, ...newTokens};
+    // Ensure expiry_date is stored if present in newTokens
+    if (newTokens.expiry_date) {
+      updatedTokens.expiry_date = newTokens.expiry_date;
     }
-
-    if (req.method !== 'GET') { // Changed to GET as we are fetching a list
-        res.status(405).send('Method Not Allowed');
-        return;
-    }
-
-    try {
-      const auth = await getAuthenticatedClient();
-      let allPlaylists = [];
-      let nextPageToken = null;
-
-      console.log('Fetching user\'s playlists...');
-
-      do {
-        const response = await youtube.playlists.list({
-          auth: auth,
-          part: 'snippet,contentDetails', // snippet contains title, description, thumbnails. contentDetails contains itemCount.
-          mine: true, // Fetches playlists owned by the authenticated user
-          maxResults: 50,
-          pageToken: nextPageToken,
-        });
-        
-        console.log('Raw YouTube API response (playlists.list):', JSON.stringify(response.data, null, 2));
-
-        const items = response.data.items;
-        if (items) {
-          items.forEach(item => {
-            allPlaylists.push({
-              id: item.id,
-              title: item.snippet.title,
-              description: item.snippet.description,
-              itemCount: item.contentDetails.itemCount,
-              thumbnailUrl: item.snippet.thumbnails?.default?.url,
-            });
-          });
-          console.log(`Fetched ${items.length} playlists. Total so far: ${allPlaylists.length}`);
-        }
-        nextPageToken = response.data.nextPageToken;
-      } while (nextPageToken);
-
-      console.log(`Finished fetching playlists. Total playlists found: ${allPlaylists.length}`);
-      res.status(200).json({
-        playlists: allPlaylists,
-      });
-
-    } catch (error) {
-      console.error('Error fetching user playlists:', error);
-      if (error.message.includes('User not authenticated') || error.message.includes('Failed to refresh access token')) {
-        res.status(401).json({ error: error.message });
-      } else if (error.response && error.response.data && error.response.data.error) {
-        const apiError = error.response.data.error;
-        console.error('Google API Error (playlists.list):', apiError);
-        res.status(apiError.code || 500).json({
-          error: `Google API Error: ${apiError.message}`,
-          details: apiError.errors
-        });
-      } else {
-        res.status(500).json({ error: 'Failed to fetch user playlists.', details: error.message });
-      }
-    }
+    // Remove id_token if it exists, as it's not needed for API calls and can be large
+    delete updatedTokens.id_token; 
+    
+    const tokenKey = datastore.key([TOKEN_KIND, firebaseUid]);
+    await datastore.save({
+      key: tokenKey,
+      data: updatedTokens,
+      excludeFromIndexes: ['access_token', 'refresh_token'],
+    });
+    console.log('Refreshed YouTube tokens saved for UID:', firebaseUid);
   });
+
+
+  const youtube = google.youtube({
+    version: 'v3',
+    auth: oauth2Client,
+  });
+
+  try {
+    const response = await youtube.playlists.list({
+      part: 'snippet,contentDetails',
+      mine: true,
+      maxResults: 50, // Fetch a reasonable number
+    });
+
+    const playlists = response.data.items.map((item) => ({
+      id: item.id,
+      title: item.snippet.title,
+      description: item.snippet.description,
+      publishedAt: item.snippet.publishedAt,
+      thumbnailUrl: item.snippet.thumbnails?.default?.url,
+      itemCount: item.contentDetails.itemCount,
+    }));
+    
+    // Include Watch Later (WL) and Watch History (WH) if found, as they might not always be returned by `mine:true`
+    // or might have specific IDs. For now, this basic list is fine.
+    // We could add specific checks for WL ('WL') and WH ('HL') if needed.
+
+    res.status(200).json({playlists});
+  } catch (error) {
+    console.error('Error fetching playlists from YouTube API for UID:', firebaseUid, error.response ? error.response.data : error.message);
+    if (error.response && error.response.status === 401) {
+        // This could mean the refresh token is also invalid or revoked.
+        // Frontend should prompt for re-authentication with YouTube.
+        return res.status(401).json({
+            error: 'YouTube authentication failed or token revoked. Please re-link your YouTube account.',
+            code: 'YOUTUBE_REAUTH_REQUIRED',
+        });
+    }
+    res.status(500).json({error: 'Failed to fetch playlists from YouTube.'});
+  }
 };

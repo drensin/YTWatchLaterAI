@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "firebase": "^11.8.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",
@@ -23,23 +24,45 @@
       "google"
     ],
     "rules": {
-      "require-jsdoc": ["warn", {"require": {
-        "FunctionDeclaration": true,
-        "MethodDefinition": true,
-        "ClassDeclaration": false,
-        "ArrowFunctionExpression": true,
-        "FunctionExpression": true
-      }}],
-      "valid-jsdoc": ["warn", {
-        "prefer": {
-          "return": "returns"
-        },
-        "requireReturn": false,
-        "requireParamDescription": true,
-        "requireReturnDescription": true
-      }],
-      "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
-      "max-len": ["warn", { "code": 80, "ignoreComments": true, "ignoreUrls": true, "ignoreStrings": true, "ignoreTemplateLiterals": true }]
+      "require-jsdoc": [
+        "warn",
+        {
+          "require": {
+            "FunctionDeclaration": true,
+            "MethodDefinition": true,
+            "ClassDeclaration": false,
+            "ArrowFunctionExpression": true,
+            "FunctionExpression": true
+          }
+        }
+      ],
+      "valid-jsdoc": [
+        "warn",
+        {
+          "prefer": {
+            "return": "returns"
+          },
+          "requireReturn": false,
+          "requireParamDescription": true,
+          "requireReturnDescription": true
+        }
+      ],
+      "no-unused-vars": [
+        "warn",
+        {
+          "argsIgnorePattern": "^_"
+        }
+      ],
+      "max-len": [
+        "warn",
+        {
+          "code": 80,
+          "ignoreComments": true,
+          "ignoreUrls": true,
+          "ignoreStrings": true,
+          "ignoreTemplateLiterals": true
+        }
+      ]
     },
     "parserOptions": {
       "ecmaVersion": 2021
@@ -60,7 +83,7 @@
       "last 1 safari version"
     ]
   },
-  "homepage": "https://drensin.github.io/YTWatchLaterAI/",
+  "homepage": ".",
   "devDependencies": {
     "eslint-config-google": "^0.14.0",
     "gh-pages": "^6.3.0"

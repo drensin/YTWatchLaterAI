@@ -1,13 +1,14 @@
 {
   "name": "handle-youtube-auth",
   "version": "1.0.0",
-  "description": "Cloud Function for YouTube OAuth 2.0 handling.",
+  "description": "Cloud Function for YouTube OAuth 2.0 handling, linking to Firebase UID.",
   "main": "index.js",
   "dependencies": {
-    "@google-cloud/datastore": "^7.0.0",
-    "@google-cloud/secret-manager": "^4.0.0",
+    "@google-cloud/datastore": "^10.0.1",
+    "@google-cloud/secret-manager": "^6.0.1",
     "googleapis": "^100.0.0",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "firebase-admin": "^12.0.0"
   },
   "engines": {
     "node": "20"
