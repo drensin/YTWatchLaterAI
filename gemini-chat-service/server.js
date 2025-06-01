@@ -112,21 +112,41 @@ wss.on('connection', (ws) => {
             }
 
             try {
-                console.log(`[USER_QUERY] Sending query to Gemini for playlist ${currentSession.playlistId}: "${query}"`);
+                console.log(`[USER_QUERY][${new Date().toISOString()}] Sending query to Gemini for playlist ${currentSession.playlistId}: "${query}"`);
                 
                 const streamResult = await userChatSession.sendMessageStream(query);
                 let accumulatedText = "";
+                let firstByteReceived = false; // Flag to log only the first chunk event
 
                 for await (const chunk of streamResult.stream) {
+                    if (!firstByteReceived) {
+                        // Log for the first byte received
+                        console.log(`[USER_QUERY_RESPONSE_START][${new Date().toISOString()}] First byte received from Gemini for playlist ${currentSession.playlistId}, query: "${query}"`);
+                        firstByteReceived = true;
+                    }
+
                     if (ws.readyState !== WebSocket.OPEN) {
-                        console.log("[USER_QUERY] WebSocket closed by client during stream. Aborting.");
+                        console.log(`[USER_QUERY][${new Date().toISOString()}] WebSocket closed by client during stream. Aborting.`);
                         return; // Stop processing if client disconnected
                     }
                     const chunkText = chunk.text();
                     accumulatedText += chunkText;
                     ws.send(JSON.stringify({ type: 'STREAM_CHUNK', payload: { textChunk: chunkText } }));
                 }
-                console.log(`[USER_QUERY] Stream finished. Accumulated text length: ${accumulatedText.length}`);
+
+                // Log for the complete response received
+                let numSuggestedItems = 0;
+                try {
+                    const parsedResponse = JSON.parse(accumulatedText);
+                    if (parsedResponse && Array.isArray(parsedResponse.suggestedVideos)) {
+                        numSuggestedItems = parsedResponse.suggestedVideos.length;
+                    }
+                } catch (e) {
+                    // If parsing fails, numSuggestedItems remains 0, which is fine for this log.
+                }
+                console.log(`[USER_QUERY_RESPONSE_END][${new Date().toISOString()}] Full response received from Gemini for playlist ${currentSession.playlistId}, query: "${query}". Number of suggested items: ${numSuggestedItems}`);
+                
+                console.log(`[USER_QUERY][${new Date().toISOString()}] Stream finished. Accumulated text length: ${accumulatedText.length}`);
 
                 // Sanitize accumulated text
                 let sanitizedText = accumulatedText.replace(/[\u0000-\u001F\u007F-\u009F]/g, (match) => {
