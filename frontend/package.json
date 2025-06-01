@@ -19,8 +19,34 @@
   "eslintConfig": {
     "extends": [
       "react-app",
-      "react-app/jest"
-    ]
+      "react-app/jest",
+      "google"
+    ],
+    "rules": {
+      "require-jsdoc": ["warn", {"require": {
+        "FunctionDeclaration": true,
+        "MethodDefinition": true,
+        "ClassDeclaration": false,
+        "ArrowFunctionExpression": true,
+        "FunctionExpression": true
+      }}],
+      "valid-jsdoc": ["warn", {
+        "prefer": {
+          "return": "returns"
+        },
+        "requireReturn": false,
+        "requireParamDescription": true,
+        "requireReturnDescription": true
+      }],
+      "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+      "max-len": ["warn", { "code": 80, "ignoreComments": true, "ignoreUrls": true, "ignoreStrings": true, "ignoreTemplateLiterals": true }]
+    },
+    "parserOptions": {
+      "ecmaVersion": 2021
+    },
+    "env": {
+      "es6": true
+    }
   },
   "browserslist": {
     "production": [
@@ -36,6 +62,7 @@
   },
   "homepage": "https://drensin.github.io/YTWatchLaterAI/",
   "devDependencies": {
+    "eslint-config-google": "^0.14.0",
     "gh-pages": "^6.3.0"
   },
   "overrides": {
