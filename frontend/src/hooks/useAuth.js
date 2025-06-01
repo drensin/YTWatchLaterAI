@@ -19,18 +19,18 @@ const CLOUD_FUNCTIONS_BASE_URL = {
  * Handles Firebase login/logout, checks application-level authorization,
  * and determines initial YouTube linkage based on backend check.
  *
- * @param {Function} setAppPopup Function from the main app to show popups.
- * @return {{
- *   currentUser: object|null,
- *   isLoggedIn: boolean,
- *   isAuthorizedUser: boolean,
- *   isYouTubeLinkedByAuthCheck: boolean, // YouTube link status from checkUserAuthorization
- *   authChecked: boolean,
- *   appAuthorizationError: string|null, // Specific to app-level auth errors
- *   isLoadingAuth: boolean,
- *   handleFirebaseLogin: Function,
- *   handleFirebaseLogout: Function
- * }} Auth state and handlers.
+ * @param {function(config: {visible: boolean, message: string, type: string}): void} setAppPopup - Function from the main app to show popups.
+ * @returns {object} An object containing the authentication state and handler functions.
+ * The returned object includes:
+ * - `currentUser`: (object|null) Current Firebase user object.
+ * - `isLoggedIn`: (boolean) True if user is logged in.
+ * - `isAuthorizedUser`: (boolean) True if user is authorized by allow-list.
+ * - `isYouTubeLinkedByAuthCheck`: (boolean) True if YouTube was linked per backend check.
+ * - `authChecked`: (boolean) True if initial auth check has completed.
+ * - `appAuthorizationError`: (string|null) Error message for app-level authorization issues.
+ * - `isLoadingAuth`: (boolean) True if authentication/authorization check is in progress.
+ * - `handleFirebaseLogin`: (Function) Function to initiate Firebase login.
+ * - `handleFirebaseLogout`: (Function) Function to initiate Firebase logout.
  */
 function useAuth(setAppPopup) {
   const [currentUser, setCurrentUser] = useState(null);

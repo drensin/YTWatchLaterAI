@@ -5,15 +5,8 @@
  */
 import React, {useState, useEffect, useCallback, useRef} from 'react';
 import './App.css';
-import useAuth from './hooks/useAuth'; // Import the new hook
-
-// Placeholder for Cloud Function URLs - replace with your actual URLs
-const CLOUD_FUNCTIONS_BASE_URL = {
-  getWatchLaterPlaylist: 'https://us-central1-watchlaterai-460918.cloudfunctions.net/getWatchLaterPlaylist',
-  listUserPlaylists: 'https://us-central1-watchlaterai-460918.cloudfunctions.net/listUserPlaylists',
-  categorizeVideo: 'YOUR_CATEGORIZE_VIDEO_FUNCTION_URL',
-  handleYouTubeAuth: 'https://us-central1-watchlaterai-460918.cloudfunctions.net/handleYouTubeAuth',
-};
+import useAuth from './hooks/useAuth';
+import useYouTube from './hooks/useYouTube'; // Import the new hook
 
 // Cloud Run WebSocket Service URL
 const WEBSOCKET_SERVICE_URL = 'wss://gemini-chat-service-679260739905.us-central1.run.app';
@@ -26,7 +19,7 @@ const WEBSOCKET_SERVICE_URL = 'wss://gemini-chat-service-679260739905.us-central
  * @param {Function} props.onLogin - Callback to handle login.
  * @returns {React.ReactElement} The rendered login button.
  */
-function LoginButton({onLogin}) { // Changed to accept onLogin prop
+function LoginButton({onLogin}) {
   return (
     <button onClick={onLogin} className='auth-button'>
       Login
@@ -169,33 +162,39 @@ function App() {
     handleFirebaseLogout,
   } = useAuth(setPopup);
 
-  // YouTube specific state
-  const [isYouTubeLinkedForApp, setIsYouTubeLinkedForApp] = useState(false);
-  const [userPlaylists, setUserPlaylists] = useState([]);
-  const [selectedPlaylistId, setSelectedPlaylistId] = useState('');
-  const [videos, setVideos] = useState([]);
-  const [youtubeSpecificError, setYoutubeSpecificError] = useState(null);
+  const {
+    userPlaylists,
+    selectedPlaylistId,
+    setSelectedPlaylistId,
+    // videos, // Videos for the selected playlist from useYouTube - Not directly used in App.js JSX
+    fetchUserPlaylists,
+    fetchPlaylistItems,
+    handleConnectYouTube,
+    isYouTubeLinked, // This is now isYouTubeLinkedForApp from useYouTube
+    youtubeSpecificError,
+    isLoadingYouTube,
+    setVideos: setYouTubeVideos, // Exposing setters from useYouTube if needed by App
+    setUserPlaylists: setYouTubeUserPlaylists,
+    // setIsYouTubeLinked: setIsYouTubeLinkedAppLevel, // To manage the app's view if needed - Not used
+    setYoutubeSpecificError: setYouTubeErrorAppLevel,
+  } = useYouTube(currentUser, isLoggedIn, isAuthorizedUser, setPopup, isYouTubeLinkedByAuthCheck);
 
-  // Chat specific state
+
+  // Chat specific state (to be moved to useWebSocketChat hook later)
   const [suggestedVideos, setSuggestedVideos] = useState([]);
-  const [isLoading, setIsLoading] = useState(false); // General loading for non-auth API calls
-  const [error, setError] = useState(null); // General app error
+  const [error, setError] = useState(null); // General app error, distinct from auth/youtube errors
 
   const [lastQuery, setLastQuery] = useState('');
   const [thinkingOutput, setThinkingOutput] = useState('');
   const [activeOutputTab, setActiveOutputTab] = useState('Results');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [isReconnecting, setIsReconnecting] = useState(false);
+  // const [isReconnecting, setIsReconnecting] = useState(false); // Unused state
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const MAX_RECONNECT_ATTEMPTS = 5;
   const INITIAL_RECONNECT_DELAY_MS = 1000;
   const MAX_RECONNECT_DELAY_MS = 30000;
 
-  const showOverlay = isLoadingAuth || isLoading;
-
-  useEffect(() => {
-    setIsYouTubeLinkedForApp(isYouTubeLinkedByAuthCheck);
-  }, [isYouTubeLinkedByAuthCheck]);
+  const showOverlay = isLoadingAuth || isLoadingYouTube; // Combined loading state
 
   const clearWebSocketTimers = useCallback(() => {
     if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
@@ -215,6 +214,10 @@ function App() {
     }
   }, [clearWebSocketTimers]);
 
+  /**
+   * Initializes or re-initializes the WebSocket connection to the chat service.
+   * @param {string} playlistIdToConnect - The ID of the playlist to initialize the chat with.
+   */
   const startWebSocketConnection = useCallback((playlistIdToConnect) => {
     if (!playlistIdToConnect) return;
     closeWebSocket();
@@ -224,7 +227,7 @@ function App() {
     ws.current.onopen = () => {
       console.log('WebSocket connected. Initializing chat...');
       setReconnectAttempt(0);
-      setIsReconnecting(false);
+      // setIsReconnecting(false); // isReconnecting state was removed as unused
       clearWebSocketTimers();
       ws.current.send(JSON.stringify({type: 'INIT_CHAT', payload: {playlistId: playlistIdToConnect}}));
       setPopup({visible: true, message: 'Chat service connected.', type: 'info'});
@@ -264,184 +267,50 @@ function App() {
       if (selectedPlaylistId && reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
         const nextAttempt = reconnectAttempt + 1;
         setReconnectAttempt(nextAttempt);
-        setIsReconnecting(true);
+        // setIsReconnecting(true); // isReconnecting state was removed as unused
         const delay = Math.min(MAX_RECONNECT_DELAY_MS, INITIAL_RECONNECT_DELAY_MS * Math.pow(2, nextAttempt - 1));
         setPopup({visible: true, message: `Connection lost. Reconnecting (${nextAttempt}/${MAX_RECONNECT_ATTEMPTS})...`, type: 'warning'});
         reconnectTimeoutRef.current = setTimeout(() => startWebSocketConnection(selectedPlaylistId), delay);
       } else if (selectedPlaylistId) {
-        setIsReconnecting(false);
+        // setIsReconnecting(false); // isReconnecting state was removed as unused
         setError('Failed to reconnect to chat service.');
         setPopup({visible: true, message: 'Failed to reconnect. Please select playlist again or refresh.', type: 'error'});
       }
     };
     ws.current.onclose = handleWSCloseOrError;
     ws.current.onerror = handleWSCloseOrError;
-  }, [selectedPlaylistId, reconnectAttempt, closeWebSocket, clearWebSocketTimers, setPopup, setError, setIsReconnecting, setReconnectAttempt, pingIntervalRef, reconnectTimeoutRef]);
+  }, [selectedPlaylistId, reconnectAttempt, closeWebSocket, clearWebSocketTimers, setPopup, setError, setReconnectAttempt, pingIntervalRef, reconnectTimeoutRef]);
 
   useEffect(() => closeWebSocket, [closeWebSocket]);
 
-  const fetchUserPlaylists = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    setYoutubeSpecificError(null);
-
-    if (!currentUser) {
-      setError('User not logged in. Cannot fetch playlists.');
-      setIsLoading(false);
-      return false;
-    }
-    try {
-      const idToken = await currentUser.getIdToken();
-      const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.listUserPlaylists, {headers: {'Authorization': `Bearer ${idToken}`}});
-      let data = {};
-      try {
-        const responseHeaders = {};
-        response.headers.forEach((value, name) => {
-          responseHeaders[name] = value;
-        });
-
-        if (!response.ok) {
-          const rawText = await response.text();
-          try {
-            data = JSON.parse(rawText);
-          } catch (parseError) {
-            data = {error: `Server returned non-OK status ${response.status} with non-JSON body: ${rawText.substring(0, 100)}`, code: 'SERVER_ERROR_NON_JSON'};
-          }
-        } else {
-          data = await response.json();
-        }
-      } catch (e) {
-        setError('Failed to get playlist data (network or processing error).');
-        setIsYouTubeLinkedForApp(false);
-        setUserPlaylists([]);
-        setIsLoading(false);
-        return false;
-      }
-
-      if (!response.ok) {
-        setIsYouTubeLinkedForApp(false);
-        if (data && (data.code === 'YOUTUBE_AUTH_REQUIRED' || data.code === 'YOUTUBE_REAUTH_REQUIRED')) {
-          setYoutubeSpecificError(data.error || 'YouTube authorization issue. Please connect/re-connect.');
-        } else {
-          setError(data.error || data.message || response.statusText || `Failed to fetch playlists (${response.status}).`);
-        }
-        setUserPlaylists([]); return false;
-      } else {
-        setUserPlaylists(data.playlists || []);
-        setIsYouTubeLinkedForApp(true);
-        setYoutubeSpecificError(null); return true;
-      }
-    } catch (err) {
-      setUserPlaylists([]); setIsYouTubeLinkedForApp(false);
-      setError(err.message || 'An unexpected error occurred while fetching playlists.');
-      setPopup({visible: true, message: `Error fetching playlists: ${err.message}`, type: 'error'});
-      setTimeout(() => setPopup((p) => ({...p, visible: false})), 5000); return false;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [currentUser, setPopup]);
-
-  const fetchPlaylistItems = useCallback(async (playlistId) => {
-    if (!playlistId || !currentUser) {
-      setVideos([]);
-      if (!currentUser) setError('User not logged in. Cannot fetch playlist items.');
-      setIsLoading(false); return false;
-    }
-    setIsLoading(true); setError(null); setYoutubeSpecificError(null);
-
-    try {
-      const idToken = await currentUser.getIdToken();
-      const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.getWatchLaterPlaylist, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}`},
-        body: JSON.stringify({playlistId}),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        if (data.code === 'YOUTUBE_AUTH_REQUIRED' || data.code === 'YOUTUBE_REAUTH_REQUIRED') {
-          setIsYouTubeLinkedForApp(false);
-          setYoutubeSpecificError(data.error || 'YouTube authorization required for this playlist.');
-        } else {
-          setError(data.message || response.statusText || 'Failed to fetch playlist items.');
-        }
-        setVideos([]); return false;
-      }
-      setVideos(data.videos || []);
-      setIsYouTubeLinkedForApp(true);
-      setYoutubeSpecificError(null);
-      const playlistTitle = userPlaylists.find((p) => p.id === playlistId)?.title || 'selected playlist';
-      setPopup({visible: true, message: `Loaded ${data.videos?.length || 0} videos from "${playlistTitle}".`, type: 'success'});
-      setTimeout(() => setPopup((p) => ({...p, visible: false})), 3000); return true;
-    } catch (err) {
-      setVideos([]);
-      setError(err.message || 'An unexpected error occurred while fetching items.');
-      setPopup({visible: true, message: `Error fetching playlist: ${err.message}`, type: 'error'});
-      setTimeout(() => setPopup((p) => ({...p, visible: false})), 5000); return false;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [currentUser, userPlaylists, setPopup]);
-
-  // Effect for handling YouTube OAuth redirect parameters
+  // Effect to fetch user playlists when auth and YouTube link status are favorable.
+  // This logic is now simpler as useYouTube handles its own internal fetch after linking.
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const youtubeAuthStatus = urlParams.get('youtube_auth_status');
-    const stateFromRedirect = urlParams.get('state');
-    const oauthError = urlParams.get('error_message');
-
-    if (youtubeAuthStatus) { // Only process if redirect params are present
-      const storedNonce = localStorage.getItem('youtubeOAuthNonce');
-      let stateObjectFromRedirect = {};
-      if (stateFromRedirect) {
-        try {
-          stateObjectFromRedirect = JSON.parse(atob(stateFromRedirect));
-        } catch (e) {
-          console.error('Error parsing state from redirect:', e);
-          setYoutubeSpecificError('Invalid state received from YouTube auth redirect.');
-          setPopup({visible: true, message: 'YouTube connection failed (invalid state).', type: 'error'});
-        }
-      }
-
-      if (stateObjectFromRedirect.nonce && storedNonce === stateObjectFromRedirect.nonce) {
-        if (youtubeAuthStatus === 'success') {
-          setPopup({visible: true, message: 'YouTube account connected successfully!', type: 'success'});
-          setIsYouTubeLinkedForApp(true);
-          if (isLoggedIn && isAuthorizedUser) {
-            fetchUserPlaylists();
-          }
-        } else {
-          const detailedError = oauthError || 'Unknown YouTube connection error';
-          setYoutubeSpecificError(`YouTube connection failed: ${detailedError}`);
-          setPopup({visible: true, message: `YouTube connection error: ${detailedError}`, type: 'error'});
-          setIsYouTubeLinkedForApp(false);
-        }
-      } else if (stateFromRedirect) {
-        setYoutubeSpecificError('YouTube authorization failed (security check). Please try again.');
-        setPopup({visible: true, message: 'YouTube connection security check failed.', type: 'error'});
-        setIsYouTubeLinkedForApp(false);
-      } else if (!stateFromRedirect && youtubeAuthStatus === 'error') {
-        setYoutubeSpecificError(`YouTube connection failed: ${oauthError || 'Unknown error during OAuth flow.'}`);
-        setPopup({visible: true, message: `YouTube connection error: ${oauthError || 'Unknown error.'}`, type: 'error'});
-        setIsYouTubeLinkedForApp(false);
-      }
-      localStorage.removeItem('youtubeOAuthNonce');
-      window.history.replaceState({}, document.title, window.location.pathname); // Clean URL
-    }
-  }, [isLoggedIn, isAuthorizedUser, fetchUserPlaylists, setPopup]);
-
-  // Effect to fetch user playlists when conditions are met
-  useEffect(() => {
-    if (isLoggedIn && isAuthorizedUser && isYouTubeLinkedForApp && userPlaylists.length === 0 && !isLoading && !error && !youtubeSpecificError && !appAuthorizationError) {
-      console.log('App.js useEffect: Fetching user playlists because conditions met.');
+    if (isLoggedIn && isAuthorizedUser && isYouTubeLinked && userPlaylists.length === 0 && !isLoadingYouTube && !youtubeSpecificError && !appAuthorizationError) {
+      console.log('App.js useEffect: Fetching user playlists (conditions met).');
       fetchUserPlaylists();
     } else if (!isLoggedIn || !isAuthorizedUser) {
-      setUserPlaylists([]);
+      // Clear YouTube related data if app auth fails or user logs out
+      setYouTubeUserPlaylists([]);
       setSelectedPlaylistId('');
-      setVideos([]);
-      setSuggestedVideos([]);
+      setYouTubeVideos([]);
+      setSuggestedVideos([]); // Also clear chat suggestions
       if (ws.current) closeWebSocket();
     }
-  }, [isLoggedIn, isAuthorizedUser, isYouTubeLinkedForApp, userPlaylists.length, isLoading, error, youtubeSpecificError, appAuthorizationError, fetchUserPlaylists, closeWebSocket]);
+  }, [
+    isLoggedIn,
+    isAuthorizedUser,
+    isYouTubeLinked, // from useYouTube
+    userPlaylists.length,
+    isLoadingYouTube,
+    youtubeSpecificError,
+    appAuthorizationError,
+    fetchUserPlaylists,
+    closeWebSocket,
+    setYouTubeUserPlaylists, // from useYouTube
+    setYouTubeVideos, // from useYouTube
+    setSelectedPlaylistId, // Added missing dependency
+  ]);
 
 
   useEffect(() => {
@@ -450,57 +319,40 @@ function App() {
     }
   }, [thinkingOutput, activeOutputTab]);
 
-  const handleConnectYouTube = async () => {
-    if (!currentUser) {
-      setPopup({visible: true, message: 'Please log in with Firebase first.', type: 'error'});
-      setTimeout(() => setPopup((p) => ({...p, visible: false})), 3000); return;
-    }
-    const nonce = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    localStorage.setItem('youtubeOAuthNonce', nonce);
-    const finalRedirectUri = window.location.origin + window.location.pathname;
-    const stateObject = {uid: currentUser.uid, nonce: nonce, finalRedirectUri: finalRedirectUri};
-    const encodedState = btoa(JSON.stringify(stateObject));
-    const scopes = 'https://www.googleapis.com/auth/youtube.readonly';
-    const youtubeClientId = process.env.REACT_APP_YOUTUBE_CLIENT_ID;
-    if (!youtubeClientId) {
-      console.error('YouTube Client ID (REACT_APP_YOUTUBE_CLIENT_ID) is not configured.');
-      setPopup({visible: true, message: 'YouTube Client ID not configured for the app.', type: 'error'});
-      setTimeout(() => setPopup((p) => ({...p, visible: false})), 4000); return;
-    }
-    const params = {
-      client_id: youtubeClientId,
-      redirect_uri: CLOUD_FUNCTIONS_BASE_URL.handleYouTubeAuth,
-      response_type: 'code', scope: scopes, access_type: 'offline', prompt: 'consent', state: encodedState,
-    };
-    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams(params).toString()}`;
-  };
-
+  /**
+   * Handles the selection of a new playlist from the dropdown.
+   * Fetches items for the selected playlist and initializes the WebSocket connection.
+   * @param {React.ChangeEvent<HTMLSelectElement>} event - The select change event.
+   */
   const handlePlaylistSelection = useCallback(async (event) => {
     const newPlaylistId = event.target.value;
-    setSelectedPlaylistId(newPlaylistId);
+    setSelectedPlaylistId(newPlaylistId); // from useYouTube
     setSuggestedVideos([]);
     setThinkingOutput('');
     setLastQuery('');
     setActiveOutputTab('Results');
-    setError(null);
-    setYoutubeSpecificError(null);
+    setError(null); // General error
+    setYouTubeErrorAppLevel(null); // Clear YouTube specific error via exposed setter
 
     if (newPlaylistId) {
-      const fetchSuccess = await fetchPlaylistItems(newPlaylistId);
+      const fetchSuccess = await fetchPlaylistItems(newPlaylistId); // from useYouTube
       if (fetchSuccess) {
         startWebSocketConnection(newPlaylistId);
       }
     } else {
-      setVideos([]);
+      setYouTubeVideos([]); // from useYouTube
       closeWebSocket();
     }
-  }, [fetchPlaylistItems, startWebSocketConnection, closeWebSocket]);
+  }, [fetchPlaylistItems, startWebSocketConnection, closeWebSocket, setSelectedPlaylistId, setYouTubeVideos, setYouTubeErrorAppLevel]);
 
+  /**
+   * Refreshes the items for the currently selected playlist and re-initializes chat if connected.
+   */
   const refreshSelectedPlaylistItems = async () => {
     if (selectedPlaylistId) {
       setError(null);
-      setYoutubeSpecificError(null);
-      const fetchSuccess = await fetchPlaylistItems(selectedPlaylistId);
+      setYouTubeErrorAppLevel(null);
+      const fetchSuccess = await fetchPlaylistItems(selectedPlaylistId); // from useYouTube
 
       if (fetchSuccess) {
         if (ws.current && ws.current.readyState === WebSocket.OPEN) {
@@ -559,8 +411,7 @@ function App() {
         {appAuthorizationError && <p style={{color: 'orange', fontWeight: 'bold'}}>Authorization Error: {appAuthorizationError}</p>}
         {youtubeSpecificError && <p style={{color: 'yellow', backgroundColor: 'rgba(0,0,0,0.1)', padding: '5px', fontWeight: 'bold'}}>YouTube Error: {youtubeSpecificError}</p>}
 
-
-        {isLoggedIn && isAuthorizedUser && !isYouTubeLinkedForApp && authChecked && (
+        {isLoggedIn && isAuthorizedUser && !isYouTubeLinked && authChecked && (
           <div style={{padding: '20px', textAlign: 'center'}}>
             <p>{youtubeSpecificError || appAuthorizationError || 'Your YouTube account is not connected or the connection has expired.'}</p>
             <button onClick={handleConnectYouTube} style={{padding: '10px 20px', fontSize: '1em'}}>
@@ -569,15 +420,15 @@ function App() {
           </div>
         )}
 
-        {isLoggedIn && isAuthorizedUser && isYouTubeLinkedForApp && (
+        {isLoggedIn && isAuthorizedUser && isYouTubeLinked && (
           <>
             <div>
               <label htmlFor='playlist-select'>Choose a playlist: </label>
-              <select id='playlist-select' value={selectedPlaylistId} onChange={handlePlaylistSelection} disabled={isLoading || !userPlaylists || userPlaylists.length === 0}>
+              <select id='playlist-select' value={selectedPlaylistId} onChange={handlePlaylistSelection} disabled={isLoadingYouTube || !userPlaylists || userPlaylists.length === 0}>
                 <option value=''>-- Select a playlist --</option>
                 {userPlaylists.map((pl) => <option key={pl.id} value={pl.id}>{pl.title} ({pl.itemCount} items)</option>)}
               </select>
-              <button onClick={refreshSelectedPlaylistItems} disabled={isLoading || !selectedPlaylistId} className='refresh-button' style={{marginLeft: '10px'}} title='Refresh playlist items'>↺</button>
+              <button onClick={refreshSelectedPlaylistItems} disabled={isLoadingYouTube || !selectedPlaylistId} className='refresh-button' style={{marginLeft: '10px'}} title='Refresh playlist items'>↺</button>
             </div>
             {selectedPlaylistId && (
               <>
@@ -608,11 +459,11 @@ function App() {
                 )}
               </>
             )}
-            {!selectedPlaylistId && userPlaylists && userPlaylists.length > 0 && !isLoading &&
+            {!selectedPlaylistId && userPlaylists && userPlaylists.length > 0 && !isLoadingYouTube &&
               <p>Select a playlist to see videos and get suggestions.</p>
             }
-            {(!userPlaylists || userPlaylists.length === 0) && isLoggedIn && isAuthorizedUser && isYouTubeLinkedForApp &&
-              !isLoading && <p>No playlists found. Try connecting YouTube or refreshing if you recently added some.</p>
+            {(!userPlaylists || userPlaylists.length === 0) && isLoggedIn && isAuthorizedUser && isYouTubeLinked &&
+              !isLoadingYouTube && <p>No playlists found. Try connecting YouTube or refreshing if you recently added some.</p>
             }
           </>
         )}
