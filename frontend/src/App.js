@@ -6,10 +6,8 @@
 import React, {useState, useEffect, useCallback, useRef} from 'react';
 import './App.css';
 import useAuth from './hooks/useAuth';
-import useYouTube from './hooks/useYouTube'; // Import the new hook
-
-// Cloud Run WebSocket Service URL
-const WEBSOCKET_SERVICE_URL = 'wss://gemini-chat-service-679260739905.us-central1.run.app';
+import useYouTube from './hooks/useYouTube';
+import useWebSocketChat from './hooks/useWebSocketChat'; // Import the new hook
 
 // --- Components ---
 
@@ -144,12 +142,12 @@ function VideoList({videos}) {
  * @returns {React.ReactElement} The rendered App component.
  */
 function App() {
-  const ws = useRef(null);
-  const pingIntervalRef = useRef(null);
-  const reconnectTimeoutRef = useRef(null);
-  const thinkingOutputContainerRef = useRef(null);
+  const thinkingOutputContainerRef = useRef(null); // Keep ref for DOM manipulation here
 
   const [popup, setPopup] = useState({visible: false, message: '', type: ''});
+  const [error, setError] = useState(null); // General app error, distinct from auth/youtube errors
+  const [isPlaylistDataReadyForChat, setIsPlaylistDataReadyForChat] = useState(false);
+
   const {
     currentUser,
     isLoggedIn,
@@ -166,150 +164,54 @@ function App() {
     userPlaylists,
     selectedPlaylistId,
     setSelectedPlaylistId,
-    // videos, // Videos for the selected playlist from useYouTube - Not directly used in App.js JSX
     fetchUserPlaylists,
     fetchPlaylistItems,
     handleConnectYouTube,
-    isYouTubeLinked, // This is now isYouTubeLinkedForApp from useYouTube
+    isYouTubeLinked,
     youtubeSpecificError,
     isLoadingYouTube,
-    setVideos: setYouTubeVideos, // Exposing setters from useYouTube if needed by App
+    setVideos: setYouTubeVideos,
     setUserPlaylists: setYouTubeUserPlaylists,
-    // setIsYouTubeLinked: setIsYouTubeLinkedAppLevel, // To manage the app's view if needed - Not used
     setYoutubeSpecificError: setYouTubeErrorAppLevel,
   } = useYouTube(currentUser, isLoggedIn, isAuthorizedUser, setPopup, isYouTubeLinkedByAuthCheck);
 
+  const {
+    suggestedVideos,
+    lastQuery,
+    thinkingOutput,
+    activeOutputTab,
+    setActiveOutputTab,
+    isStreaming,
+    handleQuerySubmit, // This now comes from useWebSocketChat
+  } = useWebSocketChat(selectedPlaylistId, isPlaylistDataReadyForChat, setPopup, setError);
 
-  // Chat specific state (to be moved to useWebSocketChat hook later)
-  const [suggestedVideos, setSuggestedVideos] = useState([]);
-  const [error, setError] = useState(null); // General app error, distinct from auth/youtube errors
 
-  const [lastQuery, setLastQuery] = useState('');
-  const [thinkingOutput, setThinkingOutput] = useState('');
-  const [activeOutputTab, setActiveOutputTab] = useState('Results');
-  const [isStreaming, setIsStreaming] = useState(false);
-  // const [isReconnecting, setIsReconnecting] = useState(false); // Unused state
-  const [reconnectAttempt, setReconnectAttempt] = useState(0);
-  const MAX_RECONNECT_ATTEMPTS = 5;
-  const INITIAL_RECONNECT_DELAY_MS = 1000;
-  const MAX_RECONNECT_DELAY_MS = 30000;
-
-  const showOverlay = isLoadingAuth || isLoadingYouTube; // Combined loading state
-
-  const clearWebSocketTimers = useCallback(() => {
-    if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
-    pingIntervalRef.current = null;
-    if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
-    reconnectTimeoutRef.current = null;
-  }, []);
-
-  const closeWebSocket = useCallback(() => {
-    clearWebSocketTimers();
-    if (ws.current) {
-      ws.current.onclose = null;
-      ws.current.onerror = null;
-      ws.current.close();
-      ws.current = null;
-      console.log('WebSocket connection intentionally closed.');
-    }
-  }, [clearWebSocketTimers]);
-
-  /**
-   * Initializes or re-initializes the WebSocket connection to the chat service.
-   * @param {string} playlistIdToConnect - The ID of the playlist to initialize the chat with.
-   */
-  const startWebSocketConnection = useCallback((playlistIdToConnect) => {
-    if (!playlistIdToConnect) return;
-    closeWebSocket();
-    console.log('Attempting WebSocket connection...');
-    ws.current = new WebSocket(WEBSOCKET_SERVICE_URL);
-    setIsStreaming(false);
-    ws.current.onopen = () => {
-      console.log('WebSocket connected. Initializing chat...');
-      setReconnectAttempt(0);
-      // setIsReconnecting(false); // isReconnecting state was removed as unused
-      clearWebSocketTimers();
-      ws.current.send(JSON.stringify({type: 'INIT_CHAT', payload: {playlistId: playlistIdToConnect}}));
-      setPopup({visible: true, message: 'Chat service connected.', type: 'info'});
-      setTimeout(() => setPopup((p) => ({...p, visible: false})), 2000);
-      pingIntervalRef.current = setInterval(() => {
-        if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-          ws.current.send(JSON.stringify({type: 'PING'}));
-        }
-      }, 30000);
-    };
-    ws.current.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      if (message.type === 'CHAT_INITIALIZED') {
-        setPopup({visible: true, message: 'Chat session ready!', type: 'success'});
-        setTimeout(() => setPopup((p) => ({...p, visible: false})), 2000);
-        setIsStreaming(false);
-      } else if (message.type === 'STREAM_CHUNK') {
-        setThinkingOutput((prev) => prev + message.payload.textChunk);
-        setIsStreaming(true);
-        setActiveOutputTab('Thinking');
-      } else if (message.type === 'STREAM_END') {
-        setSuggestedVideos(message.payload.suggestedVideos || []);
-        setPopup({visible: true, message: 'Suggestions received!', type: 'success'});
-        setTimeout(() => setPopup((p) => ({...p, visible: false})), 2000);
-        setActiveOutputTab('Results');
-        setIsStreaming(false);
-      } else if (message.type === 'ERROR') {
-        setError(message.error);
-        setPopup({visible: true, message: `Chat Error: ${message.error}`, type: 'error'});
-        setTimeout(() => setPopup((p) => ({...p, visible: false})), 5000);
-        setActiveOutputTab('Results');
-        setIsStreaming(false);
-      }
-    };
-    const handleWSCloseOrError = () => {
-      clearWebSocketTimers();
-      if (selectedPlaylistId && reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
-        const nextAttempt = reconnectAttempt + 1;
-        setReconnectAttempt(nextAttempt);
-        // setIsReconnecting(true); // isReconnecting state was removed as unused
-        const delay = Math.min(MAX_RECONNECT_DELAY_MS, INITIAL_RECONNECT_DELAY_MS * Math.pow(2, nextAttempt - 1));
-        setPopup({visible: true, message: `Connection lost. Reconnecting (${nextAttempt}/${MAX_RECONNECT_ATTEMPTS})...`, type: 'warning'});
-        reconnectTimeoutRef.current = setTimeout(() => startWebSocketConnection(selectedPlaylistId), delay);
-      } else if (selectedPlaylistId) {
-        // setIsReconnecting(false); // isReconnecting state was removed as unused
-        setError('Failed to reconnect to chat service.');
-        setPopup({visible: true, message: 'Failed to reconnect. Please select playlist again or refresh.', type: 'error'});
-      }
-    };
-    ws.current.onclose = handleWSCloseOrError;
-    ws.current.onerror = handleWSCloseOrError;
-  }, [selectedPlaylistId, reconnectAttempt, closeWebSocket, clearWebSocketTimers, setPopup, setError, setReconnectAttempt, pingIntervalRef, reconnectTimeoutRef]);
-
-  useEffect(() => closeWebSocket, [closeWebSocket]);
+  const showOverlay = isLoadingAuth || isLoadingYouTube; // isLoadingChat can be added if useWebSocketChat exposes it
 
   // Effect to fetch user playlists when auth and YouTube link status are favorable.
-  // This logic is now simpler as useYouTube handles its own internal fetch after linking.
   useEffect(() => {
     if (isLoggedIn && isAuthorizedUser && isYouTubeLinked && userPlaylists.length === 0 && !isLoadingYouTube && !youtubeSpecificError && !appAuthorizationError) {
       console.log('App.js useEffect: Fetching user playlists (conditions met).');
       fetchUserPlaylists();
     } else if (!isLoggedIn || !isAuthorizedUser) {
-      // Clear YouTube related data if app auth fails or user logs out
       setYouTubeUserPlaylists([]);
       setSelectedPlaylistId('');
       setYouTubeVideos([]);
-      setSuggestedVideos([]); // Also clear chat suggestions
-      if (ws.current) closeWebSocket();
+      // suggestedVideos will be cleared by useWebSocketChat when selectedPlaylistId changes
+      // if (ws.current) closeWebSocket(); // closeWebSocket is now internal to useWebSocketChat
     }
   }, [
     isLoggedIn,
     isAuthorizedUser,
-    isYouTubeLinked, // from useYouTube
+    isYouTubeLinked,
     userPlaylists.length,
     isLoadingYouTube,
     youtubeSpecificError,
     appAuthorizationError,
     fetchUserPlaylists,
-    closeWebSocket,
-    setYouTubeUserPlaylists, // from useYouTube
-    setYouTubeVideos, // from useYouTube
-    setSelectedPlaylistId, // Added missing dependency
+    setYouTubeUserPlaylists,
+    setSelectedPlaylistId,
+    setYouTubeVideos,
   ]);
 
 
@@ -321,29 +223,26 @@ function App() {
 
   /**
    * Handles the selection of a new playlist from the dropdown.
-   * Fetches items for the selected playlist and initializes the WebSocket connection.
    * @param {React.ChangeEvent<HTMLSelectElement>} event - The select change event.
    */
   const handlePlaylistSelection = useCallback(async (event) => {
     const newPlaylistId = event.target.value;
-    setSelectedPlaylistId(newPlaylistId); // from useYouTube
-    setSuggestedVideos([]);
-    setThinkingOutput('');
-    setLastQuery('');
-    setActiveOutputTab('Results');
-    setError(null); // General error
-    setYouTubeErrorAppLevel(null); // Clear YouTube specific error via exposed setter
+    setIsPlaylistDataReadyForChat(false); // Reset readiness
+    setSelectedPlaylistId(newPlaylistId);
+    setError(null);
+    setYouTubeErrorAppLevel(null);
 
     if (newPlaylistId) {
-      const fetchSuccess = await fetchPlaylistItems(newPlaylistId); // from useYouTube
+      const fetchSuccess = await fetchPlaylistItems(newPlaylistId);
       if (fetchSuccess) {
-        startWebSocketConnection(newPlaylistId);
+        setIsPlaylistDataReadyForChat(true); // Signal data is ready
       }
+      // WebSocket connection is managed by useWebSocketChat based on selectedPlaylistId and isPlaylistDataReadyForChat
     } else {
-      setYouTubeVideos([]); // from useYouTube
-      closeWebSocket();
+      setYouTubeVideos([]);
+      // isPlaylistDataReadyForChat remains false, useWebSocketChat will see selectedPlaylistId is null/empty
     }
-  }, [fetchPlaylistItems, startWebSocketConnection, closeWebSocket, setSelectedPlaylistId, setYouTubeVideos, setYouTubeErrorAppLevel]);
+  }, [fetchPlaylistItems, setSelectedPlaylistId, setYouTubeVideos, setYouTubeErrorAppLevel, setError, setIsPlaylistDataReadyForChat]);
 
   /**
    * Refreshes the items for the currently selected playlist and re-initializes chat if connected.
@@ -352,44 +251,26 @@ function App() {
     if (selectedPlaylistId) {
       setError(null);
       setYouTubeErrorAppLevel(null);
-      const fetchSuccess = await fetchPlaylistItems(selectedPlaylistId); // from useYouTube
-
+      const fetchSuccess = await fetchPlaylistItems(selectedPlaylistId);
       if (fetchSuccess) {
-        if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-          ws.current.send(JSON.stringify({type: 'INIT_CHAT', payload: {playlistId: selectedPlaylistId}}));
-          setPopup({visible: true, message: 'Playlist refreshed and chat re-initialized.', type: 'info'});
-          setTimeout(() => setPopup((p) => ({...p, visible: false})), 2000);
-        } else {
-          startWebSocketConnection(selectedPlaylistId);
-        }
+        // Re-triggering chat initialization is handled by useWebSocketChat's
+        // dependency on selectedPlaylistId, if it needs to re-init.
+        // Or, if explicit re-init is needed, useWebSocketChat could expose a function.
+        // For now, assuming selection change or this refresh implies re-sync.
+        if (setPopup) setPopup({visible: true, message: 'Playlist refreshed.', type: 'info'});
+        setTimeout(() => {
+          if (setPopup) setPopup((p) => ({...p, visible: false}));
+        }, 2000);
       }
     } else {
-      setPopup({visible: true, message: 'Please select a playlist first.', type: 'error'});
-      setTimeout(() => setPopup((p) => ({...p, visible: false})), 3000);
+      if (setPopup) setPopup({visible: true, message: 'Please select a playlist first.', type: 'error'});
+      setTimeout(() => {
+        if (setPopup) setPopup((p) => ({...p, visible: false}));
+      }, 3000);
     }
   };
 
-  const handleQuerySubmit = async (query) => {
-    if (!selectedPlaylistId) {
-      setPopup({visible: true, message: 'Please select playlist.', type: 'error'});
-      setTimeout(() => setPopup((p) => ({...p, visible: false})), 3000); return;
-    }
-    if (!ws.current || ws.current.readyState !== WebSocket.OPEN) {
-      setPopup({visible: true, message: 'Chat not connected. Try re-selecting playlist.', type: 'error'});
-      setTimeout(() => setPopup((p) => ({...p, visible: false})), 5000); return;
-    }
-    setLastQuery(query); setError(null); setSuggestedVideos([]);
-    setThinkingOutput(''); setActiveOutputTab('Thinking'); setIsStreaming(true);
-    try {
-      ws.current.send(JSON.stringify({type: 'USER_QUERY', payload: {query}}));
-    } catch (err) {
-      console.error('Error sending query via WebSocket:', err);
-      setError(err.message);
-      setPopup({visible: true, message: `Query error: ${err.message}`, type: 'error'});
-      setTimeout(() => setPopup((p) => ({...p, visible: false})), 5000);
-      setActiveOutputTab('Results'); setIsStreaming(false);
-    }
-  };
+  // handleQuerySubmit is now provided by useWebSocketChat
 
   return (
     <div className="App">
