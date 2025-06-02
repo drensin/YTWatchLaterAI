@@ -1,305 +1,347 @@
 # Deployment Instructions for ReelWorthy
 
-This document provides instructions for deploying the backend Cloud Functions and notes on frontend deployment for ReelWorthy.
+This document provides detailed instructions for deploying the frontend, backend Cloud Functions, and the Gemini chat service for ReelWorthy.
 
-## Prerequisites
+## Table of Contents
+1.  [Prerequisites](#1-prerequisites)
+2.  [Google Cloud Project Setup](#2-google-cloud-project-setup)
+3.  [Firebase Project Setup](#3-firebase-project-setup)
+4.  [Secret Manager Setup](#4-secret-manager-setup)
+5.  [Service Account Permissions](#5-service-account-permissions)
+6.  [Code Configuration & Placeholders](#6-code-configuration--placeholders)
+7.  [Deploying Backend Services](#7-deploying-backend-services)
+    *   [Cloud Functions](#71-deploying-cloud-functions)
+    *   [Cloud Run Service (`gemini-chat-service`)](#72-deploying-cloud-run-service-gemini-chat-service)
+8.  [Deploying Frontend (Firebase Hosting)](#8-deploying-frontend-firebase-hosting)
+9.  [Datastore Index Setup](#9-datastore-index-setup)
+10. [Final Configuration Checks](#10-final-configuration-checks)
+11. [Example `cloudbuild.yaml` (CI/CD)](#11-example-cloudbuildyaml-cicd)
 
-*   Google Cloud SDK (`gcloud`) installed and authenticated: `gcloud auth login` and `gcloud config set project watchlaterai-460918`.
-*   Node.js and npm/yarn installed locally for managing dependencies if not using Cloud Build for everything.
-*   Your Google Cloud Project ID (let's call it `watchlaterai-460918`).
-*   The region you want to deploy your functions to (e.g., `us-central1`, let's call it `us-central1`).
-*   GitHub repository set up for the frontend if using GitHub Pages.
+---
 
-## 1. Secret Manager Setup
+## 1. Prerequisites
 
-Ensure you have created the following secrets in Google Cloud Secret Manager:
-*   `YOUTUBE_CLIENT_ID`
-*   `YOUTUBE_CLIENT_SECRET`
-*   `GEMINI_API_KEY` (if using Gemini API directly)
-*   `GCP_PROJECT_ID` (used by Vertex AI SDK, typically your project ID)
+*   **Google Cloud SDK (`gcloud` CLI):** Installed and authenticated.
+    *   Login: `gcloud auth login`
+    *   Set project: `gcloud config set project YOUR_PROJECT_ID` (replace `YOUR_PROJECT_ID`)
+*   **Firebase CLI:** Installed (`npm install -g firebase-tools`) and authenticated (`firebase login`).
+*   **Node.js and npm:** Installed locally (v18+ for backend, v20 for Cloud Functions runtime).
+*   **Docker:** Installed locally (if building `gemini-chat-service` image locally).
+*   **Google Cloud Project:** A project with billing enabled.
+*   **Firebase Project:** Linked to your Google Cloud Project.
 
-For each Cloud Function and the Cloud Run service, their respective runtime service accounts will need the "Secret Manager Secret Accessor" IAM role for these secrets.
-*   Cloud Functions: When deploying a function for the first time, GCP often creates a default service account for it (e.g., `watchlaterai-460918@appspot.gserviceaccount.com` or a function-specific one).
-*   Cloud Run: You can specify a service account or use the default Compute Engine service account (e.g., `PROJECT_NUMBER-compute@developer.gserviceaccount.com`).
+## 2. Google Cloud Project Setup
 
-You can grant this role:
+1.  **Project ID:** Note your Google Cloud Project ID.
+2.  **Region:** Choose a region for your services (e.g., `us-central1`).
+3.  **Enable APIs:** In the Google Cloud Console, enable the following APIs for your project:
+    *   YouTube Data API v3
+    *   Identity Platform API (used by Firebase Authentication)
+    *   Secret Manager API
+    *   Cloud Datastore API (ensure you select "Native mode" if prompted, not "Firestore in Datastore mode" unless intended)
+    *   Cloud Functions API
+    *   Cloud Run API
+    *   Cloud Build API (if using Cloud Build for CI/CD)
+    *   Vertex AI API (for `categorizeVideo` function)
+    *   Generative Language API (if `gemini-chat-service` uses it directly, though it uses `@google/generative-ai` which might use this or Vertex endpoints depending on auth).
+4.  **OAuth Consent Screen:**
+    *   Navigate to "APIs & Services" > "OAuth consent screen".
+    *   User Type: "External".
+    *   App information: Fill in app name, user support email, developer contact.
+    *   Scopes: You don't need to add scopes here manually; they are requested by the application during the OAuth flow.
+    *   Test users: Add email addresses of users who can test the app while it's in "Testing" publishing status.
+5.  **OAuth 2.0 Client ID:**
+    *   Navigate to "APIs & Services" > "Credentials".
+    *   Click "+ CREATE CREDENTIALS" > "OAuth client ID".
+    *   Application type: "Web application".
+    *   Name: e.g., "ReelWorthy Web Client".
+    *   **Authorized JavaScript origins:**
+        *   `http://localhost:3000` (for local frontend development)
+        *   Your Firebase Hosting URL (e.g., `https://YOUR_PROJECT_ID.web.app`)
+    *   **Authorized redirect URIs:**
+        *   The URL of your deployed `handleYouTubeAuth` Cloud Function. You will get this URL *after* its first deployment (e.g., `https://us-central1-YOUR_PROJECT_ID.cloudfunctions.net/handleYouTubeAuth`).
+    *   Save the Client ID and Client Secret. These will be stored in Secret Manager.
 
+## 3. Firebase Project Setup
+
+1.  Go to the [Firebase Console](https://console.firebase.google.com/) and add a project, linking it to your existing Google Cloud Project.
+2.  **Authentication:**
+    *   Navigate to "Authentication" > "Sign-in method".
+    *   Enable the "Google" provider.
+    *   Ensure the web SDK configuration is available (Project Settings > General > Your apps > Web app).
+3.  **Hosting:**
+    *   Navigate to "Hosting". Click "Get started".
+    *   Follow the steps. This typically involves running `firebase init hosting` in your `frontend` directory later.
+    *   Note your default Firebase Hosting site URL (e.g., `https://YOUR_PROJECT_ID.web.app`).
+4.  **Datastore:** Ensure Datastore is enabled in your Google Cloud Project (see step 2.3).
+
+## 4. Secret Manager Setup
+
+In Google Cloud Secret Manager, create the following secrets. The service accounts for your Cloud Functions and Cloud Run service will need access to these.
+*   `YOUTUBE_CLIENT_ID`: The OAuth Client ID obtained in step 2.5.
+*   `YOUTUBE_CLIENT_SECRET`: The OAuth Client Secret obtained in step 2.5.
+*   `GEMINI_API_KEY`: Your API key for the Google Gemini API (used by `gemini-chat-service` and `categorizeVideo`).
+
+**Note:** `GOOGLE_CLOUD_PROJECT` ID is typically available as an environment variable in Cloud Functions/Run or can be inferred by SDKs; it's not usually stored as a secret itself.
+
+## 5. Service Account Permissions
+
+*   **Cloud Functions Default Service Account:** Usually `YOUR_PROJECT_ID@appspot.gserviceaccount.com`.
+*   **Cloud Run Service Account for `gemini-chat-service`:** You created `youtube-watchlater-fn@YOUR_PROJECT_ID.iam.gserviceaccount.com` or can use the default Compute Engine service account (`PROJECT_NUMBER-compute@developer.gserviceaccount.com`). It's recommended to use a dedicated service account with minimal privileges.
+
+Grant the following roles to the respective service accounts:
+*   **Secret Manager Secret Accessor (`roles/secretmanager.secretAccessor`):**
+    *   Grant to Cloud Functions service account for `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `GEMINI_API_KEY` (for `categorizeVideo`).
+    *   Grant to Cloud Run service account for `GEMINI_API_KEY`.
+*   **Cloud Datastore User (`roles/datastore.user`):**
+    *   Grant to Cloud Functions service account (for all functions interacting with Datastore).
+    *   Grant to Cloud Run service account (for `gemini-chat-service`).
+*   **Vertex AI User (`roles/aiplatform.user`):**
+    *   Grant to Cloud Functions service account (specifically for `categorizeVideo`).
+    *   (The `@google/generative-ai` SDK used by `gemini-chat-service` with an API key might not require this role on the service account if the API key itself has permissions).
+
+Example `gcloud` command to grant a role:
 ```bash
-# Replace watchlaterai-460918, YOUR_SECRET_NAME, and SERVICE_ACCOUNT_EMAIL
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+    --member="serviceAccount:SERVICE_ACCOUNT_EMAIL" \
+    --role="ROLE_NAME"
 
-# Example for YOUTUBE_CLIENT_ID:
-gcloud secrets add-iam-policy-binding YOUTUBE_CLIENT_ID \
-    --member="serviceAccount:YOUR_FUNCTION_SERVICE_ACCOUNT_EMAIL" \
+# Example for secret access:
+gcloud secrets add-iam-policy-binding GEMINI_API_KEY \
+    --member="serviceAccount:YOUR_SERVICE_ACCOUNT_EMAIL" \
     --role="roles/secretmanager.secretAccessor" \
-    --project="watchlaterai-460918"
-
-# Repeat for YOUTUBE_CLIENT_SECRET, GEMINI_API_KEY, GCP_PROJECT_ID and for each function's/service's service account.
-
-# Example for granting GEMINI_API_KEY access to the default Compute Engine service account (often used by Cloud Run):
-# Replace PROJECT_NUMBER with your actual project number.
-# CLOUD_RUN_SERVICE_ACCOUNT_EMAIL="PROJECT_NUMBER-compute@developer.gserviceaccount.com" 
-# gcloud secrets add-iam-policy-binding GEMINI_API_KEY --member="serviceAccount:${CLOUD_RUN_SERVICE_ACCOUNT_EMAIL}" --role="roles/secretmanager.secretAccessor" --project="watchlaterai-460918"
-
-# If using the default App Engine service account for Cloud Functions:
-CF_SERVICE_ACCOUNT_EMAIL="watchlaterai-460918@appspot.gserviceaccount.com"
-gcloud secrets add-iam-policy-binding YOUTUBE_CLIENT_ID --member="serviceAccount:${CF_SERVICE_ACCOUNT_EMAIL}" --role="roles/secretmanager.secretAccessor" --project="watchlaterai-460918"
-gcloud secrets add-iam-policy-binding YOUTUBE_CLIENT_SECRET --member="serviceAccount:${CF_SERVICE_ACCOUNT_EMAIL}" --role="roles/secretmanager.secretAccessor" --project="watchlaterai-460918"
-# GEMINI_API_KEY and GCP_PROJECT_ID might not be needed by all Cloud Functions if only Cloud Run uses Gemini.
-
+    --project="YOUR_PROJECT_ID"
 ```
+Repeat for all necessary secrets and roles.
 
-## 2. Update Placeholders in Code
+## 6. Code Configuration & Placeholders
 
-Before deploying, ensure all placeholders are updated in the function code:
-*   `watchlaterai-460918` (Project ID) has been updated in the backend function files.
-*   `drensin.github.io/YTWatchLaterAI/` (GitHub Pages URL) has been updated in backend function files and `frontend/package.json`.
-*   `YOUR_HANDLE_YOUTUBE_AUTH_FUNCTION_URL`: This is a bit of a chicken-and-egg. You'll get this URL *after* deploying `handleYouTubeAuth` for the first time. You'll need to:
-    1.  Deploy `handleYouTubeAuth` (perhaps with a dummy redirect URL initially).
-    2.  Get its trigger URL.
-    3.  Update `YOUR_HANDLE_YOUTUBE_AUTH_FUNCTION_URL` in `handleYouTubeAuth/index.js` and `getWatchLaterPlaylist/index.js`.
-    4.  Update the OAuth consent screen settings in Google Cloud Console for your OAuth Client ID to include this Cloud Function URL as an "Authorized redirect URI".
-    5.  Redeploy `handleYouTubeAuth` and `getWatchLaterPlaylist`.
-    6.  Update `CLOUD_FUNCTIONS_BASE_URL.handleYouTubeAuth` in `frontend/src/App.js`.
-    7.  The `chatWithPlaylist` Cloud Function URL is no longer used; instead, `frontend/src/App.js` uses `WEBSOCKET_SERVICE_URL` for the Cloud Run service.
+*   **Frontend Environment Variables:**
+    *   The `frontend/src/firebase.js` file currently has hardcoded Firebase configuration. **It is strongly recommended to move these to environment variables.** Create a `.env` file in the `frontend/` directory (you can copy from `.env.example` if one is provided later).
+        ```env
+        REACT_APP_FIREBASE_API_KEY="your-firebase-api-key"
+        REACT_APP_FIREBASE_AUTH_DOMAIN="your-project-id.firebaseapp.com"
+        # ... other Firebase config values ...
+        REACT_APP_YOUTUBE_CLIENT_ID="your-youtube-oauth-client-id"
+        # Ideally, backend URLs too:
+        # REACT_APP_CHECK_AUTH_URL="https://..."
+        # REACT_APP_LIST_PLAYLISTS_URL="https://..."
+        # REACT_APP_GET_PLAYLIST_ITEMS_URL="https://..."
+        # REACT_APP_HANDLE_YOUTUBE_AUTH_URL_FOR_HOOK="https://..." # Used by useYouTube hook
+        # REACT_APP_WEBSOCKET_URL="wss://..."
+        ```
+    *   Update `frontend/src/firebase.js` to use these environment variables.
+    *   The frontend hooks (`useAuth.js`, `useYouTube.js`, `useWebSocketChat.js`) define `CLOUD_FUNCTIONS_BASE_URL` and `WEBSOCKET_SERVICE_URL` internally with hardcoded project IDs. These should ideally be passed in from `App.js` which reads them from environment variables or a central config.
+*   **Backend Redirect URIs:**
+    *   The `REDIRECT_URI` in `backend/handleYouTubeAuth/index.js` and other functions (like `getWatchLaterPlaylist/index.js`, `listUserPlaylists/index.js`) is constructed using `process.env.GOOGLE_CLOUD_PROJECT || 'watchlaterai-460918'`. Ensure `GOOGLE_CLOUD_PROJECT` is correctly set for your deployed functions or update the fallback. This URI must match an "Authorized redirect URI" in your Google OAuth Client settings.
+*   **CORS in `categorizeVideo`:**
+    *   Update `corsOptions.origin` in `backend/categorizeVideo/index.js` to your Firebase Hosting URL (e.g., `https://YOUR_PROJECT_ID.web.app`).
 
+## 7. Deploying Backend Services
 
-## 3. Deploying Backend Services
-
-### 3.1 Deploying Cloud Functions using `gcloud`
-
-Navigate to each function's directory in your terminal (e.g., `cd backend/handleYouTubeAuth`).
-
-**General Deployment Command Structure:**
-
-```bash
-gcloud functions deploy YOUR_FUNCTION_NAME \
-  --runtime nodejs20 \
-  --trigger-http \
-  --allow-unauthenticated \
-  --region us-central1 \
-  --source . \
-  --entry-point YOUR_FUNCTION_ENTRY_POINT \
-  --project watchlaterai-460918
-  # Optional: --service-account YOUR_FUNCTION_SERVICE_ACCOUNT_EMAIL
-  # Optional: --set-env-vars KEY1=VALUE1,KEY2=VALUE2 (if not using Secret Manager for some configs)
-  # Optional: --set-secrets SECRET_NAME1=SECRET_NAME1_IN_SECRET_MANAGER:latest,SECRET_NAME2=SECRET_NAME2_IN_SECRET_MANAGER:latest
-```
-
-**Specific Commands:**
+### 7.1 Deploying Cloud Functions
+Navigate to each function's directory (e.g., `cd backend/handleYouTubeAuth`).
 
 *   **`handleYouTubeAuth`**
     ```bash
-    cd backend/handleYouTubeAuth
     gcloud functions deploy handleYouTubeAuth \
       --runtime nodejs20 \
       --trigger-http \
       --allow-unauthenticated \
-      --region us-central1 \
+      --region YOUR_REGION \
       --source . \
       --entry-point handleYouTubeAuth \
-      --project watchlaterai-460918 \
+      --project YOUR_PROJECT_ID \
       --set-secrets YOUTUBE_CLIENT_ID=YOUTUBE_CLIENT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest
     ```
-    *After deployment, note its HTTP trigger URL.*
+    *After deployment, note its HTTP trigger URL. Update your Google OAuth Client's "Authorized redirect URIs" with this URL.*
+
+*   **`checkUserAuthorization`**
+    ```bash
+    gcloud functions deploy checkUserAuthorization \
+      --runtime nodejs20 \
+      --trigger-http \
+      --allow-unauthenticated \
+      --region YOUR_REGION \
+      --source . \
+      --entry-point checkUserAuthorization \
+      --project YOUR_PROJECT_ID
+    ```
+
+*   **`listUserPlaylists`**
+    ```bash
+    gcloud functions deploy listUserPlaylists \
+      --runtime nodejs20 \
+      --trigger-http \
+      --allow-unauthenticated \
+      --region YOUR_REGION \
+      --source . \
+      --entry-point listUserPlaylists \
+      --project YOUR_PROJECT_ID \
+      --set-secrets YOUTUBE_CLIENT_ID=YOUTUBE_CLIENT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest
+    ```
 
 *   **`getWatchLaterPlaylist`**
     ```bash
-    cd backend/getWatchLaterPlaylist
     gcloud functions deploy getWatchLaterPlaylist \
       --runtime nodejs20 \
       --trigger-http \
       --allow-unauthenticated \
-      --region us-central1 \
+      --region YOUR_REGION \
       --source . \
       --entry-point getWatchLaterPlaylist \
-      --project watchlaterai-460918 \
+      --project YOUR_PROJECT_ID \
       --set-secrets YOUTUBE_CLIENT_ID=YOUTUBE_CLIENT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest
     ```
-    *Note its HTTP trigger URL.*
 
 *   **`categorizeVideo`**
     ```bash
-    cd backend/categorizeVideo
     gcloud functions deploy categorizeVideo \
       --runtime nodejs20 \
       --trigger-http \
       --allow-unauthenticated \
-      --region us-central1 \
+      --region YOUR_REGION \
       --source . \
       --entry-point categorizeVideo \
-      --project watchlaterai-460918 \
-      --set-secrets GEMINI_API_KEY=GEMINI_API_KEY:latest # Add YOUTUBE_CLIENT_ID/SECRET if this function also makes direct YouTube API calls
+      --project YOUR_PROJECT_ID \
+      --set-secrets GCP_PROJECT_ID=GCP_PROJECT_ID:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest
     ```
-    *(If this were Pub/Sub triggered, you'd use `--trigger-topic YOUR_TOPIC_NAME` instead of `--trigger-http` and `--allow-unauthenticated`)*.
-    *Note its HTTP trigger URL.*
+    *(Note: `GCP_PROJECT_ID` secret is used here as per the code; ideally, VertexAI infers project ID if run with a service account with Vertex AI permissions).*
 
-**Note:** The `chatWithPlaylist` Cloud Function has been replaced by the `gemini-chat-service` on Cloud Run and should no longer be deployed as a Cloud Function if you are using the new architecture.
-
-### 3.2 Deploying Cloud Run Service (`gemini-chat-service`)
-
-The `gemini-chat-service` is a Node.js application that provides a WebSocket endpoint for chat.
-
-**Prerequisites:**
-*   Docker installed locally (if building locally) or Cloud Build API enabled.
-*   Artifact Registry API enabled in your GCP project.
-*   An Artifact Registry Docker repository created (e.g., `yt-watchlater-ai-repo` in `us-central1`).
+### 7.2 Deploying Cloud Run Service (`gemini-chat-service`)
+1.  **Create Artifact Registry Docker repository (if not done):**
     ```bash
     gcloud artifacts repositories create yt-watchlater-ai-repo \
       --repository-format=docker \
-      --location=us-central1 \
+      --location=YOUR_REGION \
       --description="Docker repository for ReelWorthy services" \
-      --project="watchlaterai-460918"
+      --project="YOUR_PROJECT_ID"
     ```
-
-**Steps:**
-
-1.  **Build and Push Docker Image:**
-    Navigate to the root of the project. The `gemini-chat-service/` directory contains the `Dockerfile`.
+2.  **Build and Push Docker Image:**
+    (Navigate to project root)
     ```bash
-    # Replace YOUR_PROJECT_ID, YOUR_REGION, YOUR_REPO_NAME, SERVICE_NAME, and TAG as appropriate.
-    # Example:
-    gcloud builds submit --tag us-central1-docker.pkg.dev/watchlaterai-460918/yt-watchlater-ai-repo/gemini-chat-service:v1 gemini-chat-service/ --project watchlaterai-460918
+    gcloud builds submit --tag YOUR_REGION-docker.pkg.dev/YOUR_PROJECT_ID/yt-watchlater-ai-repo/gemini-chat-service:vX gemini-chat-service/ --project YOUR_PROJECT_ID
     ```
-    This command builds the Docker image from the `gemini-chat-service/` directory and pushes it to your Artifact Registry. Use new tags (e.g., `:v1`, `:v2`) for subsequent builds.
+    (Replace `vX` with a version tag, e.g., `v1`, `v2`)
 
-2.  **Deploy to Cloud Run:**
+3.  **Deploy to Cloud Run:**
     ```bash
-    # Replace YOUR_PROJECT_ID, YOUR_REGION, YOUR_REPO_NAME, SERVICE_NAME, TAG, YOUR_SECRET_NAME, and SERVICE_ACCOUNT_EMAIL
-    # Example:
     gcloud run deploy gemini-chat-service \
-      --image us-central1-docker.pkg.dev/watchlaterai-460918/yt-watchlater-ai-repo/gemini-chat-service:v1 \
+      --image YOUR_REGION-docker.pkg.dev/YOUR_PROJECT_ID/yt-watchlater-ai-repo/gemini-chat-service:vX \
       --platform managed \
-      --region us-central1 \
-      --allow-unauthenticated \ # Or configure IAM for authentication
-      --port 8080 \ # Port your container listens on (defined in server.js and Dockerfile)
-      --min-instances 0 \ # Allows scaling to zero for cost savings
-      --max-instances 1 \ # For single-user, adjust as needed
+      --region YOUR_REGION \
+      --allow-unauthenticated \
+      --port 8080 \
+      --min-instances 0 \
+      --max-instances 1 \
       --cpu 1 \
       --memory 512Mi \
-      --set-secrets=GEMINI_API_KEY=GEMINI_API_KEY:latest \ # Mounts the 'GEMINI_API_KEY' secret as an environment variable
-      --service-account youtube-watchlater-fn@watchlaterai-460918.iam.gserviceaccount.com \
-      --project watchlaterai-460918
+      --set-secrets=GEMINI_API_KEY=GEMINI_API_KEY:latest \
+      --service-account youtube-watchlater-fn@YOUR_PROJECT_ID.iam.gserviceaccount.com \
+      --project YOUR_PROJECT_ID
     ```
-    *   **Service Account Permissions:** Ensure the service account used by Cloud Run (e.g., `youtube-watchlater-fn@watchlaterai-460918.iam.gserviceaccount.com`) has:
-        *   `roles/secretmanager.secretAccessor` for the `GEMINI_API_KEY` secret.
-        *   `roles/datastore.viewer` (or `roles/datastore.user`) for accessing Datastore.
-    *   Note the **Service URL** provided after successful deployment. This will be your `WEBSOCKET_SERVICE_URL` (prepended with `wss://` and potentially with a path if your WebSocket server is not at the root).
+    *Note the Service URL. This will be your `WEBSOCKET_SERVICE_URL` (prepended with `wss://`).*
 
-**Important:** After deploying Cloud Functions, take note of their HTTP trigger URLs. You will need these for the frontend configuration (`frontend/src/App.js`). The Cloud Run service URL is also needed.
+## 8. Deploying Frontend (Firebase Hosting)
 
-## 4. Frontend Deployment (GitHub Pages)
+1.  **Initialize Firebase (if not already done for the project):**
+    Navigate to your main project directory (e.g., `YTWatchLaterAI/`).
+    Run `firebase init hosting`.
+    *   Select "Use an existing project" and choose your Firebase project.
+    *   What do you want to use as your public directory? `frontend/build`
+    *   Configure as a single-page app (rewrite all urls to /index.html)? `Yes`
+    *   Set up automatic builds and deploys with GitHub? `No` (for now, can be set up later).
+2.  **Build the React App:**
+    ```bash
+    cd frontend
+    npm run build
+    ```
+3.  **Deploy to Firebase Hosting:**
+    (From the main project directory `YTWatchLaterAI/` or ensure `firebase.json` points to `frontend/build`)
+    ```bash
+    firebase deploy --only hosting
+    ```
+    Or, if your `firebase.json` is in the root and configured for `frontend/build`:
+    ```bash
+    firebase deploy --only hosting
+    ```
 
-Refer to `frontend/README.md` for detailed instructions on building and deploying the React app to GitHub Pages.
-Key steps involve:
-1.  Installing `gh-pages`.
-2.  Updating `package.json` with `homepage` and deploy scripts.
-3.  Running `npm run deploy` (or `yarn deploy`).
-4.  Configuring your GitHub repository to serve from the `gh-pages` branch.
+## 9. Datastore Index Setup
+The `index.yaml` file in the project root defines necessary Datastore indexes (e.g., for querying `Videos` by `associatedPlaylistIds`). Deploy it using:
+```bash
+gcloud datastore indexes create index.yaml --project YOUR_PROJECT_ID
+```
+Wait for indexes to build before relying on queries that need them.
 
-## 5. Example `cloudbuild.yaml` (for CI/CD of functions)
+## 10. Final Configuration Checks
+1.  Ensure all Cloud Function URLs and the Cloud Run WebSocket URL are correctly configured in your frontend code (ideally via environment variables loaded into your hooks/`App.js`).
+2.  Verify OAuth Redirect URIs in Google Cloud Console match your deployed `handleYouTubeAuth` function URL and your Firebase Hosting URL is in Authorized JavaScript Origins.
+3.  Test the entire application flow: Login, YouTube Connect, playlist selection, chat.
 
-This is a basic example. You'd typically have one per function or a more complex one for the whole backend. This example shows deploying one function.
+## 11. Example `cloudbuild.yaml` (CI/CD)
+This example demonstrates deploying all services.
 
 ```yaml
-# YTWatchLaterManager/cloudbuild.yaml
-# This is a simplified example for deploying a single function.
-# For multiple functions, you might have separate build files or more steps.
-
+# YTWatchLaterAI/cloudbuild.yaml
 steps:
-  # Deploy the 'handleYouTubeAuth' Cloud Function
+  # Deploy Cloud Functions
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    args:
-      - 'gcloud'
-      - 'functions'
-      - 'deploy'
-      - 'handleYouTubeAuth'
-      - '--project=${PROJECT_ID}' # PROJECT_ID is a substitution available in Cloud Build
-      - '--region=us-central1' # Replace with your region
-      - '--runtime=nodejs20'
-      - '--trigger-http'
-      - '--allow-unauthenticated'
-      - '--source=./backend/handleYouTubeAuth' # Path to the function source
-      - '--entry-point=handleYouTubeAuth'
-      - '--set-secrets=YOUTUBE_CLIENT_ID=YOUTUBE_CLIENT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest'
-      # - '--service-account=YOUR_SERVICE_ACCOUNT_EMAIL' # Optional
-
-  # Example for another function: getWatchLaterPlaylist
+    args: ['functions', 'deploy', 'handleYouTubeAuth', '--project=${PROJECT_ID}', '--region=us-central1', '--runtime=nodejs20', '--trigger-http', '--allow-unauthenticated', '--source=./backend/handleYouTubeAuth', '--entry-point=handleYouTubeAuth', '--set-secrets=YOUTUBE_CLIENT_ID=YOUTUBE_CLIENT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest']
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    args:
-      - 'gcloud'
-      - 'functions'
-      - 'deploy'
-      - 'getWatchLaterPlaylist'
-      - '--project=${PROJECT_ID}'
-      - '--region=us-central1' # Replace with your region
-      - '--runtime=nodejs20'
-      - '--trigger-http'
-      - '--allow-unauthenticated'
-      - '--source=./backend/getWatchLaterPlaylist'
-      - '--entry-point=getWatchLaterPlaylist'
-      - '--set-secrets=YOUTUBE_CLIENT_ID=YOUTUBE_CLIENT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest'
-  
-  # Add similar steps for categorizeVideo, including its specific secrets
-  # Example for categorizeVideo:
-  # - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-  #   args:
-  #     - 'gcloud'
-  #     - 'functions'
-  #     - 'deploy'
-  #     - 'categorizeVideo'
-  #     - '--project=${PROJECT_ID}'
-  #     - '--region=us-central1'
-  #     - '--runtime=nodejs20'
-  #     - '--trigger-http'
-  #     - '--allow-unauthenticated'
-  #     - '--source=./backend/categorizeVideo'
-  #     - '--entry-point=categorizeVideo'
-  #     - '--set-secrets=GEMINI_API_KEY=GEMINI_API_KEY:latest' # Add other secrets if needed
+    args: ['functions', 'deploy', 'checkUserAuthorization', '--project=${PROJECT_ID}', '--region=us-central1', '--runtime=nodejs20', '--trigger-http', '--allow-unauthenticated', '--source=./backend/checkUserAuthorization', '--entry-point=checkUserAuthorization']
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    args: ['functions', 'deploy', 'listUserPlaylists', '--project=${PROJECT_ID}', '--region=us-central1', '--runtime=nodejs20', '--trigger-http', '--allow-unauthenticated', '--source=./backend/listUserPlaylists', '--entry-point=listUserPlaylists', '--set-secrets=YOUTUBE_CLIENT_ID=YOUTUBE_CLIENT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest']
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    args: ['functions', 'deploy', 'getWatchLaterPlaylist', '--project=${PROJECT_ID}', '--region=us-central1', '--runtime=nodejs20', '--trigger-http', '--allow-unauthenticated', '--source=./backend/getWatchLaterPlaylist', '--entry-point=getWatchLaterPlaylist', '--set-secrets=YOUTUBE_CLIENT_ID=YOUTUBE_CLIENT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest']
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    args: ['functions', 'deploy', 'categorizeVideo', '--project=${PROJECT_ID}', '--region=us-central1', '--runtime=nodejs20', '--trigger-http', '--allow-unauthenticated', '--source=./backend/categorizeVideo', '--entry-point=categorizeVideo', '--set-secrets=GCP_PROJECT_ID=GCP_PROJECT_ID:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest']
 
-  # Step for building the gemini-chat-service Docker image
+  # Build and Push gemini-chat-service Docker image
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-t', 'us-central1-docker.pkg.dev/${PROJECT_ID}/yt-watchlater-ai-repo/gemini-chat-service:$SHORT_SHA', './gemini-chat-service']
-    # Assumes Artifact Registry repo 'yt-watchlater-ai-repo' exists in 'us-central1'
-
-  # Step for pushing the gemini-chat-service Docker image
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'us-central1-docker.pkg.dev/${PROJECT_ID}/yt-watchlater-ai-repo/gemini-chat-service:$SHORT_SHA']
 
-  # Step for deploying gemini-chat-service to Cloud Run
+  # Deploy gemini-chat-service to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     args:
-      - 'gcloud'
       - 'run'
       - 'deploy'
       - 'gemini-chat-service'
       - '--image=us-central1-docker.pkg.dev/${PROJECT_ID}/yt-watchlater-ai-repo/gemini-chat-service:$SHORT_SHA'
       - '--platform=managed'
-      - '--region=us-central1' # Replace with your region
+      - '--region=us-central1'
       - '--allow-unauthenticated'
       - '--port=8080'
-      - '--min-instances=0'
+      - '--min-instances=0' # Consider 1 for faster cold starts if budget allows
+      - '--max-instances=1' # Adjust based on expected load
       - '--set-secrets=GEMINI_API_KEY=GEMINI_API_KEY:latest'
-      - '--service-account=youtube-watchlater-fn@watchlaterai-460918.iam.gserviceaccount.com'
+      - '--service-account=youtube-watchlater-fn@${PROJECT_ID}.iam.gserviceaccount.com' # Ensure this SA exists
       - '--project=${PROJECT_ID}'
+
+  # Build Frontend
+  - name: 'node:18' # Or your preferred Node version for building
+    entrypoint: 'npm'
+    args: ['install']
+    dir: 'frontend'
+  - name: 'node:18'
+    entrypoint: 'npm'
+    args: ['run', 'build']
+    dir: 'frontend'
+    # Set REACT_APP environment variables here if needed for build time, e.g.
+    # env:
+    #   - 'REACT_APP_WEBSOCKET_URL=wss://your-gemini-chat-url' 
+
+  # Deploy Frontend to Firebase Hosting
+  - name: 'gcr.io/firebase/firebase'
+    args: ['deploy', '--only=hosting', '--project=${PROJECT_ID}']
+    # This assumes firebase.json is configured correctly and firebase tools are authenticated in the build environment.
 
 images:
   - 'us-central1-docker.pkg.dev/${PROJECT_ID}/yt-watchlater-ai-repo/gemini-chat-service:$SHORT_SHA'
-
-# You can set up triggers in Cloud Build to run this YAML on pushes to your repository.
-# Substitutions like _YOUR_REGION could also be configured in the trigger.
 ```
-
 To run this Cloud Build configuration:
 ```bash
-gcloud builds submit --config cloudbuild.yaml . --project watchlaterai-460918
+gcloud builds submit --config cloudbuild.yaml . --project YOUR_PROJECT_ID
 ```
-You would typically set up a Cloud Build trigger to automate this from your Git repository.
-
-## Final Configuration
-
-Once all Cloud Functions and the Cloud Run service are deployed and you have their URLs:
-1.  Update the `CLOUD_FUNCTIONS_BASE_URL` object in `frontend/src/App.js` with the correct Cloud Function URLs.
-2.  Update the `WEBSOCKET_SERVICE_URL` constant in `frontend/src/App.js` with the URL of your deployed `gemini-chat-service` (e.g., `wss://gemini-chat-service-[hash]-[region].a.run.app`).
-3.  Rebuild and redeploy your frontend application.
-
-Remember to test the OAuth flow thoroughly, as it involves multiple redirects and configurations (Cloud Function URLs, GitHub Pages URL, Google OAuth Client ID authorized redirect URIs).
+(Replace `YOUR_PROJECT_ID` and `YOUR_REGION` where appropriate).
