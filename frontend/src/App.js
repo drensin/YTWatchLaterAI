@@ -3,7 +3,8 @@
  * It handles user authentication, YouTube API interactions, playlist management,
  * and the chat interface with the Gemini AI service.
  */
-import React, {useState, useEffect, useCallback, useRef} from 'react';
+import React, {useState, useEffect, useCallback, useRef, memo} from 'react';
+import {FixedSizeList as List} from 'react-window';
 import './App.css';
 import useAuth from './hooks/useAuth';
 import useYouTube from './hooks/useYouTube';
@@ -86,51 +87,101 @@ function StatusPopup({message, type}) {
  * @param {Array<object>} props.videos - Array of video objects to display.
  * @returns {React.ReactElement} The rendered video list.
  */
-function VideoList({videos}) {
-  const [expandedDescriptions, setExpandedDescriptions] = useState({});
-  if (!videos || videos.length === 0) {
-    return <p>No videos to display.</p>;
-  }
-  const toggleDescription = (videoId) =>
-    setExpandedDescriptions((prev) => ({
-      ...prev, [videoId]: !prev[videoId],
-    }));
+// Individual Video Item, memoized for performance
+const VideoRow = memo(({index, style, data}) => {
+  const {videos, expandedDescriptions, toggleDescription} = data;
+  const video = videos[index];
 
-  const renderDescription = (video) => {
+  if (!video) {
+    return <div style={style}>Loading video...</div>;
+  }
+
+  const videoId = video.videoId || video.id;
+
+  const renderDescription = () => {
     const description = video.description || 'No description';
-    const isExpanded = expandedDescriptions[video.videoId || video.id];
-    const maxLength = 200;
+    const isExpanded = expandedDescriptions[videoId];
+    const maxLength = 150; // Adjusted for potentially smaller row height
     if (description.length <= maxLength) {
       return <p className="video-description"><strong>Description:</strong> {description}</p>;
     }
     return (
       <p className="video-description">
         <strong>Description:</strong> {isExpanded ? description : `${description.substring(0, maxLength)}...`}
-        <button onClick={() => toggleDescription(video.videoId || video.id)} className="more-less-button">
+        <button onClick={() => toggleDescription(videoId)} className="more-less-button">
           {isExpanded ? 'Less...' : 'More...'}
         </button>
       </p>
     );
   };
+
   return (
-    <ul className="video-list">
-      {videos.map((video) => (
-        <li key={video.videoId || video.id} className="video-list-item">
-          {video.thumbnailUrl && (
-            <img src={video.thumbnailUrl} alt={`Thumbnail for ${video.title}`} />
-          )}
-          <div>
-            <h4>{video.title}</h4>
-            {video.duration && <p><strong>Duration:</strong> {video.duration}</p>}
-            {renderDescription(video)}
-            {video.reason && <p style={{color: 'green', fontStyle: 'italic'}}><strong>Reason:</strong> {video.reason}</p>}
-            <a href={`https://www.youtube.com/watch?v=${video.videoId}`} target="_blank" rel="noopener noreferrer" className="watch-link" title="Watch on YouTube">
-              ▶ Watch
-            </a>
-          </div>
-        </li>
-      ))}
-    </ul>
+    <div style={style} className="video-list-item-wrapper">
+      <div className="video-list-item">
+        {video.thumbnailUrl && (
+          <img
+            src={video.thumbnailUrl}
+            alt={`Thumbnail for ${video.title}`}
+            loading="lazy" // Lazy load images
+            className="video-thumbnail" // Added class for styling if needed
+          />
+        )}
+        <div className="video-details">
+          <h4>{video.title}</h4>
+          {video.duration && <p><strong>Duration:</strong> {video.duration}</p>}
+          {renderDescription()}
+          {video.reason && <p style={{color: 'green', fontStyle: 'italic'}}><strong>Reason:</strong> {video.reason}</p>}
+          <a href={`https://www.youtube.com/watch?v=${video.videoId}`} target="_blank" rel="noopener noreferrer" className="watch-link" title="Watch on YouTube">
+            ▶ Watch
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+/**
+ * Renders a virtualized list of videos.
+ * @param {object} props - The component's props.
+ * @param {Array<object>} props.videos - Array of video objects to display.
+ * @returns {React.ReactElement} The rendered video list.
+ */
+function VideoList({videos}) {
+  const [expandedDescriptions, setExpandedDescriptions] = useState({});
+
+  if (!videos || videos.length === 0) {
+    return <p>No videos to display.</p>;
+  }
+
+  const toggleDescription = (videoId) =>
+    setExpandedDescriptions((prev) => ({
+      ...prev, [videoId]: !prev[videoId],
+    }));
+
+  // FixedSizeList requires itemData to pass data to Row component
+  const itemData = {
+    videos,
+    expandedDescriptions,
+    toggleDescription,
+  };
+
+  // These values might need adjustment based on your CSS and content.
+  // Consider making them responsive or dynamically calculated if possible.
+  const ITEM_HEIGHT = 200; // Approximate height of one video item
+  const LIST_HEIGHT = 600; // Desired height of the scrollable list area
+  const LIST_WIDTH = '100%'; // Or a fixed pixel value
+
+  return (
+    <List
+      className="video-list-virtualized" // Add a class for styling the List container
+      height={LIST_HEIGHT}
+      itemCount={videos.length}
+      itemSize={ITEM_HEIGHT}
+      itemData={itemData}
+      width={LIST_WIDTH}
+    >
+      {VideoRow}
+    </List>
   );
 }
 
