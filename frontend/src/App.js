@@ -3,187 +3,25 @@
  * It handles user authentication, YouTube API interactions, playlist management,
  * and the chat interface with the Gemini AI service.
  */
-import React, {useState, useEffect, useCallback, useRef, memo} from 'react';
-import {FixedSizeList as List} from 'react-window';
+import React, {useState, useEffect, useCallback, useRef} from 'react';
+// Removed memo and FixedSizeList import as they are now in VideoList.js
 import './App.css';
 import useAuth from './hooks/useAuth';
 import useYouTube from './hooks/useYouTube';
-import useWebSocketChat from './hooks/useWebSocketChat'; // Import the new hook
+import useWebSocketChat from './hooks/useWebSocketChat';
 
-// --- Components ---
+// Import relocated components
+import LoginButton from './components/LoginButton';
+// ChatInterface and VideoList are now used within MainAuthenticatedView
+// import ChatInterface from './components/ChatInterface';
+import LoadingOverlay from './components/LoadingOverlay';
+import StatusPopup from './components/StatusPopup';
+// import VideoList from './components/VideoList';
 
-/**
- * Renders a login button.
- * @param {object} props - The component's props.
- * @param {Function} props.onLogin - Callback to handle login.
- * @returns {React.ReactElement} The rendered login button.
- */
-function LoginButton({onLogin}) {
-  return (
-    <button onClick={onLogin} className='auth-button'>
-      Login
-    </button>
-  );
-}
-
-/**
- * Renders a chat input form.
- * @param {object} props - The component's props.
- * @param {Function} props.onQuerySubmit - Callback when a query is submitted.
- * @param {boolean} props.disabled - Whether the input should be disabled.
- * @returns {React.ReactElement} The rendered chat form.
- */
-function ChatInterface({onQuerySubmit, disabled}) {
-  const [query, setQuery] = useState('');
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (query.trim() && !disabled) {
-      onQuerySubmit(query);
-      setQuery('');
-    }
-  };
-  return (
-    <form onSubmit={handleSubmit}>
-      <input
-        type='text'
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder='Ask about your playlist...'
-        disabled={disabled}
-      />
-      <button type='submit' className='send-button' title='Send query' disabled={disabled}>➤</button>
-    </form>
-  );
-}
-
-/**
- * Renders a loading overlay with a spinner.
- * @returns {React.ReactElement} The rendered loading overlay.
- */
-function LoadingOverlay() {
-  return (
-    <div className="loading-overlay">
-      <div className="spinner"></div>
-      <p>Loading...</p>
-    </div>
-  );
-}
-
-/**
- * Renders a status popup message.
- * @param {object} props - The component's props.
- * @param {string} props.message - The message to display.
- * @param {string} props.type - The type of popup (e.g., 'success', 'error').
- * @returns {React.ReactElement|null} The rendered popup or null if no message.
- */
-function StatusPopup({message, type}) {
-  if (!message) return null;
-  return <div className={`status-popup ${type}`}>{message}</div>;
-}
-
-/**
- * Renders a list of videos.
- * @param {object} props - The component's props.
- * @param {Array<object>} props.videos - Array of video objects to display.
- * @returns {React.ReactElement} The rendered video list.
- */
-// Individual Video Item, memoized for performance
-const VideoRow = memo(({index, style, data}) => {
-  const {videos, expandedDescriptions, toggleDescription} = data;
-  const video = videos[index];
-
-  if (!video) {
-    return <div style={style}>Loading video...</div>;
-  }
-
-  const videoId = video.videoId || video.id;
-
-  const renderDescription = () => {
-    const description = video.description || 'No description';
-    const isExpanded = expandedDescriptions[videoId];
-    const maxLength = 150; // Adjusted for potentially smaller row height
-    if (description.length <= maxLength) {
-      return <p className="video-description"><strong>Description:</strong> {description}</p>;
-    }
-    return (
-      <p className="video-description">
-        <strong>Description:</strong> {isExpanded ? description : `${description.substring(0, maxLength)}...`}
-        <button onClick={() => toggleDescription(videoId)} className="more-less-button">
-          {isExpanded ? 'Less...' : 'More...'}
-        </button>
-      </p>
-    );
-  };
-
-  return (
-    <div style={style} className="video-list-item-wrapper">
-      <div className="video-list-item">
-        {video.thumbnailUrl && (
-          <img
-            src={video.thumbnailUrl}
-            alt={`Thumbnail for ${video.title}`}
-            loading="lazy" // Lazy load images
-            className="video-thumbnail" // Added class for styling if needed
-          />
-        )}
-        <div className="video-details">
-          <h4>{video.title}</h4>
-          {video.duration && <p><strong>Duration:</strong> {video.duration}</p>}
-          {renderDescription()}
-          {video.reason && <p style={{color: 'green', fontStyle: 'italic'}}><strong>Reason:</strong> {video.reason}</p>}
-          <a href={`https://www.youtube.com/watch?v=${video.videoId}`} target="_blank" rel="noopener noreferrer" className="watch-link" title="Watch on YouTube">
-            ▶ Watch
-          </a>
-        </div>
-      </div>
-    </div>
-  );
-});
-
-/**
- * Renders a virtualized list of videos.
- * @param {object} props - The component's props.
- * @param {Array<object>} props.videos - Array of video objects to display.
- * @returns {React.ReactElement} The rendered video list.
- */
-function VideoList({videos}) {
-  const [expandedDescriptions, setExpandedDescriptions] = useState({});
-
-  if (!videos || videos.length === 0) {
-    return <p>No videos to display.</p>;
-  }
-
-  const toggleDescription = (videoId) =>
-    setExpandedDescriptions((prev) => ({
-      ...prev, [videoId]: !prev[videoId],
-    }));
-
-  // FixedSizeList requires itemData to pass data to Row component
-  const itemData = {
-    videos,
-    expandedDescriptions,
-    toggleDescription,
-  };
-
-  // These values might need adjustment based on your CSS and content.
-  // Consider making them responsive or dynamically calculated if possible.
-  const ITEM_HEIGHT = 200; // Approximate height of one video item
-  const LIST_HEIGHT = 600; // Desired height of the scrollable list area
-  const LIST_WIDTH = '100%'; // Or a fixed pixel value
-
-  return (
-    <List
-      className="video-list-virtualized" // Add a class for styling the List container
-      height={LIST_HEIGHT}
-      itemCount={videos.length}
-      itemSize={ITEM_HEIGHT}
-      itemData={itemData}
-      width={LIST_WIDTH}
-    >
-      {VideoRow}
-    </List>
-  );
-}
+// Import new view components
+import ConnectYouTubeView from './components/ConnectYouTubeView';
+import MainAuthenticatedView from './components/MainAuthenticatedView';
+import UserStatusMessages from './components/UserStatusMessages';
 
 // --- Main App ---
 /**
@@ -340,70 +178,47 @@ function App() {
       </header>
       <main>
         {error && <p style={{color: 'red', fontWeight: 'bold'}}>App Error: {error}</p>}
-        {appAuthorizationError && <p style={{color: 'orange', fontWeight: 'bold'}}>Authorization Error: {appAuthorizationError}</p>}
-        {youtubeSpecificError && <p style={{color: 'yellow', backgroundColor: 'rgba(0,0,0,0.1)', padding: '5px', fontWeight: 'bold'}}>YouTube Error: {youtubeSpecificError}</p>}
+        {/* appAuthorizationError and youtubeSpecificError are now handled by ConnectYouTubeView or MainAuthenticatedView if still relevant */}
+
+        {!authChecked && null /* Primary loading handled by showOverlay with LoadingOverlay */}
+
+        {authChecked && !isLoggedIn && (
+          <UserStatusMessages isLoggedIn={isLoggedIn} authChecked={authChecked} />
+        )}
+
+        {isLoggedIn && !isAuthorizedUser && authChecked && (
+          <UserStatusMessages
+            currentUser={currentUser}
+            isLoggedIn={isLoggedIn}
+            isAuthorizedUser={isAuthorizedUser}
+            authChecked={authChecked}
+          />
+        )}
 
         {isLoggedIn && isAuthorizedUser && !isYouTubeLinked && authChecked && (
-          <div style={{padding: '20px', textAlign: 'center'}}>
-            <p>{youtubeSpecificError || appAuthorizationError || 'Your YouTube account is not connected or the connection has expired.'}</p>
-            <button onClick={handleConnectYouTube} style={{padding: '10px 20px', fontSize: '1em'}}>
-        🔗 Connect YouTube Account
-            </button>
-          </div>
+          <ConnectYouTubeView
+            onConnectYouTube={handleConnectYouTube}
+            error={youtubeSpecificError}
+            appAuthorizationError={appAuthorizationError}
+          />
         )}
 
-        {isLoggedIn && isAuthorizedUser && isYouTubeLinked && (
-          <>
-            <div>
-              <label htmlFor='playlist-select'>Choose a playlist: </label>
-              <select id='playlist-select' value={selectedPlaylistId} onChange={handlePlaylistSelection} disabled={isLoadingYouTube || !userPlaylists || userPlaylists.length === 0}>
-                <option value=''>-- Select a playlist --</option>
-                {userPlaylists.map((pl) => <option key={pl.id} value={pl.id}>{pl.title} ({pl.itemCount} items)</option>)}
-              </select>
-              <button onClick={refreshSelectedPlaylistItems} disabled={isLoadingYouTube || !selectedPlaylistId} className='refresh-button' style={{marginLeft: '10px'}} title='Refresh playlist items'>↺</button>
-            </div>
-            {selectedPlaylistId && (
-              <>
-                <ChatInterface onQuerySubmit={handleQuerySubmit} disabled={isStreaming} />
-                <div className='tabs'>
-                  <button onClick={() => setActiveOutputTab('Results')} className={activeOutputTab === 'Results' ? 'active' : ''} disabled={isStreaming}>
-                    Results
-                  </button>
-                  <button onClick={() => setActiveOutputTab('Thinking')} className={activeOutputTab === 'Thinking' ? 'active' : ''} disabled={isStreaming && activeOutputTab !== 'Thinking'}>
-                    Thinking
-                  </button>
-                </div>
-                {activeOutputTab === 'Results' && (
-                  <>
-                    <h2>{suggestedVideos.length > 0 ? `${suggestedVideos.length} Suggested Videos` : (lastQuery ? 'No Suggestions Found' : 'Suggested Videos')}</h2>
-                    {lastQuery && <p className='last-query-display'>For query: <em>"{lastQuery}"</em></p>}
-                    <VideoList videos={suggestedVideos} />
-                  </>
-                )}
-                {activeOutputTab === 'Thinking' && (
-                  <>
-                    <h2>Gemini is Thinking...</h2>
-                    {lastQuery && <p className='last-query-display'>For query: <em>"{lastQuery}"</em></p>}
-                    <div ref={thinkingOutputContainerRef} className='thinking-output-container'>
-                      <pre className='thinking-output'>{thinkingOutput}</pre>
-                    </div>
-                  </>
-                )}
-              </>
-            )}
-            {!selectedPlaylistId && userPlaylists && userPlaylists.length > 0 && !isLoadingYouTube &&
-              <p>Select a playlist to see videos and get suggestions.</p>
-            }
-            {(!userPlaylists || userPlaylists.length === 0) && isLoggedIn && isAuthorizedUser && isYouTubeLinked &&
-              !isLoadingYouTube && <p>No playlists found. Try connecting YouTube or refreshing if you recently added some.</p>
-            }
-          </>
-        )}
-        {isLoggedIn && !isAuthorizedUser && authChecked &&(
-          <p>Your account ({currentUser?.email}) is not authorized to use this application. Please contact the administrator.</p>
-        )}
-        {!isLoggedIn && authChecked && (
-          <p>Please log in to manage your YouTube playlists.</p>
+        {isLoggedIn && isAuthorizedUser && isYouTubeLinked && authChecked && (
+          <MainAuthenticatedView
+            userPlaylists={userPlaylists}
+            selectedPlaylistId={selectedPlaylistId}
+            onPlaylistSelection={handlePlaylistSelection}
+            isLoadingYouTube={isLoadingYouTube}
+            onRefreshPlaylist={refreshSelectedPlaylistItems}
+            onQuerySubmit={handleQuerySubmit}
+            isStreaming={isStreaming}
+            activeOutputTab={activeOutputTab}
+            onSetOutputTab={setActiveOutputTab}
+            suggestedVideos={suggestedVideos}
+            lastQuery={lastQuery}
+            thinkingOutput={thinkingOutput}
+            thinkingOutputContainerRef={thinkingOutputContainerRef}
+          />
         )}
       </main>
     </div>

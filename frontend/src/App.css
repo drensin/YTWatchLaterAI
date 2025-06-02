@@ -152,9 +152,11 @@ ul {
   display: flex; /* Use flexbox for layout */
   flex-direction: row; /* Default: image on left, text on right */
   align-items: flex-start; /* Align items to the top */
+  /* overflow: hidden; was here for fixed height, remove if items can grow */
 }
 
-.video-list-item img {
+.video-list-item img.video-thumbnail, /* Added class for specificity */
+.video-list-item img { /* Fallback */
   width: 120px;
   height: 90px;
   margin-right: 15px; /* Increased margin */
@@ -180,6 +182,15 @@ ul {
 .video-description {
   white-space: pre-wrap; /* Preserve whitespace and newlines */
 }
+
+.video-list-item p.video-reason { /* Style for the reason paragraph */
+  /* Ensure it wraps and is visible */
+  white-space: normal;
+  word-break: break-word;
+  color: green; /* Retain from inline style */
+  font-style: italic; /* Retain from inline style */
+}
+
 
 /* Playlist Selector Div adjustments - Apply to all screen sizes */
 main > div:first-child { /* This is the playlist selector container */
@@ -274,19 +285,36 @@ main > div:first-child select {
 
   .video-list-item {
     flex-direction: column; /* Stack image and text content */
-    align-items: center; /* Center items when stacked */
-    text-align: center; /* Center text when stacked */
+    align-items: flex-start; /* Align items to the top-left */
+    text-align: left; /* Align text to the left */
   }
 
-  .video-list-item img {
+  .video-list-item img.video-thumbnail, /* Using specific class if available */
+  .video-list-item img { /* Fallback for general img if class not there */
     margin-right: 0;
     margin-bottom: 10px; /* Space between image and text */
-    width: 80%; /* Larger image when stacked */
-    max-width: 240px; /* Max width for stacked image */
+    width: 100%; /* Allow image to take full width of its container */
+    max-width: 160px; /* Reduced max-width for smaller screens */
     height: auto; /* Maintain aspect ratio */
   }
-   .video-list-item div {
+
+  .video-list-item div.video-details, /* More specific selector */
+  .video-list-item div { /* Fallback */
     width: 100%; /* Ensure text div takes full width */
+    min-width: 0; /* Helps with text wrapping in flex children */
+  }
+
+  /* Ensure all text within video details can wrap properly on mobile */
+  .video-list-item div.video-details p,
+  .video-list-item div.video-details h4 {
+    white-space: normal; /* Ensure natural wrapping */
+    word-break: break-word; /* Break long words */
+  }
+
+  /* Specific for reason text if it has unique styling or needs override */
+  .video-list-item p.video-reason { /* Target the class now */
+    white-space: normal !important; /* Ensure wrapping, use important if necessary */
+    word-break: break-word;
   }
 }
 
