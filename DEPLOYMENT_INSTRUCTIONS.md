@@ -42,8 +42,7 @@ This document provides detailed instructions for deploying the frontend, backend
     *   Cloud Functions API
     *   Cloud Run API
     *   Cloud Build API (if using Cloud Build for CI/CD)
-    *   Vertex AI API (for `categorizeVideo` function)
-    *   Generative Language API (if `gemini-chat-service` uses it directly, though it uses `@google/generative-ai` which might use this or Vertex endpoints depending on auth).
+    *   Generative Language API (used by `gemini-chat-service`).
 4.  **OAuth Consent Screen:**
     *   Navigate to "APIs & Services" > "OAuth consent screen".
     *   User Type: "External".
@@ -80,7 +79,7 @@ This document provides detailed instructions for deploying the frontend, backend
 In Google Cloud Secret Manager, create the following secrets. The service accounts for your Cloud Functions and Cloud Run service will need access to these.
 *   `YOUTUBE_CLIENT_ID`: The OAuth Client ID obtained in step 2.5.
 *   `YOUTUBE_CLIENT_SECRET`: The OAuth Client Secret obtained in step 2.5.
-*   `GEMINI_API_KEY`: Your API key for the Google Gemini API (used by `gemini-chat-service` and `categorizeVideo`).
+*   `GEMINI_API_KEY`: Your API key for the Google Gemini API (used by `gemini-chat-service`).
 
 **Note:** `GOOGLE_CLOUD_PROJECT` ID is typically available as an environment variable in Cloud Functions/Run or can be inferred by SDKs; it's not usually stored as a secret itself.
 
@@ -91,14 +90,12 @@ In Google Cloud Secret Manager, create the following secrets. The service accoun
 
 Grant the following roles to the respective service accounts:
 *   **Secret Manager Secret Accessor (`roles/secretmanager.secretAccessor`):**
-    *   Grant to Cloud Functions service account for `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `GEMINI_API_KEY` (for `categorizeVideo`).
+    *   Grant to Cloud Functions service account for `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`.
     *   Grant to Cloud Run service account for `GEMINI_API_KEY`.
 *   **Cloud Datastore User (`roles/datastore.user`):**
     *   Grant to Cloud Functions service account (for all functions interacting with Datastore).
     *   Grant to Cloud Run service account (for `gemini-chat-service`).
-*   **Vertex AI User (`roles/aiplatform.user`):**
-    *   Grant to Cloud Functions service account (specifically for `categorizeVideo`).
-    *   (The `@google/generative-ai` SDK used by `gemini-chat-service` with an API key might not require this role on the service account if the API key itself has permissions).
+*   **(The `@google/generative-ai` SDK used by `gemini-chat-service` with an API key might not require a specific AI Platform/Vertex AI role on the service account if the API key itself has permissions for the Generative Language API).**
 
 Example `gcloud` command to grant a role:
 ```bash
@@ -134,8 +131,6 @@ Repeat for all necessary secrets and roles.
     *   The frontend hooks (`useAuth.js`, `useYouTube.js`, `useWebSocketChat.js`) define `CLOUD_FUNCTIONS_BASE_URL` and `WEBSOCKET_SERVICE_URL` internally with hardcoded project IDs. These should ideally be passed in from `App.js` which reads them from environment variables or a central config.
 *   **Backend Redirect URIs:**
     *   The `REDIRECT_URI` in `backend/handleYouTubeAuth/index.js` and other functions (like `getWatchLaterPlaylist/index.js`, `listUserPlaylists/index.js`) is constructed using `process.env.GOOGLE_CLOUD_PROJECT || 'watchlaterai-460918'`. Ensure `GOOGLE_CLOUD_PROJECT` is correctly set for your deployed functions or update the fallback. This URI must match an "Authorized redirect URI" in your Google OAuth Client settings.
-*   **CORS in `categorizeVideo`:**
-    *   Update `corsOptions.origin` in `backend/categorizeVideo/index.js` to your Firebase Hosting URL (e.g., `https://YOUR_PROJECT_ID.web.app`).
 
 ## 7. Deploying Backend Services
 
@@ -193,20 +188,6 @@ Navigate to each function's directory (e.g., `cd backend/handleYouTubeAuth`).
       --project YOUR_PROJECT_ID \
       --set-secrets YOUTUBE_CLIENT_ID=YOUTUBE_CLIENT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest
     ```
-
-*   **`categorizeVideo`**
-    ```bash
-    gcloud functions deploy categorizeVideo \
-      --runtime nodejs20 \
-      --trigger-http \
-      --allow-unauthenticated \
-      --region YOUR_REGION \
-      --source . \
-      --entry-point categorizeVideo \
-      --project YOUR_PROJECT_ID \
-      --set-secrets GCP_PROJECT_ID=GCP_PROJECT_ID:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest
-    ```
-    *(Note: `GCP_PROJECT_ID` secret is used here as per the code; ideally, VertexAI infers project ID if run with a service account with Vertex AI permissions).*
 
 ### 7.2 Deploying Cloud Run Service (`gemini-chat-service`)
 1.  **Create Artifact Registry Docker repository (if not done):**
@@ -293,8 +274,6 @@ steps:
     args: ['functions', 'deploy', 'listUserPlaylists', '--project=${PROJECT_ID}', '--region=us-central1', '--runtime=nodejs20', '--trigger-http', '--allow-unauthenticated', '--source=./backend/listUserPlaylists', '--entry-point=listUserPlaylists', '--set-secrets=YOUTUBE_CLIENT_ID=YOUTUBE_CLIENT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest']
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     args: ['functions', 'deploy', 'getWatchLaterPlaylist', '--project=${PROJECT_ID}', '--region=us-central1', '--runtime=nodejs20', '--trigger-http', '--allow-unauthenticated', '--source=./backend/getWatchLaterPlaylist', '--entry-point=getWatchLaterPlaylist', '--set-secrets=YOUTUBE_CLIENT_ID=YOUTUBE_CLIENT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest']
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    args: ['functions', 'deploy', 'categorizeVideo', '--project=${PROJECT_ID}', '--region=us-central1', '--runtime=nodejs20', '--trigger-http', '--allow-unauthenticated', '--source=./backend/categorizeVideo', '--entry-point=categorizeVideo', '--set-secrets=GCP_PROJECT_ID=GCP_PROJECT_ID:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest']
 
   # Build and Push gemini-chat-service Docker image
   - name: 'gcr.io/cloud-builders/docker'

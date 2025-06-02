@@ -39,7 +39,7 @@ ReelWorthy helps you manage and explore your YouTube playlists, particularly you
     *   Google Cloud Run (Node.js, Docker) for WebSocket-based AI chat service.
 *   **Database:** Google Cloud Datastore (NoSQL) for storing YouTube tokens and video metadata.
 *   **Authentication:** Firebase Authentication (Google Sign-In).
-*   **AI Model:** Google Gemini (via Vertex AI SDK for categorization and Generative Language API for chat).
+*   **AI Model:** Google Gemini (via Generative Language API for chat).
 *   **Deployment:**
     *   Frontend: Firebase Hosting.
     *   Backend Services: Google Cloud Functions, Google Cloud Run.
@@ -50,9 +50,6 @@ ReelWorthy helps you manage and explore your YouTube playlists, particularly you
 ```
 YTWatchLaterAI/
 ├── backend/
-│   ├── categorizeVideo/        # Cloud Function: Categorizes videos using Gemini
-│   │   ├── index.js
-│   │   └── package.json
 │   ├── checkUserAuthorization/ # Cloud Function: Checks user email against allow-list
 │   │   ├── index.js
 │   │   └── package.json
@@ -141,8 +138,6 @@ The `gemini-chat-service` (Cloud Run) provides a WebSocket endpoint:
         *   `viewCount` (Number|null)
         *   `likeCount` (Number|null)
         *   `topicCategories` (Array of Strings) - From YouTube's topicDetails.
-        *   `geminiCategories` (Array of Strings) - Categories assigned by the `categorizeVideo` function.
-        *   `lastCategorized` (Timestamp) - When the video was last processed by `categorizeVideo`.
         *   `associatedPlaylistIds` (Array of Strings, indexed) - List of playlist IDs this video belongs to.
 
 *   **Kind: `AuthorizedEmail`**
@@ -167,7 +162,7 @@ The `gemini-chat-service` (Cloud Run) provides a WebSocket endpoint:
     *   Cloud Functions API
     *   Cloud Run API
     *   Cloud Build API (if using Cloud Build for deployments)
-    *   Vertex AI API (or Generative Language API if `gemini-chat-service` uses it directly without Vertex SDK).
+    *   Generative Language API (used by `gemini-chat-service`).
 3.  **OAuth Consent Screen:** Configure OAuth consent screen (User Type: External, Publishing status: Testing initially, add your test user emails).
 4.  **OAuth Client ID:** Create an OAuth 2.0 Client ID (Application type: Web application).
     *   Note the Client ID and Client Secret.
@@ -184,7 +179,7 @@ The `gemini-chat-service` (Cloud Run) provides a WebSocket endpoint:
 In Google Cloud Secret Manager, create the following secrets and grant appropriate service accounts the "Secret Manager Secret Accessor" role:
 *   `YOUTUBE_CLIENT_ID`: Your Google OAuth 2.0 Client ID.
 *   `YOUTUBE_CLIENT_SECRET`: Your Google OAuth 2.0 Client Secret.
-*   `GEMINI_API_KEY`: Your API key for the Gemini API (used by `gemini-chat-service` and `categorizeVideo`).
+*   `GEMINI_API_KEY`: Your API key for the Gemini API (used by `gemini-chat-service`).
 
 ### Frontend Setup
 1.  Navigate to the `frontend/` directory.
@@ -209,7 +204,7 @@ In Google Cloud Secret Manager, create the following secrets and grant appropria
     *   `CLOUD_FUNCTIONS_BASE_URL.checkUserAuthorization` in `useAuth.js`.
     *   `CLOUD_FUNCTIONS_BASE_URL` (for `getWatchLaterPlaylist`, `listUserPlaylists`, `handleYouTubeAuth`) in `useYouTube.js`.
     *   `WEBSOCKET_SERVICE_URL` in `useWebSocketChat.js`.
-*   **CORS:** The `categorizeVideo` Cloud Function has a hardcoded CORS origin. This needs to be updated to your Firebase Hosting URL. Other functions use `res.set('Access-Control-Allow-Origin', '*')` which is permissive; restrict this in production.
+*   **CORS:** Cloud Functions use `res.set('Access-Control-Allow-Origin', '*')` which is permissive; restrict this in production to your Firebase Hosting URL.
 *   **Allow-List**: The `checkUserAuthorization` function uses a Datastore Kind `AuthorizedEmail` for an allow-list. You'll need to populate this manually in Datastore with emails of authorized users.
 
 ## Deployment
@@ -232,7 +227,6 @@ A summary of key environment variables needed by different parts of the applicat
 *   **Cloud Functions (set during deployment or via Secret Manager):**
     *   `YOUTUBE_CLIENT_ID` (via Secret)
     *   `YOUTUBE_CLIENT_SECRET` (via Secret)
-    *   `GEMINI_API_KEY` (via Secret, for `categorizeVideo`)
     *   `GOOGLE_CLOUD_PROJECT` (usually available automatically, but used in constructing redirect URIs)
     *   `FRONTEND_URL` (optional, for `handleYouTubeAuth` fallback redirect - should be updated from default).
 
