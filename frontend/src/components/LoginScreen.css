@@ -12,17 +12,22 @@
 /* --- Login Header Styles --- */
 .login-header {
   background-color: #fff; /* Match ScreenHeader background */
-  padding: 1rem; /* Consistent padding, similar to ScreenHeader */
-  text-align: center;
+  padding: 1rem; /* Revert to original padding or adjust as desired for larger logo */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box; 
+  /* No explicit height, let content and padding define it */
   /* border-bottom: 1px solid #e0e0e0; /* Optional: if a separator is desired */
 }
 
-.login-header-title {
-  color: #111418; /* Match ScreenHeader title color */
-  font-size: 1.25rem; /* Slightly larger or same as ScreenHeader */
-  font-weight: 700; /* Match ScreenHeader title weight */
-  margin: 0;
+.login-header-logo {
+  height: 96px; /* Doubled logo size */
+  width: auto;
+  /* max-height is removed as header can now grow */
 }
+
+/* .login-header-title class is no longer used here */
 
 /* --- Login Content Styles --- */
 .login-content {

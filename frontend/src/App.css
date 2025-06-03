@@ -501,11 +501,12 @@ main > div:first-child {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem; /* Equivalent to p-4 from mockups */
+  padding: 0.75rem 1rem; /* Approx 12px top/bottom, 16px left/right */
   background-color: #fff; /* bg-white */
   /* border-bottom: 1px solid #e0e0e0; /* Optional: if a separator is needed */
   width: 100%;
-  box-sizing: border-box;
+  height: 64px; /* Explicitly set height */
+  box-sizing: border-box; /* Include padding in height calculation */
 }
 
 .screen-header-title {
@@ -542,6 +543,13 @@ main > div:first-child {
   width: 24px;
   height: 24px;
   fill: currentColor;
+}
+
+.screen-header-app-logo {
+  height: 40px; /* Increased logo size */
+  width: auto;
+  max-height: calc(100% - 1.5rem); /* Ensure logo respects padding, 100% - (2 * 0.75rem) */
+  /* Add margin if needed, e.g., margin-right: 0.5rem; if title is close */
 }
 
 
