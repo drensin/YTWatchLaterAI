@@ -26,44 +26,44 @@ The application aims to solve the problem of unwieldy playlists by providing a s
 Understanding these core user interactions provides insight into the application's structure and purpose.
 
 ### 1. New User Onboarding & YouTube Account Connection
-   a.  **Login:** The user arrives at the application and is prompted to log in. They use Google Sign-In, handled by Firebase Authentication.
-   b.  **Authorization Check:** Upon successful Firebase login, the frontend calls the `checkUserAuthorization` Cloud Function. This function verifies if the user's email is on a pre-approved allow-list (stored in Datastore) and also checks if their YouTube account has been previously linked by looking for existing OAuth tokens in Datastore.
-   c.  **YouTube Connection Prompt:** If the user is authorized for the app but their YouTube account isn't linked (or tokens are invalid/missing), the UI prompts them to connect their YouTube account.
-   d.  **OAuth Flow:**
-       i.  Clicking "Connect YouTube Account" initiates the OAuth 2.0 flow. The frontend (`useYouTube` hook) redirects the user to Google's OAuth consent screen, requesting `youtube.readonly` scope. A CSRF nonce is generated and stored in `localStorage`, and the desired final frontend redirect URI is included in the `state` parameter.
-       ii. The user grants permission.
-       iii. Google redirects to the `handleYouTubeAuth` Cloud Function (the pre-configured OAuth redirect URI). This function receives an authorization `code` and the `state` parameter.
-       iv. `handleYouTubeAuth` validates the `finalRedirectUri` from the state, exchanges the `code` for YouTube API access and refresh tokens, and securely stores these tokens in Datastore, keyed by the user's Firebase UID.
-       v.  The user is then redirected back to the `finalRedirectUri` on the frontend, with status parameters (`youtube_auth_status`, `error_message`, `state`).
-   e.  **Post-Connection:** The frontend (`useYouTube` hook) processes these redirect parameters, validates the nonce, and if successful, marks YouTube as linked and proceeds to fetch the user's playlists.
+a.  **Login:** The user arrives at the application and is prompted to log in. They use Google Sign-In, handled by Firebase Authentication.  
+b.  **Authorization Check:** Upon successful Firebase login, the frontend calls the `checkUserAuthorization` Cloud Function. This function verifies if the user's email is on a pre-approved allow-list (stored in Datastore) and also checks if their YouTube account has been previously linked by looking for existing OAuth tokens in Datastore.  
+c.  **YouTube Connection Prompt:** If the user is authorized for the app but their YouTube account isn't linked (or tokens are invalid/missing), the UI prompts them to connect their YouTube account.  
+d.  **OAuth Flow:**  
+   - i.  Clicking "Connect YouTube Account" initiates the OAuth 2.0 flow. The frontend (`useYouTube` hook) redirects the user to Google's OAuth consent screen, requesting `youtube.readonly` scope. A CSRF nonce is generated and stored in `localStorage`, and the desired final frontend redirect URI is included in the `state` parameter.  
+   - ii. The user grants permission.  
+   - iii. Google redirects to the `handleYouTubeAuth` Cloud Function (the pre-configured OAuth redirect URI). This function receives an authorization `code` and the `state` parameter.  
+   - iv. `handleYouTubeAuth` validates the `finalRedirectUri` from the state, exchanges the `code` for YouTube API access and refresh tokens, and securely stores these tokens in Datastore, keyed by the user's Firebase UID.  
+   - v.  The user is then redirected back to the `finalRedirectUri` on the frontend, with status parameters (`youtube_auth_status`, `error_message`, `state`).  
+e.  **Post-Connection:** The frontend (`useYouTube` hook) processes these redirect parameters, validates the nonce, and if successful, marks YouTube as linked and proceeds to fetch the user's playlists.  
 
 ### 2. Viewing Playlists & Selecting a Playlist for Chat
-   a.  **Fetch Playlists:** Once authenticated and YouTube-linked, the `useYouTube` hook calls the `listUserPlaylists` Cloud Function. This function uses the stored OAuth tokens to call the YouTube Data API and retrieve the user's playlists (title, ID, item count, thumbnail).
-   b.  **Display Playlists:** The frontend (`PlaylistsScreen` component) displays the fetched playlists.
-   c.  **Select Playlist:** The user selects a playlist. This action triggers the `getWatchLaterPlaylist` Cloud Function (note: it can fetch any playlist, not just "Watch Later") to fetch and synchronize detailed video data for that playlist with Datastore.
-   d.  **Navigate to Chat:** Upon successful fetching/syncing of playlist items, the user is typically navigated to the chat screen, with the selected playlist's context now available for the AI.
+a.  **Fetch Playlists:** Once authenticated and YouTube-linked, the `useYouTube` hook calls the `listUserPlaylists` Cloud Function. This function uses the stored OAuth tokens to call the YouTube Data API and retrieve the user's playlists (title, ID, item count, thumbnail).  
+b.  **Display Playlists:** The frontend (`PlaylistsScreen` component) displays the fetched playlists.  
+c.  **Select Playlist:** The user selects a playlist. This action triggers the `getWatchLaterPlaylist` Cloud Function (note: it can fetch any playlist, not just "Watch Later") to fetch and synchronize detailed video data for that playlist with Datastore.  
+d.  **Navigate to Chat:** Upon successful fetching/syncing of playlist items, the user is typically navigated to the chat screen, with the selected playlist's context now available for the AI.  
 
 ### 3. AI Chat Interaction for Video Suggestions
-   a.  **WebSocket Connection:** When the chat screen for a selected playlist is active and its data is ready, the frontend (`useWebSocketChat` hook) establishes a WebSocket connection to the `gemini-chat-service` (Cloud Run).
-   b.  **Initialize Chat Context:** An `INIT_CHAT` message is sent over WebSocket, including the `selectedPlaylistId` and the user's chosen `selectedModelId` (from the Settings page). The `gemini-chat-service` then fetches all video metadata (titles, descriptions, durations, etc.) for this playlist from Datastore. This data forms the primary context for the Gemini AI, using the specified model.
-   c.  **User Query:** The user types a query (e.g., "show me short comedy videos I haven't finished") into the chat interface.
-   d.  **Query Processing (Server-side):** The query is sent as a `USER_QUERY` message. The `gemini-chat-service` appends this query to the established Gemini chat session (which was initialized with the user's selected model and already has the playlist video context). It instructs Gemini to recommend videos from the provided list and to respond in a specific JSON format: `{"suggestedVideos": [{"videoId": "...", "reason": "..."}]}`.
-   e.  **Streaming Response:**
-       i.  Gemini processes the request and starts streaming its response.
-       ii. The `gemini-chat-service` forwards these chunks as `STREAM_CHUNK` messages to the frontend. The frontend displays this "thinking" process.
-       iii. When the stream ends, the server parses the complete Gemini response, extracts the `suggestedVideos` array, enriches these suggestions with full video details from its in-memory context (fetched during `INIT_CHAT`), and sends a `STREAM_END` message to the frontend with the finalized suggestions.
-   f.  **Display Results:** The frontend displays the suggested videos, along with the AI's reasoning for each suggestion.
+a.  **WebSocket Connection:** When the chat screen for a selected playlist is active and its data is ready, the frontend (`useWebSocketChat` hook) establishes a WebSocket connection to the `gemini-chat-service` (Cloud Run).  
+b.  **Initialize Chat Context:** An `INIT_CHAT` message is sent over WebSocket, including the `selectedPlaylistId` and the user's chosen `selectedModelId` (from the Settings page). The `gemini-chat-service` then fetches all video metadata (titles, descriptions, durations, etc.) for this playlist from Datastore. This data forms the primary context for the Gemini AI, using the specified model.  
+c.  **User Query:** The user types a query (e.g., "show me short comedy videos I haven't finished") into the chat interface.  
+d.  **Query Processing (Server-side):** The query is sent as a `USER_QUERY` message. The `gemini-chat-service` appends this query to the established Gemini chat session (which was initialized with the user's selected model and already has the playlist video context). It instructs Gemini to recommend videos from the provided list and to respond in a specific JSON format: `{"suggestedVideos": [{"videoId": "...", "reason": "..."}]}`.  
+e.  **Streaming Response:**  
+   - Gemini processes the request and starts streaming its response.  
+   - The `gemini-chat-service` forwards these chunks as `STREAM_CHUNK` messages to the frontend. The frontend displays this "thinking" process.  
+   - When the stream ends, the server parses the complete Gemini response, extracts the `suggestedVideos` array, enriches these suggestions with full video details from its in-memory context (fetched during `INIT_CHAT`), and sends a `STREAM_END` message to the frontend with the finalized suggestions.  
+f.  **Display Results:** The frontend displays the suggested videos, along with the AI's reasoning for each suggestion.  
 
 ### 4. Playlist Data Synchronization (Background/On-Demand)
-   a.  **Trigger:** Occurs when a user selects a playlist for the first time or manually triggers a refresh. This is handled by the `getWatchLaterPlaylist` Cloud Function.
-   b.  **Fetch from YouTube:** The function fetches the current list of video IDs and basic metadata from the specified YouTube playlist.
-   c.  **Fetch/Update Video Details:** For each video in the YouTube playlist:
-       i.  It checks if a detailed record for the video already exists in Datastore (`Videos` kind).
-       ii. If not, or if crucial details like `durationSeconds` are missing, it fetches full video details (snippet, contentDetails, statistics, topicDetails) from the YouTube Data API (`youtube.videos.list`).
-       iii. It updates/creates the video entity in Datastore.
-   d.  **Manage Associations:** The `associatedPlaylistIds` array on each video entity in Datastore is updated to include the current `playlistId`.
-   e.  **Cleanup Stale Data:** If a video previously associated with the current playlist (in Datastore) is no longer found in the YouTube playlist, its association is removed. If it's no longer in *any* playlist, the video entity itself might be deleted from Datastore.
-   f.  **Frontend Update:** The function returns the list of videos (with key details) for the frontend to display.
+a.  **Trigger:** Occurs when a user selects a playlist for the first time or manually triggers a refresh. This is handled by the `getWatchLaterPlaylist` Cloud Function.  
+b.  **Fetch from YouTube:** The function fetches the current list of video IDs and basic metadata from the specified YouTube playlist.  
+c.  **Fetch/Update Video Details:** For each video in the YouTube playlist:  
+   - It checks if a detailed record for the video already exists in Datastore (`Videos` kind).  
+   - If not, or if crucial details like `durationSeconds` are missing, it fetches full video details (snippet, contentDetails, statistics, topicDetails) from the YouTube Data API (`youtube.videos.list`).  
+   - It updates/creates the video entity in Datastore.  
+d.  **Manage Associations:** The `associatedPlaylistIds` array on each video entity in Datastore is updated to include the current `playlistId`.  
+e.  **Cleanup Stale Data:** If a video previously associated with the current playlist (in Datastore) is no longer found in the YouTube playlist, its association is removed. If it's no longer in *any* playlist, the video entity itself might be deleted from Datastore.  
+f.  **Frontend Update:** The function returns the list of videos (with key details) for the frontend to display.  
 
 ## Technical Architecture Overview
 
