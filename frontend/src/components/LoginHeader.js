@@ -5,8 +5,8 @@
 import React from 'react';
 
 /**
- * Renders the header for the Login screen.
- * @returns {React.ReactElement} The rendered header.
+ * Renders the header for the Login screen, displaying the application title.
+ * @returns {JSX.Element} The rendered header.
  */
 function LoginHeader() {
   // SVG path for the Question icon
@@ -34,4 +34,4 @@ function LoginHeader() {
   );
 }
 
-export default LoginHeader;
+export {LoginHeader};

@@ -5,8 +5,8 @@
 import React from 'react';
 
 /**
- * Renders the footer for the Login screen.
- * @returns {React.ReactElement} The rendered footer.
+ * Renders the footer for the Login screen, displaying terms of service and privacy policy notice.
+ * @returns {JSX.Element} The rendered footer.
  */
 function LoginFooter() {
   return (
@@ -20,4 +20,4 @@ function LoginFooter() {
   );
 }
 
-export default LoginFooter;
+export {LoginFooter};

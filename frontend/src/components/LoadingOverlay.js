@@ -7,7 +7,7 @@ import React from 'react';
 
 /**
  * Renders a loading overlay with a spinner.
- * @returns {React.ReactElement} The rendered loading overlay.
+ * @returns {JSX.Element} The rendered loading overlay.
  */
 function LoadingOverlay() {
   return (
@@ -18,4 +18,4 @@ function LoadingOverlay() {
   );
 }
 
-export default LoadingOverlay;
+export {LoadingOverlay};

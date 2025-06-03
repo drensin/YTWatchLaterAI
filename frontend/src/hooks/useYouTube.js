@@ -13,47 +13,72 @@ const CLOUD_FUNCTIONS_BASE_URL = {
 };
 
 /**
- * Custom hook to manage YouTube related state and operations.
+ * @typedef {object} YouTubePlaylist
+ * @property {string} id - The ID of the playlist.
+ * @property {string} title - The title of the playlist.
+ * @property {number} itemCount - The number of items in the playlist.
+ * @property {string} [thumbnailUrl] - Optional URL for the playlist thumbnail.
+ */
+
+/**
+ * @typedef {object} YouTubeVideo
+ * @property {string} id - The ID of the video item in the playlist (usually different from videoId).
+ * @property {string} videoId - The actual YouTube video ID.
+ * @property {string} title - The title of the video.
+ * @property {string} [thumbnailUrl] - URL of the video's thumbnail.
+ * @property {string} [duration] - Formatted duration of the video (e.g., "PT1M30S").
+ * @property {string} [description] - Snippet of the video's description.
+ * @property {string} [channelTitle] - The title of the channel that uploaded the video.
+ * @property {string} [publishedAt] - The publication date of the video (ISO string).
+ */
+
+/**
+ * @typedef {object} YouTubeHookReturn
+ * @property {Array<YouTubePlaylist>} userPlaylists - List of user's YouTube playlists.
+ * @property {string} selectedPlaylistId - ID of the currently selected playlist.
+ * @property {React.Dispatch<React.SetStateAction<string>>} setSelectedPlaylistId - Setter for `selectedPlaylistId`.
+ * @property {Array<YouTubeVideo>} videos - List of videos for the selected playlist.
+ * @property {() => Promise<boolean>} fetchUserPlaylists - Function to fetch user playlists.
+ * @property {(playlistId: string) => Promise<boolean>} fetchPlaylistItems - Function to fetch items for a playlist.
+ * @property {() => Promise<void>} handleConnectYouTube - Function to initiate YouTube OAuth connection.
+ * @property {boolean} isYouTubeLinked - True if YouTube account is considered linked by this hook.
+ * @property {string|null} youtubeSpecificError - Error message for YouTube specific operations.
+ * @property {boolean} isLoadingYouTube - True if YouTube operations are in progress.
+ * @property {React.Dispatch<React.SetStateAction<Array<YouTubeVideo>>>} setVideos - Setter for `videos`.
+ * @property {React.Dispatch<React.SetStateAction<Array<YouTubePlaylist>>>} setUserPlaylists - Setter for `userPlaylists`.
+ * @property {React.Dispatch<React.SetStateAction<boolean>>} setIsYouTubeLinked - Setter for `isYouTubeLinked`.
+ * @property {React.Dispatch<React.SetStateAction<string|null>>} setYoutubeSpecificError - Setter for `youtubeSpecificError`.
+ */
+
+/**
+ * Custom hook to manage YouTube related state and operations, including OAuth flow,
+ * fetching playlists, and fetching videos for a selected playlist.
  *
- * @param {object|null} currentUser - The current Firebase user object from useAuth.
+ * @param {import('firebase/auth').User|null} currentUser - The current Firebase user object from useAuth.
  * @param {boolean} isLoggedIn - Whether the user is logged in via Firebase.
  * @param {boolean} isAuthorizedUser - Whether the user is authorized by the app's allow-list.
- * @param {function(config: {visible: boolean, message: string, type: string}): void} setAppPopup - Function from the main app to show popups.
+ * @param {(config: {visible: boolean, message: string, type: string}) => void} setAppPopup - Function from the main app to show popups.
  * @param {boolean} initialYouTubeLinkedStatus - Initial YouTube linked status from useAuth (isYouTubeLinkedByAuthCheck).
- * @returns {object} An object containing YouTube related state and handler functions.
- * The returned object includes:
- * - `userPlaylists`: (Array<object>) List of user's YouTube playlists.
- * - `selectedPlaylistId`: (string) ID of the currently selected playlist.
- * - `setSelectedPlaylistId`: (Function) Setter for `selectedPlaylistId`.
- * - `videos`: (Array<object>) List of videos for the selected playlist.
- * - `fetchUserPlaylists`: (Function) Function to fetch user playlists.
- * - `fetchPlaylistItems`: (Function) Function to fetch items for a playlist.
- * - `handleConnectYouTube`: (Function) Function to initiate YouTube OAuth connection.
- * - `isYouTubeLinked`: (boolean) True if YouTube account is considered linked by this hook.
- * - `youtubeSpecificError`: (string|null) Error message for YouTube specific operations.
- * - `isLoadingYouTube`: (boolean) True if YouTube operations are in progress.
- * - `setVideos`: (Function) Setter for `videos`.
- * - `setUserPlaylists`: (Function) Setter for `userPlaylists`.
- * - `setIsYouTubeLinked`: (Function) Setter for `isYouTubeLinked`.
- * - `setYoutubeSpecificError`: (Function) Setter for `youtubeSpecificError`.
+ * @returns {YouTubeHookReturn} An object containing YouTube related state and handler functions.
  */
 function useYouTube(currentUser, isLoggedIn, isAuthorizedUser, setAppPopup, initialYouTubeLinkedStatus) {
-  /** @state Tracks if the user's YouTube account is currently considered linked. Initialized by `initialYouTubeLinkedStatus`. */
+  /** @state Tracks if the user's YouTube account is currently considered linked. Initialized by `initialYouTubeLinkedStatus`. @type {boolean} */
   const [isYouTubeLinked, setIsYouTubeLinked] = useState(initialYouTubeLinkedStatus);
-  /** @state Stores the list of the user's YouTube playlists. */
+  /** @state Stores the list of the user's YouTube playlists. @type {Array<YouTubePlaylist>} */
   const [userPlaylists, setUserPlaylists] = useState([]);
-  /** @state Stores the ID of the currently selected YouTube playlist. */
+  /** @state Stores the ID of the currently selected YouTube playlist. @type {string} */
   const [selectedPlaylistId, setSelectedPlaylistId] = useState('');
-  /** @state Stores the list of videos for the currently selected playlist. */
+  /** @state Stores the list of videos for the currently selected playlist. @type {Array<YouTubeVideo>} */
   const [videos, setVideos] = useState([]);
-  /** @state Stores any error messages specific to YouTube operations. */
+  /** @state Stores any error messages specific to YouTube operations. @type {string|null} */
   const [youtubeSpecificError, setYoutubeSpecificError] = useState(null);
-  /** @state Flag indicating if any YouTube-related operations (fetching playlists/items) are in progress. */
+  /** @state Flag indicating if any YouTube-related operations (fetching playlists/items) are in progress. @type {boolean} */
   const [isLoadingYouTube, setIsLoadingYouTube] = useState(false);
 
   /**
    * Effect to synchronize the internal `isYouTubeLinked` state with the
-   * `initialYouTubeLinkedStatus` prop, which might change if `useAuth` re-evaluates.
+   * `initialYouTubeLinkedStatus` prop. This prop might change if `useAuth` re-evaluates
+   * (e.g., after a token refresh that re-checks backend authorization).
    */
   useEffect(() => {
     // Update internal isYouTubeLinked state if the initial check from useAuth changes
@@ -65,7 +90,8 @@ function useYouTube(currentUser, isLoggedIn, isAuthorizedUser, setAppPopup, init
    * Fetches the list of the current user's YouTube playlists from the backend.
    * Requires the user to be logged in. Updates `userPlaylists`, `isYouTubeLinked`,
    * and `youtubeSpecificError` states based on the outcome.
-   * @returns {Promise<boolean>} True if playlists were fetched successfully, false otherwise.
+   * This function is intended for internal use by the hook and is wrapped by an exported version.
+   * @type {() => Promise<boolean>}
    */
   const fetchUserPlaylistsInternal = useCallback(async () => {
     if (!currentUser) {
@@ -129,8 +155,9 @@ function useYouTube(currentUser, isLoggedIn, isAuthorizedUser, setAppPopup, init
    * Fetches the items (videos) for a specific playlist ID from the backend.
    * Requires the user to be logged in and a playlist ID to be provided.
    * Updates `videos`, `isYouTubeLinked`, and `youtubeSpecificError` states.
+   * This function is intended for internal use by the hook and is wrapped by an exported version.
    * @param {string} playlistId - The ID of the playlist to fetch items for.
-   * @returns {Promise<boolean>} True if items were fetched successfully, false otherwise.
+   * @type {(playlistId: string) => Promise<boolean>}
    */
   const fetchPlaylistItemsInternal = useCallback(async (playlistId) => {
     if (!playlistId || !currentUser) {
@@ -175,10 +202,11 @@ function useYouTube(currentUser, isLoggedIn, isAuthorizedUser, setAppPopup, init
   }, [currentUser, userPlaylists, setAppPopup]);
 
   /**
-   * Effect to handle the OAuth redirect from YouTube.
-   * It parses URL parameters for authentication status and errors,
-   * validates the OAuth state nonce, and updates YouTube linkage status.
-   * Cleans up URL parameters after processing.
+   * Effect to handle the OAuth redirect from YouTube after the user attempts to connect their account.
+   * It parses URL parameters (`youtube_auth_status`, `state`, `error_message`) set by the
+   * `handleYouTubeAuth` Cloud Function. It validates the OAuth state nonce for security,
+   * updates the `isYouTubeLinked` state, and shows appropriate popups.
+   * Finally, it cleans up the URL parameters.
    */
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -239,9 +267,12 @@ function useYouTube(currentUser, isLoggedIn, isAuthorizedUser, setAppPopup, init
   }, [isLoggedIn, isAuthorizedUser, fetchUserPlaylistsInternal, setAppPopup]); // Dependencies
 
   /**
-   * Initiates the YouTube OAuth connection flow.
-   * Generates a nonce for security, stores it, and redirects the user to Google's OAuth page.
+   * Initiates the YouTube OAuth connection flow by redirecting the user to Google's OAuth page.
+   * It generates a unique nonce for security, stores it in `localStorage`, and includes it
+   * in the state parameter sent to the OAuth provider. The `handleYouTubeAuth` Cloud Function
+   * will later use this nonce for validation.
    * Requires the user to be logged in via Firebase.
+   * @type {() => Promise<void>}
    */
   const handleConnectYouTube = useCallback(async () => {
     if (!currentUser) {
@@ -287,4 +318,4 @@ function useYouTube(currentUser, isLoggedIn, isAuthorizedUser, setAppPopup, init
   };
 }
 
-export default useYouTube;
+export {useYouTube};

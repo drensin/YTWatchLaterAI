@@ -4,7 +4,7 @@
  * displaying AI thinking process, and showing suggested video results.
  */
 import React, {useState, useEffect, useRef} from 'react';
-import VideoList from './VideoList';
+import {VideoList} from './VideoList';
 
 /**
  * Renders the main content area for the chat view.
@@ -12,15 +12,15 @@ import VideoList from './VideoList';
  * suggested videos and the AI's thinking process, and the content
  * for the active tab.
  * @param {object} props - The component's props.
- * @param {Function} props.onQuerySubmit - Callback function to submit a new query.
+ * @param {(query: string) => void} props.onQuerySubmit - Callback function to submit a new query.
  * @param {boolean} props.isStreaming - Indicates if the AI is currently streaming a response.
  * @param {string} props.activeOutputTab - The currently active tab ('suggestions' or 'Thinking').
- * @param {Function} props.onSetOutputTab - Callback function to set the active output tab.
- * @param {Array<object>} props.suggestedVideos - An array of video objects suggested by the AI.
+ * @param {(tabName: string) => void} props.onSetOutputTab - Callback function to set the active output tab.
+ * @param {Array<{id: string, title: string, channelTitle: string, publishedAt: string, description: string, thumbnailUrl: string}>} props.suggestedVideos - An array of video objects suggested by the AI.
  * @param {string} props.lastQuery - The most recent query submitted by the user.
  * @param {string} props.thinkingOutput - The text representing the AI's thinking process.
  * @param {React.RefObject<HTMLDivElement>} props.thinkingOutputContainerRef - Ref for the scrollable container of the thinking output.
- * @returns {React.ReactElement} The rendered chat view content.
+ * @returns {JSX.Element} The rendered chat view content.
  */
 function ChatViewContent(props) {
   const {
@@ -34,11 +34,20 @@ function ChatViewContent(props) {
     thinkingOutputContainerRef,
   } = props;
 
-  /** @state Stores the animated "waiting" dots displayed while waiting for the AI stream to start. */
+  /**
+   * @state Stores the animated "waiting" dots displayed while waiting for the AI stream to start.
+   * @type {string}
+   */
   const [waitingDots, setWaitingDots] = useState('');
-  /** @state Flag indicating if the component is ready and waiting for the AI stream to begin after a query submission. */
+  /**
+   * @state Flag indicating if the component is ready and waiting for the AI stream to begin after a query submission.
+   * @type {boolean}
+   */
   const [isPrimedForStream, setIsPrimedForStream] = useState(false);
-  /** @type {React.RefObject<NodeJS.Timeout|null>} Reference to the interval timer for the waiting dots animation. */
+  /**
+   * @type {React.RefObject<NodeJS.Timeout|null>}
+   * Reference to the interval timer for the waiting dots animation.
+   */
   const waitingIntervalRef = useRef(null);
   /** @const {string} Message displayed while waiting for the AI stream. */
   const waitingMessage = 'Query sent to Gemini. Waiting for stream';
@@ -84,6 +93,7 @@ function ChatViewContent(props) {
    * It primes the component for streaming, resets waiting dots, calls the
    * `onQuerySubmit` prop, and clears the input field.
    * @param {React.FormEvent<HTMLFormElement>} event - The form submission event.
+   * @returns {void}
    */
   const handleSubmit = (event) => {
     event.preventDefault();
@@ -164,4 +174,4 @@ function ChatViewContent(props) {
   );
 }
 
-export default ChatViewContent;
+export {ChatViewContent};

@@ -7,7 +7,8 @@ import React from 'react';
 
 /**
  * Placeholder component for the Playlists screen.
- * @returns {React.ReactElement} The rendered placeholder.
+ * Used during development or for navigation testing.
+ * @returns {JSX.Element} The rendered placeholder.
  */
 function PlaylistsScreenPlaceholder() {
   return (
@@ -19,4 +20,4 @@ function PlaylistsScreenPlaceholder() {
   );
 }
 
-export default PlaylistsScreenPlaceholder;
+export {PlaylistsScreenPlaceholder};

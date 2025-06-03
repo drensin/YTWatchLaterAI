@@ -5,27 +5,27 @@
  * playlist selection, interacting with the AI chat, and viewing video suggestions.
  */
 import React from 'react';
-import ChatInterface from './ChatInterface';
-import VideoList from './VideoList';
+import {ChatInterface} from './ChatInterface';
+import {VideoList} from './VideoList';
 
 /**
  * Renders the main view for an authenticated and YouTube-linked user.
  * Includes playlist selection, chat interface, and video results.
  * @param {object} props - The component's props.
- * @param {Array<object>} props.userPlaylists - List of user's YouTube playlists.
+ * @param {Array<{id: string, title: string, itemCount: number}>} props.userPlaylists - List of user's YouTube playlists.
  * @param {string} props.selectedPlaylistId - ID of the currently selected playlist.
- * @param {Function} props.onPlaylistSelection - Handler for playlist selection.
+ * @param {(event: React.ChangeEvent<HTMLSelectElement>) => void} props.onPlaylistSelection - Handler for playlist selection.
  * @param {boolean} props.isLoadingYouTube - True if YouTube operations are in progress.
- * @param {Function} props.onRefreshPlaylist - Handler to refresh playlist items.
- * @param {Function} props.onQuerySubmit - Handler for submitting a chat query.
+ * @param {() => void} props.onRefreshPlaylist - Handler to refresh playlist items.
+ * @param {(query: string) => void} props.onQuerySubmit - Handler for submitting a chat query.
  * @param {boolean} props.isStreaming - True if AI is currently streaming a response.
  * @param {string} props.activeOutputTab - The active tab ('Results' or 'Thinking').
- * @param {Function} props.onSetOutputTab - Handler to change the active output tab.
- * @param {Array<object>} props.suggestedVideos - Suggested videos from chat.
+ * @param {(tabName: string) => void} props.onSetOutputTab - Handler to change the active output tab.
+ * @param {Array<{id: string, title: string, channelTitle: string, publishedAt: string, description: string, thumbnailUrl: string}>} props.suggestedVideos - Suggested videos from chat.
  * @param {string} props.lastQuery - The last query submitted by the user.
  * @param {string} props.thinkingOutput - Raw AI thinking output.
- * @param {React.RefObject} props.thinkingOutputContainerRef - Ref for the thinking output container.
- * @returns {React.ReactElement} The rendered component.
+ * @param {React.RefObject<HTMLDivElement>} props.thinkingOutputContainerRef - Ref for the thinking output container.
+ * @returns {JSX.Element} The rendered component.
  */
 function MainAuthenticatedView(props) {
   const {
@@ -123,4 +123,4 @@ function MainAuthenticatedView(props) {
   );
 }
 
-export default MainAuthenticatedView;
+export {MainAuthenticatedView};

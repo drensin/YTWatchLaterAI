@@ -5,47 +5,70 @@
  */
 import React, {useState, useEffect, useCallback, useRef} from 'react';
 import './App.css';
-import useAuth from './hooks/useAuth';
-import useYouTube from './hooks/useYouTube';
-import useWebSocketChat from './hooks/useWebSocketChat';
+import {useAuth} from './hooks/useAuth';
+import {useYouTube} from './hooks/useYouTube';
+import {useWebSocketChat} from './hooks/useWebSocketChat';
 
-import LoadingOverlay from './components/LoadingOverlay';
-import StatusPopup from './components/StatusPopup';
-import ScreenHeader from './components/ScreenHeader'; // Import ScreenHeader
+import {LoadingOverlay} from './components/LoadingOverlay';
+import {StatusPopup} from './components/StatusPopup';
+import {ScreenHeader} from './components/ScreenHeader'; // Import ScreenHeader
 
 // Import screen content components
-import LoginScreen from './components/LoginScreen';
-import ConnectYouTubeView from './components/ConnectYouTubeView';
-import UserStatusMessages from './components/UserStatusMessages';
-import BottomNavigationBar from './components/BottomNavigationBar';
-import PlaylistsScreen from './components/PlaylistsScreen';
-import ChatScreen from './components/ChatScreen';
+import {LoginScreen} from './components/LoginScreen';
+import {ConnectYouTubeView} from './components/ConnectYouTubeView';
+import {UserStatusMessages} from './components/UserStatusMessages';
+import {BottomNavigationBar} from './components/BottomNavigationBar';
+import {PlaylistsScreen} from './components/PlaylistsScreen';
+import {ChatScreen} from './components/ChatScreen';
 
 
 /**
  * The main application component for ReelWorthy.
+ * @returns {JSX.Element} The rendered App component.
  */
 function App() {
-  /** @type {React.RefObject<HTMLDivElement>} Reference to the DOM element that displays the AI's thinking process, used for auto-scrolling. */
+  /**
+   * @type {React.RefObject<HTMLDivElement>}
+   * Reference to the DOM element that displays the AI's thinking process, used for auto-scrolling.
+   */
   const thinkingOutputContainerRef = useRef(null);
 
-  /** @state Manages the visibility, message, and type of status popups. */
+  /**
+   * @state Manages the visibility, message, and type of status popups.
+   * @type {{visible: boolean, message: string, type: string}}
+   */
   const [popup, setPopup] = useState({visible: false, message: '', type: ''});
-  /** @state Stores any general error messages to be displayed. */
+  /**
+   * @state Stores any general error messages to be displayed.
+   * @type {string|null}
+   */
   const [error, setError] = useState(null);
-  /** @state Flag indicating if the selected playlist's items are loaded and ready for chat interaction. */
+  /**
+   * @state Flag indicating if the selected playlist's items are loaded and ready for chat interaction.
+   * @type {boolean}
+   */
   const [isPlaylistDataReadyForChat, setIsPlaylistDataReadyForChat] = useState(false);
-  /** @state Tracks the currently active screen/view in the application. */
+  /**
+   * @state Tracks the currently active screen/view in the application.
+   * @type {string} Possible values: 'login', 'playlists', 'chat', 'settings'.
+   */
   const [currentScreen, setCurrentScreen] = useState('playlists');
-  /** @state Stores the list of available Gemini models fetched from the backend. */
+  /**
+   * @state Stores the list of available Gemini models fetched from the backend and filtered.
+   * @type {string[]}
+   */
   const [availableModels, setAvailableModels] = useState([]);
-  /** @state Stores the ID of the Gemini model currently selected by the user. */
+  /**
+   * @state Stores the ID of the Gemini model currently selected by the user.
+   * @type {string}
+   */
   const [selectedModelId, setSelectedModelId] = useState('');
 
 
   /**
    * Navigates to the specified screen.
-   * @param {string} screen - The name of the screen to navigate to.
+   * @param {string} screen - The name of the screen to navigate to (e.g., 'login', 'playlists', 'chat', 'settings').
+   * @returns {void}
    */
   const navigateTo = (screen) => {
     setCurrentScreen(screen);
@@ -65,8 +88,11 @@ function App() {
     handleFirebaseLogout,
   } = useAuth(setPopup);
 
-  // Effect to update availableModels state when fetchedModels changes,
-  // and filter out "tts" or "vision" models.
+  /**
+   * Effect to process and filter the list of Gemini models fetched from the backend.
+   * It filters out models containing "tts" or "vision" in their names, as they
+   * are not suitable for the chat functionality.
+   */
   useEffect(() => {
     if (fetchedModels && fetchedModels.length > 0) {
       const filteredModels = fetchedModels.filter((modelName) => {
@@ -77,12 +103,17 @@ function App() {
       if (filteredModels.length === 0 && fetchedModels.length > 0) {
         console.warn('All available models were filtered out (tts/vision). Check model list from backend if this is unexpected.');
       }
-    } else if (fetchedModels) { // fetchedModels is an empty array
+    } else if (fetchedModels) { // fetchedModels is an empty array, or null/undefined after initial state
       setAvailableModels([]);
     }
   }, [fetchedModels]);
 
-  // Effect to manage selectedModelId based on localStorage and the (now filtered) availableModels
+  /**
+   * Effect to determine and set the selected Gemini model ID.
+   * It prioritizes a model stored in localStorage if it's valid and available.
+   * Otherwise, it defaults to the first "flash" model, then the first available model,
+   * or a hardcoded fallback. The chosen default is then saved to localStorage.
+   */
   useEffect(() => {
     if (availableModels.length > 0) {
       const storedPreference = localStorage.getItem('preferredGeminiModel');
@@ -116,15 +147,17 @@ function App() {
   }, [availableModels]);
 
   /**
-   * Handles changes to the selected Gemini model.
-   * Updates the state and stores the preference in localStorage.
-   * @param {string} newModelId - The ID of the newly selected model.
+   * Handles changes to the selected Gemini model from the UI.
+   * Updates the `selectedModelId` state and persists the choice in `localStorage`.
+   * Shows a confirmation popup to the user.
+   * @param {string} newModelId - The ID of the newly selected Gemini model.
+   * @returns {void}
    */
   const handleModelSelection = (newModelId) => {
     setSelectedModelId(newModelId);
     localStorage.setItem('preferredGeminiModel', newModelId);
     if (setPopup) {
-      const modelDisplayName = newModelId.split('/').pop(); // Get 'gemini-x-y-latest' part
+      const modelDisplayName = newModelId.split('/').pop(); // Get 'gemini-x-y-latest' part for display
       setPopup({visible: true, message: `AI Model set to: ${modelDisplayName}`, type: 'info'});
       setTimeout(() => setPopup((p) => ({...p, visible: false})), 2000);
     }
@@ -160,19 +193,29 @@ function App() {
   /**
    * Handles the submission of a new query to the chat, setting the active output tab to 'Thinking'.
    * @param {string} query - The user's query.
+   * @returns {void}
    */
   const handleQuerySubmit = (query) => {
     setActiveOutputTab('Thinking');
     originalHandleQuerySubmit(query);
   };
 
-  /** @type {boolean} Boolean flag to determine if the loading overlay should be shown. */
+  /**
+   * @type {boolean} Boolean flag to determine if the loading overlay should be shown,
+   * based on authentication or YouTube API loading states.
+   */
   const showOverlay = isLoadingAuth || isLoadingYouTube;
 
-  /** @type {React.RefObject<boolean>} Reference to the previous streaming state, used to detect when streaming ends. */
+  /**
+   * @type {React.RefObject<boolean>}
+   * Reference to the previous streaming state, used to detect when streaming ends.
+   */
   const prevIsStreaming = useRef(isStreaming);
 
-  // Handles UI changes when AI response streaming ends, like switching to the suggestions tab.
+  /**
+   * Effect to handle UI changes when AI response streaming ends.
+   * Switches to the 'suggestions' tab if suggestions are available.
+   */
   useEffect(() => {
     if (prevIsStreaming.current && !isStreaming) {
       if (suggestedVideos && suggestedVideos.length > 0) {
@@ -182,7 +225,10 @@ function App() {
     prevIsStreaming.current = isStreaming;
   }, [isStreaming, suggestedVideos, setActiveOutputTab]);
 
-  // Fetches user playlists when authenticated and YouTube is linked, or resets state if not.
+  /**
+   * Effect to fetch user playlists when authenticated and YouTube is linked.
+   * Resets playlist and video states if the user is not logged in or authorized.
+   */
   useEffect(() => {
     if (isLoggedIn && isAuthorizedUser && isYouTubeLinked && userPlaylists.length === 0 && !isLoadingYouTube && !youtubeSpecificError && !appAuthorizationError) {
       fetchUserPlaylists();
@@ -190,27 +236,33 @@ function App() {
       setYouTubeUserPlaylists([]);
       setSelectedPlaylistId('');
       setYouTubeVideos([]);
-      setCurrentScreen('login');
+      setCurrentScreen('login'); // Navigate to login if auth conditions are not met
     }
   }, [
     isLoggedIn, isAuthorizedUser, isYouTubeLinked, userPlaylists.length,
     isLoadingYouTube, youtubeSpecificError, appAuthorizationError, fetchUserPlaylists,
-    setYouTubeUserPlaylists, setSelectedPlaylistId, setYouTubeVideos,
+    setYouTubeUserPlaylists, setSelectedPlaylistId, setYouTubeVideos, setCurrentScreen,
   ]);
 
-  // Manages navigation based on authentication and YouTube link status.
+  /**
+   * Effect to manage navigation based on authentication and YouTube link status.
+   * Ensures the user is on the correct screen (login or playlists) based on their status.
+   */
   useEffect(() => {
     if (authChecked) {
       if (!isLoggedIn || !isAuthorizedUser || !isYouTubeLinked) {
         setCurrentScreen('login');
       } else if (currentScreen === 'login' && isLoggedIn && isAuthorizedUser && isYouTubeLinked) {
+        // If user was on login but is now fully authenticated, move to playlists
         setCurrentScreen('playlists');
       }
     }
   }, [authChecked, isLoggedIn, isAuthorizedUser, isYouTubeLinked, currentScreen]);
 
 
-  // Auto-scrolls the thinking output container when new content is added.
+  /**
+   * Effect to auto-scroll the 'Thinking' output container when new content is added.
+   */
   useEffect(() => {
     if (activeOutputTab === 'Thinking' && thinkingOutputContainerRef.current) {
       thinkingOutputContainerRef.current.scrollTop = thinkingOutputContainerRef.current.scrollHeight;
@@ -220,19 +272,21 @@ function App() {
   /**
    * Handles playlist selection changes within the chat interface.
    * Fetches items for the newly selected playlist.
-   * @param {React.SyntheticEvent} event - The selection event, typically from a dropdown.
+   * @param {React.SyntheticEvent<HTMLSelectElement>} event - The selection event from a dropdown.
+   * @returns {Promise<void>}
    */
   const handlePlaylistSelectionInChat = useCallback(async (event) => {
     const newPlaylistId = event.target.value;
-    setIsPlaylistDataReadyForChat(false);
+    setIsPlaylistDataReadyForChat(false); // Indicate data is not ready for the new playlist
     setSelectedPlaylistId(newPlaylistId);
     setError(null); // Clear previous general errors
     setYouTubeErrorAppLevel(null); // Clear previous YouTube specific errors
     if (newPlaylistId) {
       const fetchSuccess = await fetchPlaylistItems(newPlaylistId);
       if (fetchSuccess) {
-        setIsPlaylistDataReadyForChat(true);
+        setIsPlaylistDataReadyForChat(true); // Data is ready for chat
       }
+      // If fetchSuccess is false, error is handled by useYouTube hook via setPopup
     } else {
       // If no playlist is selected (e.g., "Select a playlist" option)
       setYouTubeVideos([]); // Clear videos
@@ -243,10 +297,11 @@ function App() {
    * Handles playlist selection from the main playlists screen.
    * Fetches items for the selected playlist and navigates to the chat screen.
    * @param {string} playlistId - The ID of the selected playlist.
+   * @returns {Promise<void>}
    */
   const handleSelectPlaylistFromList = useCallback(async (playlistId) => {
     if (!playlistId) {
-      // Should not happen if playlists are always present, but good for robustness
+      console.warn('handleSelectPlaylistFromList called with no playlistId');
       return;
     }
     setIsPlaylistDataReadyForChat(false);
@@ -259,16 +314,14 @@ function App() {
       navigateTo('chat');
     } else {
       // Error handled by useYouTube hook via setPopup
-      setPopup({visible: true, message: 'Failed to load playlist items.', type: 'error'});
-      setTimeout(() => {
-        setPopup((p) => ({...p, visible: false}));
-      }, 3000);
+      // A generic popup is already shown by useYouTube on fetch failure.
     }
   }, [fetchPlaylistItems, setSelectedPlaylistId, navigateTo, setIsPlaylistDataReadyForChat, setError, setYouTubeErrorAppLevel, setPopup]);
 
   /**
    * Refreshes the items for the currently selected playlist.
    * Shows a status popup on success or if no playlist is selected.
+   * @returns {Promise<void>}
    */
   const refreshSelectedPlaylistItems = async () => {
     if (selectedPlaylistId) {
@@ -303,11 +356,11 @@ function App() {
    * This function determines which main view to display based on the application's
    * authentication state, YouTube link status, and the `currentScreen` state.
    * @returns {JSX.Element|null} The JSX element for the current screen, or null if
-   * authentication check is not complete.
+   * authentication check is not complete or no appropriate screen can be determined.
    */
   const renderScreenContent = () => {
     if (!authChecked) {
-      return null;
+      return null; // Or a global loading indicator, e.g., <LoadingOverlay message="Initializing..." />
     }
 
     if (!isLoggedIn) {
@@ -315,18 +368,22 @@ function App() {
     }
 
     if (!isAuthorizedUser) {
-      return <UserStatusMessages currentUser={currentUser} isLoggedIn={isLoggedIn} isAuthorizedUser={isAuthorizedUser} authChecked={authChecked} />;
+      // Display messages related to authorization status (e.g., not on allow-list)
+      return <UserStatusMessages currentUser={currentUser} isLoggedIn={isLoggedIn} isAuthorizedUser={isAuthorizedUser} authChecked={authChecked} appAuthorizationError={appAuthorizationError} />;
     }
 
     if (!isYouTubeLinked) {
-      return <ConnectYouTubeView onConnectYouTube={handleConnectYouTube} error={youtubeSpecificError} appAuthorizationError={appAuthorizationError} />;
+      // Display view for connecting YouTube account
+      return <ConnectYouTubeView onConnectYouTube={handleConnectYouTube} error={youtubeSpecificError} />;
     }
 
+    // Main content rendering based on currentScreen
     switch (currentScreen) {
       case 'playlists':
         return <PlaylistsScreen userPlaylists={userPlaylists} onSelectPlaylist={handleSelectPlaylistFromList} />;
       case 'chat':
         if (!selectedPlaylistId) {
+          // If trying to access chat screen without a selected playlist, guide user back.
           return (
             <div style={{padding: '20px', textAlign: 'center'}}>
               <h2>Chat</h2>
@@ -335,6 +392,7 @@ function App() {
             </div>
           );
         }
+        // Render chat screen with all necessary props
         return (
           <ChatScreen
             userPlaylists={userPlaylists}
@@ -353,6 +411,7 @@ function App() {
           />
         );
       case 'settings':
+        // Settings screen with model selection and logout
         return (
           <div style={{padding: '20px', textAlign: 'center'}}>
             <h1>Settings</h1>
@@ -362,7 +421,7 @@ function App() {
                 {availableModels.length === 0 && <option value="">Loading models...</option>}
                 {availableModels.map((model) => (
                   <option key={model} value={model}>
-                    {model.split('/').pop()}
+                    {model.split('/').pop()} {/* Display a cleaner name */}
                   </option>
                 ))}
               </select>
@@ -372,6 +431,8 @@ function App() {
           </div>
         );
       default:
+        // Default to playlists screen if currentScreen is unrecognized or user is in a valid state for it
+        console.warn(`Unknown screen: ${currentScreen}, defaulting to playlists.`);
         return <PlaylistsScreen userPlaylists={userPlaylists} onSelectPlaylist={handleSelectPlaylistFromList} />;
     }
   };
@@ -379,33 +440,36 @@ function App() {
   /**
    * Renders the header for the current active screen.
    * The header title changes based on the current screen.
-   * Navigation icons are currently not implemented in this header version.
    * @returns {JSX.Element|null} The JSX element for the screen header, or null if
    * no header should be displayed (e.g., on login or status screens).
    */
   const renderCurrentScreenHeader = () => {
-    if (!isLoggedIn || !isAuthorizedUser || !isYouTubeLinked) {
+    // Do not render header if user is not fully authenticated and YouTube linked,
+    // or on intermediate auth/status screens.
+    if (!isLoggedIn || !isAuthorizedUser || !isYouTubeLinked || currentScreen === 'login') {
       return null;
     }
+    // Also, if user is logged in but not authorized, UserStatusMessages handles its own display.
+    if (isLoggedIn && !isAuthorizedUser) return null;
+    // Also, if user is authorized but YouTube not linked, ConnectYouTubeView handles its own display.
+    if (isLoggedIn && isAuthorizedUser && !isYouTubeLinked) return null;
 
-    if (currentScreen === 'login' ||
-        (isLoggedIn && !isAuthorizedUser) ||
-        (isLoggedIn && isAuthorizedUser && !isYouTubeLinked)) {
-      return null;
-    }
 
     let title = '';
+    // Left/Right icon click handlers are null as they are not used in this header version.
     const onLeftIconClick = null;
     const onRightIconClick = null;
 
+    // Determine title based on the current screen
     if (currentScreen === 'playlists') {
       title = 'Playlists';
     } else if (currentScreen === 'chat') {
       const selected = userPlaylists.find((p) => p.id === selectedPlaylistId);
-      title = selected ? `Playlist: ${selected.title}` : 'Chat';
+      title = selected ? `Playlist: ${selected.title}` : 'Chat'; // Updated title format
     } else if (currentScreen === 'settings') {
       title = 'Settings';
     } else {
+      // Should not happen if currentScreen is always valid and handled above
       return null;
     }
 
@@ -418,6 +482,7 @@ function App() {
     );
   };
 
+  // Main application layout
   return (
     <div className="App">
       {showOverlay && <LoadingOverlay />}

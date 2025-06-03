@@ -4,15 +4,15 @@
  * and LoginFooter components.
  */
 import React from 'react';
-import LoginHeader from './LoginHeader';
-import LoginContent from './LoginContent';
-import LoginFooter from './LoginFooter';
+import {LoginHeader} from './LoginHeader';
+import {LoginContent} from './LoginContent';
+import {LoginFooter} from './LoginFooter';
 
 /**
- * Renders the Login screen.
+ * Renders the Login screen, which is composed of a header, main content area, and a footer.
  * @param {object} props - The component's props.
- * @param {Function} props.onLogin - Callback to handle the login action.
- * @returns {React.ReactElement} The rendered Login screen.
+ * @param {() => void} props.onLogin - Callback function to initiate the login process, passed to LoginContent.
+ * @returns {JSX.Element} The rendered Login screen.
  */
 function LoginScreen({onLogin}) {
   return (
@@ -34,4 +34,4 @@ function LoginScreen({onLogin}) {
   );
 }
 
-export default LoginScreen;
+export {LoginScreen};

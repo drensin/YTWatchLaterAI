@@ -7,8 +7,8 @@ import React from 'react';
 /**
  * Renders a login button.
  * @param {object} props - The component's props.
- * @param {Function} props.onLogin - Callback to handle login.
- * @returns {React.ReactElement} The rendered login button.
+ * @param {() => void} props.onLogin - Callback function to initiate the login process.
+ * @returns {JSX.Element} The rendered login button.
  */
 function LoginButton({onLogin}) {
   return (
@@ -18,4 +18,4 @@ function LoginButton({onLogin}) {
   );
 }
 
-export default LoginButton;
+export {LoginButton};

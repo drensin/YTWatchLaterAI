@@ -4,21 +4,23 @@
  */
 import React from 'react';
 // ScreenHeader is now rendered by App.js
-import ChatViewContent from './ChatViewContent';
+import {ChatViewContent} from './ChatViewContent';
 
 /**
  * Renders the content for the Chat screen for a selected playlist.
  * The header is now handled by App.js.
  * @param {object} props - The component's props, passed down from App.js.
- * @param {Function} props.onQuerySubmit - Handler for submitting a chat query.
+ * @param {string} props.selectedPlaylistId - The ID of the currently selected YouTube playlist.
+ * @param {Array<object>} props.userPlaylists - The list of the user's YouTube playlists.
+ * @param {(query: string) => void} props.onQuerySubmit - Handler for submitting a chat query.
  * @param {boolean} props.isStreaming - Whether the chat response is streaming.
- * @param {string} props.activeOutputTab - The active tab in the output section.
- * @param {Function} props.onSetOutputTab - Handler to set the active output tab.
- * @param {Array} props.suggestedVideos - Array of suggested videos.
+ * @param {string} props.activeOutputTab - The active tab in the output section ('suggestions' or 'Thinking').
+ * @param {(tabName: string) => void} props.onSetOutputTab - Handler to set the active output tab.
+ * @param {Array<{id: string, title: string, channelTitle: string, publishedAt: string, description: string, thumbnailUrl: string}>} props.suggestedVideos - Array of suggested video objects.
  * @param {string} props.lastQuery - The last submitted query.
  * @param {string} props.thinkingOutput - The AI's thinking process output.
- * @param {object} props.thinkingOutputContainerRef - Ref for the thinking output container.
- * @returns {React.ReactElement} The rendered Chat screen.
+ * @param {React.RefObject<HTMLDivElement>} props.thinkingOutputContainerRef - Ref for the thinking output container.
+ * @returns {JSX.Element} The rendered Chat screen.
  */
 function ChatScreen(props) {
   // selectedPlaylistId and userPlaylists are still passed in for ChatViewContent,
@@ -47,4 +49,4 @@ function ChatScreen(props) {
   );
 }
 
-export default ChatScreen;
+export {ChatScreen};

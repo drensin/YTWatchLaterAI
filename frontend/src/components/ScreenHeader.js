@@ -7,7 +7,7 @@ import React from 'react';
 
 /**
  * Placeholder component for a settings icon.
- * @returns {React.ReactElement} An SVG element representing a settings icon.
+ * @returns {JSX.Element} An SVG element representing a settings icon.
  */
 const SettingsIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
@@ -17,7 +17,7 @@ const SettingsIcon = () => (
 
 /**
  * Placeholder component for a back arrow icon.
- * @returns {React.ReactElement} An SVG element representing a back arrow icon.
+ * @returns {JSX.Element} An SVG element representing a back arrow icon.
  */
 const BackArrowIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
@@ -31,10 +31,10 @@ const BackArrowIcon = () => (
  * @param {object} props - The component's props.
  * @param {string} props.title - The title of the screen.
  * @param {React.ReactNode} [props.leftIcon] - Optional icon/button for the left side.
- * @param {Function} [props.onLeftIconClick] - Optional click handler for the left icon.
+ * @param {() => void} [props.onLeftIconClick] - Optional click handler for the left icon.
  * @param {React.ReactNode} [props.rightIcon] - Optional icon/button for the right side.
- * @param {Function} [props.onRightIconClick] - Optional click handler for the right icon.
- * @returns {React.ReactElement} The rendered screen header.
+ * @param {() => void} [props.onRightIconClick] - Optional click handler for the right icon.
+ * @returns {JSX.Element} The rendered screen header.
  */
 function ScreenHeader({title, leftIcon, onLeftIconClick, rightIcon, onRightIconClick}) {
   // Determines the icon to display on the right. Uses provided `rightIcon` if available,
@@ -65,4 +65,4 @@ function ScreenHeader({title, leftIcon, onLeftIconClick, rightIcon, onRightIconC
   );
 }
 
-export default ScreenHeader;
+export {ScreenHeader};

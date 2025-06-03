@@ -9,11 +9,14 @@ import React, {useState} from 'react';
 /**
  * Renders a list of videos.
  * @param {object} props - The component's props.
- * @param {Array<object>} props.videos - Array of video objects to display.
- * @returns {React.ReactElement} The rendered video list.
+ * @param {Array<{id?: string, videoId?: string, title: string, thumbnailUrl?: string, duration?: string, description?: string, reason?: string}>} props.videos - Array of video objects to display.
+ * @returns {JSX.Element} The rendered video list.
  */
 function VideoList({videos}) {
-  /** @state Manages the expanded/collapsed state of video descriptions, keyed by video ID. */
+  /**
+   * @state Manages the expanded/collapsed state of video descriptions, keyed by video ID.
+   * @type {Object<string, boolean>}
+   */
   const [expandedDescriptions, setExpandedDescriptions] = useState({});
 
   if (!videos || videos.length === 0) {
@@ -23,6 +26,7 @@ function VideoList({videos}) {
   /**
    * Toggles the expanded state of a video's description.
    * @param {string} videoId - The ID of the video whose description state to toggle.
+   * @returns {void}
    */
   const toggleDescription = (videoId) =>
     setExpandedDescriptions((prev) => ({
@@ -32,9 +36,9 @@ function VideoList({videos}) {
   /**
    * Renders the description for a video, with a "More..."/"Less..." button
    * if the description exceeds a certain length.
-   * @param {object} video - The video object containing description and other details.
-   * @param {string} videoId - The ID of the video.
-   * @returns {React.ReactElement} The rendered video description.
+   * @param {{id?: string, videoId?: string, title: string, thumbnailUrl?: string, duration?: string, description?: string, reason?: string}} video - The video object.
+   * @param {string} videoId - The ID of the video (used as key for expansion state).
+   * @returns {JSX.Element} The rendered video description.
    */
   const renderDescription = (video, videoId) => {
     const description = video.description || 'No description';
@@ -86,4 +90,4 @@ function VideoList({videos}) {
   );
 }
 
-export default VideoList;
+export {VideoList};

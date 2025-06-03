@@ -13,8 +13,8 @@ import React from 'react';
  * @param {string} props.playlist.title - The playlist title.
  * @param {number} props.playlist.itemCount - The number of videos in the playlist.
  * @param {string} [props.playlist.thumbnailUrl] - Optional URL for the playlist thumbnail.
- * @param {Function} props.onSelectPlaylist - Callback function when the playlist is selected.
- * @returns {React.ReactElement} The rendered playlist item.
+ * @param {(playlistId: string) => void} props.onSelectPlaylist - Callback function invoked when the playlist is selected.
+ * @returns {JSX.Element} The rendered playlist item.
  */
 function PlaylistItem({playlist, onSelectPlaylist}) { // Corrected object-curly-spacing for props
   const {id, title, itemCount, thumbnailUrl} = playlist; // This line seems to already comply
@@ -44,4 +44,4 @@ function PlaylistItem({playlist, onSelectPlaylist}) { // Corrected object-curly-
   );
 }
 
-export default PlaylistItem;
+export {PlaylistItem};

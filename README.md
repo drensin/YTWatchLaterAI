@@ -45,9 +45,9 @@ Understanding these core user interactions provides insight into the application
 
 ### 3. AI Chat Interaction for Video Suggestions
    a.  **WebSocket Connection:** When the chat screen for a selected playlist is active and its data is ready, the frontend (`useWebSocketChat` hook) establishes a WebSocket connection to the `gemini-chat-service` (Cloud Run).
-   b.  **Initialize Chat Context:** An `INIT_CHAT` message is sent over WebSocket, including the `selectedPlaylistId`. The `gemini-chat-service` then fetches all video metadata (titles, descriptions, durations, etc.) for this playlist from Datastore. This data forms the primary context for the Gemini AI.
+   b.  **Initialize Chat Context:** An `INIT_CHAT` message is sent over WebSocket, including the `selectedPlaylistId` and the user's chosen `selectedModelId` (from the Settings page). The `gemini-chat-service` then fetches all video metadata (titles, descriptions, durations, etc.) for this playlist from Datastore. This data forms the primary context for the Gemini AI, using the specified model.
    c.  **User Query:** The user types a query (e.g., "show me short comedy videos I haven't finished") into the chat interface.
-   d.  **Query Processing (Server-side):** The query is sent as a `USER_QUERY` message. The `gemini-chat-service` appends this query to the established Gemini chat session (which already has the playlist video context). It instructs Gemini to recommend videos from the provided list and to respond in a specific JSON format: `{"suggestedVideos": [{"videoId": "...", "reason": "..."}]}`.
+   d.  **Query Processing (Server-side):** The query is sent as a `USER_QUERY` message. The `gemini-chat-service` appends this query to the established Gemini chat session (which was initialized with the user's selected model and already has the playlist video context). It instructs Gemini to recommend videos from the provided list and to respond in a specific JSON format: `{"suggestedVideos": [{"videoId": "...", "reason": "..."}]}`.
    e.  **Streaming Response:**
        i.  Gemini processes the request and starts streaming its response.
        ii. The `gemini-chat-service` forwards these chunks as `STREAM_CHUNK` messages to the frontend. The frontend displays this "thinking" process.
@@ -98,22 +98,22 @@ ReelWorthy employs a decoupled architecture with a React frontend and a Google C
 **Component Interactions:**
 
 1.  **Frontend (React on Firebase Hosting):**
-    *   Handles all user interface elements and interactions.
+    *   Handles all user interface elements and interactions, including a "Settings" page for AI model selection.
     *   Uses Firebase SDK for Google Sign-In.
     *   Communicates with Cloud Functions via HTTPS requests (sending Firebase ID tokens for authentication).
-    *   Establishes a WebSocket connection with the `gemini-chat-service` for real-time AI chat.
+    *   Establishes a WebSocket connection with the `gemini-chat-service` for real-time AI chat, passing the selected AI model ID.
 2.  **Firebase Authentication:**
     *   Manages user sign-up and sign-in using Google as an identity provider.
     *   Issues Firebase ID tokens used by the frontend to authenticate with backend Cloud Functions.
 3.  **Google Cloud Functions (Node.js):**
-    *   **`checkUserAuthorization`**: Verifies Firebase ID token, checks user email against an allow-list in Datastore, and reports initial YouTube link status.
+    *   **`checkUserAuthorization`**: Verifies Firebase ID token, checks user email against an allow-list in Datastore, reports initial YouTube link status, and fetches/returns a list of available AI models (e.g., Gemini models) from the Google Generative Language API via a direct HTTPS call.
     *   **`handleYouTubeAuth`**: The OAuth 2.0 redirect URI. Exchanges authorization code for YouTube API tokens and stores them securely in Datastore, keyed by Firebase UID.
     *   **`listUserPlaylists`**: Uses stored OAuth tokens to fetch the user's playlists from the YouTube Data API.
     *   **`getWatchLaterPlaylist`**: Fetches items for a specific playlist, retrieves detailed video metadata from YouTube Data API, and synchronizes this data with Cloud Datastore. Manages video-playlist associations.
 4.  **Google Cloud Run (`gemini-chat-service` - Node.js, WebSocket):**
     *   Hosts the WebSocket server for AI chat.
-    *   On `INIT_CHAT`, fetches relevant video data from Datastore to build context for the Gemini model.
-    *   Forwards user queries and context to the Google Gemini API.
+    *   On `INIT_CHAT`, receives the `selectedModelId` from the client, fetches relevant video data from Datastore to build context, and initializes a chat session with the specified Gemini model.
+    *   Forwards user queries and context to the Google Gemini API using the selected model.
     *   Streams Gemini's "thinking" process and final JSON-formatted video suggestions back to the frontend.
 5.  **Google Cloud Datastore (NoSQL Database):**
     *   `Tokens`: Securely stores users' YouTube OAuth access and refresh tokens.
@@ -140,8 +140,8 @@ The frontend is a React application structured with components and custom hooks 
 *   **`hooks/`**:
     *   **`useAuth.js`**:
         *   Manages Firebase authentication state (login, logout, current user).
-        *   Communicates with `checkUserAuthorization` Cloud Function to verify application-level authorization and initial YouTube linkage status.
-        *   Provides state like `currentUser`, `isLoggedIn`, `isAuthorizedUser`, `isYouTubeLinkedByAuthCheck`, and handlers like `handleFirebaseLogin`, `handleFirebaseLogout`.
+        *   Communicates with `checkUserAuthorization` Cloud Function to verify application-level authorization, initial YouTube linkage status, and fetch a list of available AI models.
+        *   Provides state like `currentUser`, `isLoggedIn`, `isAuthorizedUser`, `isYouTubeLinkedByAuthCheck`, `availableModels`, and handlers like `handleFirebaseLogin`, `handleFirebaseLogout`.
     *   **`useYouTube.js`**:
         *   Manages all interactions related to YouTube data.
         *   Handles the OAuth 2.0 flow for connecting a YouTube account (initiating redirect to `handleYouTubeAuth` Cloud Function and processing the callback).
@@ -150,6 +150,7 @@ The frontend is a React application structured with components and custom hooks 
         *   Manages state like `userPlaylists`, `selectedPlaylistId`, `videos` (items of the selected playlist), `isYouTubeLinked`, `isLoadingYouTube`, and `youtubeSpecificError`.
     *   **`useWebSocketChat.js`**:
         *   Manages the WebSocket connection to the `gemini-chat-service`.
+        *   Receives the `selectedModelId` and includes it in the `INIT_CHAT` message.
         *   Handles sending `INIT_CHAT` and `USER_QUERY` messages.
         *   Processes incoming messages from the WebSocket (`STREAM_CHUNK`, `STREAM_END`, `ERROR`).
         *   Manages chat-specific state like `suggestedVideos`, `lastQuery`, `thinkingOutput`, `activeOutputTab`, and `isStreaming`.
@@ -176,10 +177,11 @@ The frontend is a React application structured with components and custom hooks 
 Each subdirectory in `backend/` typically contains an `index.js` for a single Cloud Function and a `package.json` for its dependencies.
 
 *   **`checkUserAuthorization/index.js`**:
-    *   **Purpose:** Verifies a Firebase ID token, checks if the user's email is in the `AuthorizedEmail` Datastore kind, and checks for existing YouTube tokens in the `Tokens` kind to determine initial YouTube linkage.
+    *   **Purpose:** Verifies a Firebase ID token, checks if the user's email is in the `AuthorizedEmail` Datastore kind, checks for existing YouTube tokens in the `Tokens` kind to determine initial YouTube linkage. Additionally, it fetches a list of available Gemini AI models directly from the Google Generative Language API (using an API key) and returns this list to the frontend.
     *   **Trigger:** HTTP.
     *   **Input:** Firebase ID token in `Authorization: Bearer` header.
-    *   **Output:** JSON `{ authorized: boolean, email: string, uid: string, youtubeLinked: boolean }` or error.
+    *   **Output:** JSON `{ authorized: boolean, email: string, uid: string, youtubeLinked: boolean, availableModels: Array<string> }` or error.
+    *   **Secrets Used:** `GEMINI_API_KEY` (for listing models).
 
 *   **`handleYouTubeAuth/index.js`**:
     *   **Purpose:** Acts as the OAuth 2.0 redirect URI for the YouTube connection flow. Exchanges the received authorization `code` for access and refresh tokens from Google. Stores these tokens securely in the `Tokens` Datastore kind, associated with the user's Firebase UID. Redirects the user back to the frontend.
@@ -211,10 +213,10 @@ This service is a Node.js application designed to be deployed on Cloud Run, prov
     *   **WebSocket Setup:** Uses `ws` library to create a WebSocket server.
     *   **Session Management:** Maintains an in-memory `activeSessions` map (WebSocket connection to session data). Each session includes the Gemini chat instance, `playlistId`, `modelId`, and the `videosForPlaylist` data.
     *   **`INIT_CHAT` Message Handling:**
-        *   Receives `playlistId` from the client.
+        *   Receives `playlistId` and `modelId` from the client.
         *   Fetches all video metadata for that `playlistId` from the `Videos` kind in Datastore.
         *   Constructs a detailed context string (JSON format) of these videos.
-        *   Initializes a new chat session with the Gemini API (`@google/generative-ai`), providing the video context and a system prompt instructing the AI on its role and desired JSON output format (`{suggestedVideos: [{videoId, reason}]}`).
+        *   Initializes a new chat session with the Gemini API (`@google/generative-ai`) using the specified `modelId`, providing the video context and a system prompt instructing the AI on its role and desired JSON output format (`{suggestedVideos: [{videoId, reason}]}`).
         *   Sends `CHAT_INITIALIZED` back to the client.
     *   **`USER_QUERY` Message Handling:**
         *   Receives user's `query` text.

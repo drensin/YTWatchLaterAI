@@ -8,11 +8,11 @@ import React from 'react';
 /**
  * Renders status messages based on user authentication and authorization state.
  * @param {object} props - The component's props.
- * @param {object|null} props.currentUser - The current Firebase user object.
- * @param {boolean} props.isLoggedIn - Whether the user is logged in.
- * @param {boolean} props.isAuthorizedUser - Whether the user is authorized.
- * @param {boolean} props.authChecked - Whether the initial auth check has completed.
- * @returns {React.ReactElement|null} The rendered messages or null.
+ * @param {import('firebase/auth').User|null} props.currentUser - The current Firebase user object, or null if not logged in.
+ * @param {boolean} props.isLoggedIn - Whether the user is currently logged in.
+ * @param {boolean} props.isAuthorizedUser - Whether the logged-in user is authorized to use the application.
+ * @param {boolean} props.authChecked - Whether the initial authentication check has completed.
+ * @returns {JSX.Element|null} The rendered status message component or null if no message needs to be displayed.
  */
 function UserStatusMessages({currentUser, isLoggedIn, isAuthorizedUser, authChecked}) {
   if (!authChecked) {
@@ -35,4 +35,4 @@ function UserStatusMessages({currentUser, isLoggedIn, isAuthorizedUser, authChec
   return null; // All good or other views are handling display
 }
 
-export default UserStatusMessages;
+export {UserStatusMessages};

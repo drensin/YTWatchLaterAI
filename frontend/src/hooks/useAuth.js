@@ -17,35 +17,50 @@ const CLOUD_FUNCTIONS_BASE_URL = {
 /**
  * Custom hook to manage user authentication and authorization status.
  * Handles Firebase login/logout, checks application-level authorization,
- * and determines initial YouTube linkage based on backend check.
+ * and determines initial YouTube linkage and available AI models based on a backend check.
  *
- * @param {function(config: {visible: boolean, message: string, type: string}): void} setAppPopup - Function from the main app to show popups.
- * @returns {object} An object containing the authentication state and handler functions.
- * The returned object includes:
- * - `currentUser`: (object|null) Current Firebase user object.
- * - `isLoggedIn`: (boolean) True if user is logged in.
- * - `isAuthorizedUser`: (boolean) True if user is authorized by allow-list.
- * - `isYouTubeLinkedByAuthCheck`: (boolean) True if YouTube was linked per backend check.
- * - `availableModels`: (Array<string>) List of available Gemini model IDs.
- * - `authChecked`: (boolean) True if initial auth check has completed.
- * - `appAuthorizationError`: (string|null) Error message for app-level authorization issues.
- * - `isLoadingAuth`: (boolean) True if authentication/authorization check is in progress.
- * - `handleFirebaseLogin`: (Function) Function to initiate Firebase login.
- * - `handleFirebaseLogout`: (Function) Function to initiate Firebase logout.
+ * @param {(config: {visible: boolean, message: string, type: string}) => void} setAppPopup - Callback function from the main app to display status popups.
+ * @returns {{
+ *   currentUser: import('firebase/auth').User | null,
+ *   isLoggedIn: boolean,
+ *   isAuthorizedUser: boolean,
+ *   isYouTubeLinkedByAuthCheck: boolean,
+ *   availableModels: string[],
+ *   authChecked: boolean,
+ *   appAuthorizationError: string | null,
+ *   isLoadingAuth: boolean,
+ *   handleFirebaseLogin: () => Promise<void>,
+ *   handleFirebaseLogout: () => Promise<void>
+ * }} An object containing the authentication state and handler functions.
  */
 function useAuth(setAppPopup) {
+  /** @state The current Firebase user object, or null if not logged in. @type {import('firebase/auth').User|null} */
   const [currentUser, setCurrentUser] = useState(null);
+  /** @state True if a user is currently logged in via Firebase. @type {boolean} */
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  /** @state True if the logged-in user is authorized to use the application (e.g., on an allow-list). @type {boolean} */
   const [isAuthorizedUser, setIsAuthorizedUser] = useState(false);
-  // This state reflects YouTube linkage as per checkUserAuthorization,
-  // distinct from linkage status derived from OAuth redirect or API calls.
+  /**
+   * @state True if the user's YouTube account was linked, based on the initial backend authorization check.
+   * This is distinct from linkage status derived from OAuth redirect or subsequent API calls.
+   * @type {boolean}
+   */
   const [isYouTubeLinkedByAuthCheck, setIsYouTubeLinkedByAuthCheck] = useState(false);
-  const [availableModels, setAvailableModels] = useState([]); // New state for models
+  /** @state List of available Gemini model IDs fetched from the backend. @type {string[]} */
+  const [availableModels, setAvailableModels] = useState([]);
+  /** @state Stores any error message related to application-level authorization. @type {string|null} */
   const [appAuthorizationError, setAppAuthorizationError] = useState(null);
+  /** @state True once the initial Firebase authentication state check has completed. @type {boolean} */
   const [authChecked, setAuthChecked] = useState(false);
+  /** @state True if any authentication or authorization check is currently in progress. @type {boolean} */
   const [isLoadingAuth, setIsLoadingAuth] = useState(true); // Start true for initial check
 
-  // Effect for Firebase Auth State Listener & App Authorization Check
+  /**
+   * Effect to subscribe to Firebase authentication state changes.
+   * When auth state changes (login/logout), it updates user state and performs
+   * an application-level authorization check against a backend service,
+   * also fetching YouTube linkage status and available AI models.
+   */
   useEffect(() => {
     setIsLoadingAuth(true);
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -99,6 +114,12 @@ function useAuth(setAppPopup) {
     };
   }, []); // Empty dependency array: runs once on mount, cleans up on unmount
 
+  /**
+   * Initiates the Firebase Google Sign-In popup flow.
+   * Includes a scope for YouTube readonly access.
+   * Updates loading and error states via `setAppPopup`.
+   * @type {() => Promise<void>}
+   */
   const handleFirebaseLogin = useCallback(async () => {
     const provider = new GoogleAuthProvider();
     // This scope is for YouTube Data API, might be better handled by a dedicated
@@ -121,6 +142,11 @@ function useAuth(setAppPopup) {
     }
   }, [setAppPopup]);
 
+  /**
+   * Signs the current user out of Firebase.
+   * Updates loading state and shows a popup message on success or failure.
+   * @type {() => Promise<void>}
+   */
   const handleFirebaseLogout = useCallback(async () => {
     try {
       setIsLoadingAuth(true);
@@ -156,4 +182,4 @@ function useAuth(setAppPopup) {
   };
 }
 
-export default useAuth;
+export {useAuth};

@@ -89,7 +89,7 @@ In Google Cloud Secret Manager, create the following secrets. The service accoun
 
 Grant the following roles to the respective service accounts:
 *   **Secret Manager Secret Accessor (`roles/secretmanager.secretAccessor`):**
-    *   Grant to Cloud Functions service account(s) for `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`.
+    *   Grant to Cloud Functions service account(s) for `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, and `GEMINI_API_KEY` (as `checkUserAuthorization` now uses it).
     *   Grant to Cloud Run service account for `GEMINI_API_KEY`.
 *   **Cloud Datastore User (`roles/datastore.user`):**
     *   Grant to Cloud Functions service account(s) (for all functions interacting with Datastore).
@@ -172,7 +172,9 @@ For each function in the `backend/` subdirectories:
       --region YOUR_REGION \
       --source ./backend/checkUserAuthorization \
       --entry-point checkUserAuthorization \
-      --project YOUR_PROJECT_ID
+      --project YOUR_PROJECT_ID \
+      --set-secrets GEMINI_API_KEY=GEMINI_API_KEY:latest \
+      --set-env-vars GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID
     ```
 
 *   **`listUserPlaylists`**
@@ -287,7 +289,7 @@ steps:
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     args: ['functions', 'deploy', 'handleYouTubeAuth', '--project=${PROJECT_ID}', '--region=us-central1', '--runtime=nodejs20', '--trigger-http', '--allow-unauthenticated', '--source=./backend/handleYouTubeAuth', '--entry-point=handleYouTubeAuth', '--set-secrets=YOUTUBE_CLIENT_ID=YOUTUBE_CLIENT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest', '--set-env-vars=GOOGLE_CLOUD_PROJECT=${PROJECT_ID},FRONTEND_URL=https://${PROJECT_ID}.web.app']
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    args: ['functions', 'deploy', 'checkUserAuthorization', '--project=${PROJECT_ID}', '--region=us-central1', '--runtime=nodejs20', '--trigger-http', '--allow-unauthenticated', '--source=./backend/checkUserAuthorization', '--entry-point=checkUserAuthorization', '--set-env-vars=GOOGLE_CLOUD_PROJECT=${PROJECT_ID}']
+    args: ['functions', 'deploy', 'checkUserAuthorization', '--project=${PROJECT_ID}', '--region=us-central1', '--runtime=nodejs20', '--trigger-http', '--allow-unauthenticated', '--source=./backend/checkUserAuthorization', '--entry-point=checkUserAuthorization', '--set-secrets=GEMINI_API_KEY=GEMINI_API_KEY:latest', '--set-env-vars=GOOGLE_CLOUD_PROJECT=${PROJECT_ID}']
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     args: ['functions', 'deploy', 'listUserPlaylists', '--project=${PROJECT_ID}', '--region=us-central1', '--runtime=nodejs20', '--trigger-http', '--allow-unauthenticated', '--source=./backend/listUserPlaylists', '--entry-point=listUserPlaylists', '--set-secrets=YOUTUBE_CLIENT_ID=YOUTUBE_CLIENT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest', '--set-env-vars=GOOGLE_CLOUD_PROJECT=${PROJECT_ID}']
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'

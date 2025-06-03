@@ -9,24 +9,39 @@ const INITIAL_RECONNECT_DELAY_MS = 1000;
 const MAX_RECONNECT_DELAY_MS = 30000;
 
 /**
- * @typedef {object} WebSocketChatHookReturn
- * @property {Array<object>} suggestedVideos - Suggested videos from the chat.
- * @property {string} lastQuery - The last query submitted by the user.
- * @property {string} thinkingOutput - The raw output from the AI as it 'thinks'.
- * @property {string} activeOutputTab - The currently active output tab ('Results' or 'Thinking').
- * @property {function(string): void} setActiveOutputTab - Setter for `activeOutputTab`.
- * @property {boolean} isStreaming - True if the AI is currently streaming a response.
- * @property {function(string): Promise<void>} handleQuerySubmit - Function to submit a new query to the chat.
+ * @typedef {object} SuggestedVideo
+ * @property {string} id - The YouTube video ID.
+ * @property {string} title - The title of the video.
+ * @property {string} channelTitle - The title of the channel that uploaded the video.
+ * @property {string} publishedAt - The publication date of the video (ISO string).
+ * @property {string} description - A snippet of the video's description.
+ * @property {string} thumbnailUrl - URL of the video's thumbnail image.
+ * @property {string} [reason] - Optional reason why the video was suggested.
  */
 
 /**
- * Custom hook to manage WebSocket connection, message handling, and chat state.
- * @param {string} selectedPlaylistId - The ID of the currently selected playlist.
- * @param {boolean} isPlaylistDataReady - Flag indicating if playlist data is ready for chat.
- * @param {function(config: {visible: boolean, message: string, type: string}): void} setAppPopup - Function to show app-level popups.
- * @param {function(string|null): void} setAppError - Function to set app-level errors.
- * @param {string} selectedModelId - The ID of the user-selected Gemini model.
- * @returns {WebSocketChatHookReturn} Chat state and handlers.
+ * @typedef {object} WebSocketChatHookReturn
+ * @property {Array<SuggestedVideo>} suggestedVideos - Suggested videos from the chat.
+ * @property {string} lastQuery - The last query submitted by the user.
+ * @property {string} thinkingOutput - The raw output from the AI as it 'thinks'.
+ * @property {string} activeOutputTab - The currently active output tab ('Results' or 'Thinking').
+ * @property {(tabName: string) => void} setActiveOutputTab - Setter for `activeOutputTab`.
+ * @property {boolean} isStreaming - True if the AI is currently streaming a response.
+ * @property {(query: string) => Promise<void>} handleQuerySubmit - Function to submit a new query to the chat.
+ */
+
+/**
+ * Custom hook to manage WebSocket connection, message handling, and chat state for AI interactions.
+ * It handles connecting to a WebSocket service, sending queries, receiving streamed responses
+ * (including 'thinking' process and final suggested videos), and managing UI state related to the chat.
+ * Includes logic for ping/pong keep-alive and automatic reconnection attempts.
+ *
+ * @param {string} selectedPlaylistId - The ID of the currently selected YouTube playlist.
+ * @param {boolean} isPlaylistDataReady - Flag indicating if the data for the selected playlist is ready for chat.
+ * @param {(config: {visible: boolean, message: string, type: string}) => void} setAppPopup - Callback to show app-level popups.
+ * @param {(errorMessage: string | null) => void} setAppError - Callback to set app-level error messages.
+ * @param {string} selectedModelId - The ID of the user-selected Gemini model to be used for chat.
+ * @returns {WebSocketChatHookReturn} An object containing chat state and handler functions.
  */
 function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, setAppError, selectedModelId) {
   /** @type {React.RefObject<WebSocket|null>} Reference to the WebSocket instance. */
@@ -37,24 +52,25 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
   const reconnectTimeoutRef = useRef(null);
   /** @type {React.RefObject<string>} Buffer for accumulating incoming 'thinking' text chunks. */
   const thinkingChunkBuffer = useRef('');
-  /** @type {React.RefObject<NodeJS.Timeout|null>} Reference to the timeout for updating the thinking output display. */
+  /** @type {React.RefObject<NodeJS.Timeout|null>} Reference to the timeout for debouncing thinking output display updates. */
   const thinkingUpdateTimeout = useRef(null);
 
-  /** @state Stores the array of video objects suggested by the AI. */
+  /** @state Stores the array of video objects suggested by the AI. @type {Array<SuggestedVideo>} */
   const [suggestedVideos, setSuggestedVideos] = useState([]);
-  /** @state Stores the last query submitted by the user. */
+  /** @state Stores the last query submitted by the user. @type {string} */
   const [lastQuery, setLastQuery] = useState('');
-  /** @state Stores the accumulated 'thinking' output from the AI. */
+  /** @state Stores the accumulated 'thinking' output from the AI. @type {string} */
   const [thinkingOutput, setThinkingOutput] = useState('');
-  /** @state Determines which tab ('Results' or 'Thinking') is currently active in the UI. */
+  /** @state Determines which tab ('Results' or 'Thinking') is currently active in the UI. @type {string} */
   const [activeOutputTab, setActiveOutputTab] = useState('Results');
-  /** @state Flag indicating whether the AI is currently streaming a response. */
+  /** @state Flag indicating whether the AI is currently streaming a response. @type {boolean} */
   const [isStreaming, setIsStreaming] = useState(false);
-  /** @state Counter for WebSocket reconnection attempts. */
+  /** @state Counter for WebSocket reconnection attempts. @type {number} */
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
 
   /**
-   * Clears all WebSocket related timers (ping, reconnect, thinking update).
+   * Clears all WebSocket related timers: ping interval, reconnect timeout, and thinking update timeout.
+   * @type {() => void}
    */
   const clearWebSocketTimers = useCallback(() => {
     if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
@@ -67,7 +83,9 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
 
   /**
    * Flushes the buffered 'thinking' text chunks to the `thinkingOutput` state
-   * and clears the update timeout.
+   * and clears the thinking update timeout. This ensures all received 'thinking'
+   * data is rendered.
+   * @type {() => void}
    */
   const flushThinkingBuffer = useCallback(() => {
     if (thinkingChunkBuffer.current.length > 0) {
@@ -83,6 +101,8 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
   /**
    * Intentionally closes the WebSocket connection and cleans up associated resources.
    * This includes flushing any buffered thinking output and clearing all timers.
+   * Event handlers are nullified before closing to prevent them from firing during the close operation.
+   * @type {() => void}
    */
   const closeWebSocket = useCallback(() => {
     flushThinkingBuffer();
@@ -100,13 +120,16 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
   }, [clearWebSocketTimers, flushThinkingBuffer]);
 
   /**
-   * Initiates or re-initiates a WebSocket connection for the given playlist ID.
-   * If a playlist ID is provided, it closes any existing connection and establishes a new one.
-   * If no playlist ID is provided, it closes any existing connection.
+   * Initiates or re-initiates a WebSocket connection for the given playlist ID and selected AI model.
+   * If a `playlistIdToConnect` is provided, it closes any existing connection and establishes a new one.
+   * If no `playlistIdToConnect` is provided, it ensures any existing connection is closed.
    * Sets up event handlers for open, message, close, and error events.
+   * On open, it sends an 'INIT_CHAT' message with the playlist ID and selected model ID.
+   * Implements a ping mechanism to keep the connection alive.
    * @param {string} playlistIdToConnect - The ID of the playlist to connect the chat to.
+   * @type {(playlistIdToConnect: string) => void}
    */
-  const startWebSocketConnection = useCallback((playlistIdToConnect) => { // selectedModelId will be in closure
+  const startWebSocketConnection = useCallback((playlistIdToConnect) => {
     if (!playlistIdToConnect) {
       if (ws.current) {
         console.log('No playlist selected, closing WebSocket.');
@@ -243,17 +266,21 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
     setAppPopup,
     setAppError,
     flushThinkingBuffer,
-    setActiveOutputTab, // Trailing comma for multi-line array
+    setActiveOutputTab,
   ]);
 
   /** @type {React.RefObject<string|null>} Stores the previously selected playlist ID to detect changes. */
   const prevSelectedPlaylistIdRef = useRef(selectedPlaylistId);
 
   /**
-   * Effect to manage WebSocket connection based on `selectedPlaylistId` and `isPlaylistDataReady`.
-   * It starts a new connection when a playlist is selected and data is ready.
-   * It closes the connection if the playlist is deselected or data is not ready.
-   * It also handles clearing chat state when the playlist changes.
+   * Effect to manage the WebSocket connection lifecycle based on changes to
+   * `selectedPlaylistId` and `isPlaylistDataReady`.
+   * - If a playlist is selected and its data is ready:
+   *   - Clears previous chat state if the playlist ID has changed.
+   *   - Starts a new WebSocket connection.
+   * - If no playlist is selected or data is not ready, closes any existing WebSocket connection.
+   * - Ensures WebSocket is closed on component unmount or when dependencies trigger a re-evaluation
+   *   that should terminate the connection.
    */
   useEffect(() => {
     if (selectedPlaylistId && isPlaylistDataReady) {
@@ -292,9 +319,11 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
 
   /**
    * Handles the submission of a user's query to the WebSocket.
-   * Validates that a playlist is selected and the WebSocket is open.
-   * Sends the query and updates UI state (lastQuery, clears previous results/thinking).
+   * Validates that a playlist is selected and the WebSocket connection is open.
+   * Sends the query and updates UI state (lastQuery, clears previous results/thinking, sets streaming state).
+   * Handles potential errors during query submission.
    * @param {string} query - The query text submitted by the user.
+   * @type {(query: string) => Promise<void>}
    */
   const handleQuerySubmit = useCallback(async (query) => {
     if (!selectedPlaylistId) {
@@ -341,7 +370,7 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
     selectedPlaylistId,
     setAppPopup,
     setAppError,
-    setActiveOutputTab, // Trailing comma for multi-line array
+    setActiveOutputTab,
   ]);
 
   return {
@@ -355,4 +384,4 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
   };
 }
 
-export default useWebSocketChat;
+export {useWebSocketChat};

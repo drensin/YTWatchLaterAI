@@ -7,7 +7,7 @@ import React from 'react';
 /**
  * Icon for the 'Playlists' (Home) navigation item.
  * Uses the "House" icon from the designer's HTML.
- * @returns {React.ReactElement} SVG element for the Home icon.
+ * @returns {JSX.Element} SVG element for the Home icon.
  */
 const PlaylistsNavIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
@@ -18,7 +18,7 @@ const PlaylistsNavIcon = () => (
 /**
  * Icon for the 'Chat' navigation item.
  * Uses the "MagnifyingGlass" (Explore) icon from the designer's HTML as a placeholder.
- * @returns {React.ReactElement} SVG element for the Magnifying Glass icon.
+ * @returns {JSX.Element} SVG element for the Magnifying Glass icon.
  */
 const ChatNavIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
@@ -29,7 +29,7 @@ const ChatNavIcon = () => (
 /**
  * Icon for the 'Settings' navigation item.
  * Uses the "Gear" icon from the designer's HTML.
- * @returns {React.ReactElement} SVG element for the Gear icon.
+ * @returns {JSX.Element} SVG element for the Gear icon.
  */
 const SettingsNavIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
@@ -40,9 +40,9 @@ const SettingsNavIcon = () => (
 /**
  * Renders the bottom navigation bar.
  * @param {object} props - The component's props.
- * @param {string} props.currentScreen - The currently active screen.
- * @param {Function} props.onNavigate - Callback function to handle navigation.
- * @returns {React.ReactElement} The rendered bottom navigation bar.
+ * @param {string} props.currentScreen - The identifier of the currently active screen.
+ * @param {(screenName: string) => void} props.onNavigate - Callback function invoked when a navigation item is clicked.
+ * @returns {JSX.Element} The rendered bottom navigation bar.
  */
 function BottomNavigationBar({currentScreen, onNavigate}) {
   const navItems = [
@@ -68,4 +68,4 @@ function BottomNavigationBar({currentScreen, onNavigate}) {
   );
 }
 
-export default BottomNavigationBar;
+export {BottomNavigationBar};
