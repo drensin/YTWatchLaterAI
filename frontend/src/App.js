@@ -37,6 +37,11 @@ function App() {
   const [isPlaylistDataReadyForChat, setIsPlaylistDataReadyForChat] = useState(false);
   /** @state Tracks the currently active screen/view in the application. */
   const [currentScreen, setCurrentScreen] = useState('playlists');
+  /** @state Stores the list of available Gemini models fetched from the backend. */
+  const [availableModels, setAvailableModels] = useState([]);
+  /** @state Stores the ID of the Gemini model currently selected by the user. */
+  const [selectedModelId, setSelectedModelId] = useState('');
+
 
   /**
    * Navigates to the specified screen.
@@ -52,12 +57,78 @@ function App() {
     isLoggedIn,
     isAuthorizedUser,
     isYouTubeLinkedByAuthCheck,
+    availableModels: fetchedModels, // Renamed to avoid conflict with state
     authChecked,
     appAuthorizationError,
     isLoadingAuth,
     handleFirebaseLogin,
     handleFirebaseLogout,
   } = useAuth(setPopup);
+
+  // Effect to update availableModels state when fetchedModels changes,
+  // and filter out "tts" or "vision" models.
+  useEffect(() => {
+    if (fetchedModels && fetchedModels.length > 0) {
+      const filteredModels = fetchedModels.filter((modelName) => {
+        const lowerModelName = modelName.toLowerCase();
+        return !lowerModelName.includes('tts') && !lowerModelName.includes('vision');
+      });
+      setAvailableModels(filteredModels);
+      if (filteredModels.length === 0 && fetchedModels.length > 0) {
+        console.warn('All available models were filtered out (tts/vision). Check model list from backend if this is unexpected.');
+      }
+    } else if (fetchedModels) { // fetchedModels is an empty array
+      setAvailableModels([]);
+    }
+  }, [fetchedModels]);
+
+  // Effect to manage selectedModelId based on localStorage and the (now filtered) availableModels
+  useEffect(() => {
+    if (availableModels.length > 0) {
+      const storedPreference = localStorage.getItem('preferredGeminiModel');
+
+      if (storedPreference && availableModels.includes(storedPreference)) {
+        setSelectedModelId(storedPreference);
+      } else {
+        // No stored preference, or stored preference is no longer valid.
+        // Backend already sorts availableModels alphabetically descending.
+        // Try to find the first model containing "flash"
+        const flashModel = availableModels.find((modelName) => modelName.toLowerCase().includes('flash'));
+
+        let defaultToSet;
+        if (flashModel) {
+          defaultToSet = flashModel;
+        } else if (availableModels.length > 0) {
+          // If no "flash" model, use the first model from the (descending sorted) list
+          defaultToSet = availableModels[0];
+        } else {
+          // Absolute fallback if availableModels is somehow empty (should not happen if backend works)
+          defaultToSet = 'models/gemini-1.5-flash-latest'; // Or some other hardcoded app default
+        }
+
+        if (defaultToSet) {
+          setSelectedModelId(defaultToSet);
+          localStorage.setItem('preferredGeminiModel', defaultToSet);
+          // console.log('Default AI model set to:', defaultToSet); // Line removed
+        }
+      }
+    }
+  }, [availableModels]);
+
+  /**
+   * Handles changes to the selected Gemini model.
+   * Updates the state and stores the preference in localStorage.
+   * @param {string} newModelId - The ID of the newly selected model.
+   */
+  const handleModelSelection = (newModelId) => {
+    setSelectedModelId(newModelId);
+    localStorage.setItem('preferredGeminiModel', newModelId);
+    if (setPopup) {
+      const modelDisplayName = newModelId.split('/').pop(); // Get 'gemini-x-y-latest' part
+      setPopup({visible: true, message: `AI Model set to: ${modelDisplayName}`, type: 'info'});
+      setTimeout(() => setPopup((p) => ({...p, visible: false})), 2000);
+    }
+  };
 
   // YouTube API interaction state and handlers.
   const {
@@ -84,7 +155,7 @@ function App() {
     setActiveOutputTab,
     isStreaming,
     handleQuerySubmit: originalHandleQuerySubmit,
-  } = useWebSocketChat(selectedPlaylistId, isPlaylistDataReadyForChat, setPopup, setError);
+  } = useWebSocketChat(selectedPlaylistId, isPlaylistDataReadyForChat, setPopup, setError, selectedModelId);
 
   /**
    * Handles the submission of a new query to the chat, setting the active output tab to 'Thinking'.
@@ -188,7 +259,6 @@ function App() {
       navigateTo('chat');
     } else {
       // Error handled by useYouTube hook via setPopup
-      // Optionally, show a generic popup here if specific error handling in hook is not enough
       setPopup({visible: true, message: 'Failed to load playlist items.', type: 'error'});
       setTimeout(() => {
         setPopup((p) => ({...p, visible: false}));
@@ -207,7 +277,6 @@ function App() {
       const fetchSuccess = await fetchPlaylistItems(selectedPlaylistId);
       if (fetchSuccess) {
         setIsPlaylistDataReadyForChat(true);
-        // Show success feedback
         if (setPopup) {
           setPopup({visible: true, message: 'Playlist refreshed.', type: 'info'});
         }
@@ -217,9 +286,7 @@ function App() {
           }
         }, 2000);
       }
-      // If fetchSuccess is false, error is handled by useYouTube hook via setPopup
     } else {
-      // If no playlist is selected
       if (setPopup) {
         setPopup({visible: true, message: 'Please select a playlist first.', type: 'error'});
       }
@@ -239,32 +306,26 @@ function App() {
    * authentication check is not complete.
    */
   const renderScreenContent = () => {
-    // Wait for authentication check to complete before rendering anything
     if (!authChecked) {
-      return null; // Or a global loading indicator
+      return null;
     }
 
-    // Render login screen if user is not logged in
     if (!isLoggedIn) {
       return <LoginScreen onLogin={handleFirebaseLogin} />;
     }
 
-    // Render status messages if user is logged in but not authorized
     if (!isAuthorizedUser) {
       return <UserStatusMessages currentUser={currentUser} isLoggedIn={isLoggedIn} isAuthorizedUser={isAuthorizedUser} authChecked={authChecked} />;
     }
 
-    // Render YouTube connection view if user is authorized but YouTube is not linked
     if (!isYouTubeLinked) {
       return <ConnectYouTubeView onConnectYouTube={handleConnectYouTube} error={youtubeSpecificError} appAuthorizationError={appAuthorizationError} />;
     }
 
-    // Main content rendering based on currentScreen
     switch (currentScreen) {
       case 'playlists':
         return <PlaylistsScreen userPlaylists={userPlaylists} onSelectPlaylist={handleSelectPlaylistFromList} />;
       case 'chat':
-        // If trying to access chat screen without a selected playlist, guide user back.
         if (!selectedPlaylistId) {
           return (
             <div style={{padding: '20px', textAlign: 'center'}}>
@@ -274,7 +335,6 @@ function App() {
             </div>
           );
         }
-        // Render chat screen with all necessary props
         return (
           <ChatScreen
             userPlaylists={userPlaylists}
@@ -293,10 +353,25 @@ function App() {
           />
         );
       case 'settings':
-        // Placeholder for settings screen
-        return <div style={{padding: '20px', textAlign: 'center'}}><h1>Settings</h1><p>Settings content will go here.</p><button onClick={handleFirebaseLogout}>Logout</button></div>;
+        return (
+          <div style={{padding: '20px', textAlign: 'center'}}>
+            <h1>Settings</h1>
+            <div>
+              <label htmlFor="model-select">Select AI Model: </label>
+              <select id="model-select" value={selectedModelId} onChange={(e) => handleModelSelection(e.target.value)} disabled={availableModels.length === 0}>
+                {availableModels.length === 0 && <option value="">Loading models...</option>}
+                {availableModels.map((model) => (
+                  <option key={model} value={model}>
+                    {model.split('/').pop()}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <br />
+            <button onClick={handleFirebaseLogout}>Logout</button>
+          </div>
+        );
       default:
-        // Default to playlists screen if currentScreen is unrecognized
         return <PlaylistsScreen userPlaylists={userPlaylists} onSelectPlaylist={handleSelectPlaylistFromList} />;
     }
   };
@@ -309,12 +384,10 @@ function App() {
    * no header should be displayed (e.g., on login or status screens).
    */
   const renderCurrentScreenHeader = () => {
-    // Do not render header if user is not fully authenticated and YouTube linked
     if (!isLoggedIn || !isAuthorizedUser || !isYouTubeLinked) {
       return null;
     }
 
-    // Do not render header on intermediate auth/status screens
     if (currentScreen === 'login' ||
         (isLoggedIn && !isAuthorizedUser) ||
         (isLoggedIn && isAuthorizedUser && !isYouTubeLinked)) {
@@ -322,21 +395,17 @@ function App() {
     }
 
     let title = '';
-    // Left icon (e.g., back button) is not currently used in these primary screens.
     const onLeftIconClick = null;
-    // Right icon (e.g., settings or other actions) is not currently used.
     const onRightIconClick = null;
 
-    // Determine title based on the current screen
     if (currentScreen === 'playlists') {
       title = 'Playlists';
     } else if (currentScreen === 'chat') {
       const selected = userPlaylists.find((p) => p.id === selectedPlaylistId);
-      title = selected ? `Playlist: ${selected.title}` : 'Chat'; // Updated title format
+      title = selected ? `Playlist: ${selected.title}` : 'Chat';
     } else if (currentScreen === 'settings') {
       title = 'Settings';
     } else {
-      // Should not happen if currentScreen is always valid, but as a fallback:
       return null;
     }
 
@@ -349,7 +418,6 @@ function App() {
     );
   };
 
-  // Main application layout
   return (
     <div className="App">
       {showOverlay && <LoadingOverlay />}

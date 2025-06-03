@@ -26,6 +26,7 @@ const CLOUD_FUNCTIONS_BASE_URL = {
  * - `isLoggedIn`: (boolean) True if user is logged in.
  * - `isAuthorizedUser`: (boolean) True if user is authorized by allow-list.
  * - `isYouTubeLinkedByAuthCheck`: (boolean) True if YouTube was linked per backend check.
+ * - `availableModels`: (Array<string>) List of available Gemini model IDs.
  * - `authChecked`: (boolean) True if initial auth check has completed.
  * - `appAuthorizationError`: (string|null) Error message for app-level authorization issues.
  * - `isLoadingAuth`: (boolean) True if authentication/authorization check is in progress.
@@ -39,6 +40,7 @@ function useAuth(setAppPopup) {
   // This state reflects YouTube linkage as per checkUserAuthorization,
   // distinct from linkage status derived from OAuth redirect or API calls.
   const [isYouTubeLinkedByAuthCheck, setIsYouTubeLinkedByAuthCheck] = useState(false);
+  const [availableModels, setAvailableModels] = useState([]); // New state for models
   const [appAuthorizationError, setAppAuthorizationError] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true); // Start true for initial check
@@ -49,6 +51,7 @@ function useAuth(setAppPopup) {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setIsLoadingAuth(true); // Show loading during async checks
       setAppAuthorizationError(null); // Clear previous app auth errors
+      setAvailableModels([]); // Reset models on auth change
 
       if (user) {
         setCurrentUser(user);
@@ -56,15 +59,16 @@ function useAuth(setAppPopup) {
         try {
           const idToken = await user.getIdToken();
           const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.checkUserAuthorization, {
-            method: 'POST',
+            method: 'POST', // Or GET, ensure backend supports it
             headers: {'Authorization': `Bearer ${idToken}`, 'Content-Type': 'application/json'},
           });
           const authZData = await response.json();
 
           if (response.ok && authZData.authorized) {
             setIsAuthorizedUser(true);
-            setIsYouTubeLinkedByAuthCheck(!!authZData.youtubeLinked); // Set based on backend
-            console.log('User is authorized by allow-list. YouTube linked per backend:', !!authZData.youtubeLinked);
+            setIsYouTubeLinkedByAuthCheck(!!authZData.youtubeLinked);
+            setAvailableModels(authZData.availableModels || []); // Set available models
+            console.log('User is authorized. YouTube linked:', !!authZData.youtubeLinked, 'Models:', authZData.availableModels);
           } else {
             setIsAuthorizedUser(false);
             setIsYouTubeLinkedByAuthCheck(false);
@@ -72,7 +76,7 @@ function useAuth(setAppPopup) {
             console.warn('User not on allow-list or backend error:', user.email, authZData.error);
           }
         } catch (err) {
-          console.error('Error checking user authorization (allow-list):', err);
+          console.error('Error checking user authorization (allow-list) or fetching models:', err);
           setIsAuthorizedUser(false);
           setIsYouTubeLinkedByAuthCheck(false);
           setAppAuthorizationError('Failed to verify app authorization status.');
@@ -83,6 +87,7 @@ function useAuth(setAppPopup) {
         setIsAuthorizedUser(false);
         setIsYouTubeLinkedByAuthCheck(false);
         setAppAuthorizationError(null);
+        // setAvailableModels([]); // Already reset at the start of onAuthStateChanged callback
       }
       setAuthChecked(true);
       setIsLoadingAuth(false);
@@ -142,6 +147,7 @@ function useAuth(setAppPopup) {
     isLoggedIn,
     isAuthorizedUser,
     isYouTubeLinkedByAuthCheck,
+    availableModels, // Expose available models
     authChecked,
     appAuthorizationError,
     isLoadingAuth,

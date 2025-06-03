@@ -25,9 +25,10 @@ const MAX_RECONNECT_DELAY_MS = 30000;
  * @param {boolean} isPlaylistDataReady - Flag indicating if playlist data is ready for chat.
  * @param {function(config: {visible: boolean, message: string, type: string}): void} setAppPopup - Function to show app-level popups.
  * @param {function(string|null): void} setAppError - Function to set app-level errors.
+ * @param {string} selectedModelId - The ID of the user-selected Gemini model.
  * @returns {WebSocketChatHookReturn} Chat state and handlers.
  */
-function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, setAppError) {
+function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, setAppError, selectedModelId) {
   /** @type {React.RefObject<WebSocket|null>} Reference to the WebSocket instance. */
   const ws = useRef(null);
   /** @type {React.RefObject<NodeJS.Timeout|null>} Reference to the ping interval timer. */
@@ -105,7 +106,7 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
    * Sets up event handlers for open, message, close, and error events.
    * @param {string} playlistIdToConnect - The ID of the playlist to connect the chat to.
    */
-  const startWebSocketConnection = useCallback((playlistIdToConnect) => {
+  const startWebSocketConnection = useCallback((playlistIdToConnect) => { // selectedModelId will be in closure
     if (!playlistIdToConnect) {
       if (ws.current) {
         console.log('No playlist selected, closing WebSocket.');
@@ -123,8 +124,14 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
       console.log('WebSocket connected. Initializing chat...');
       setReconnectAttempt(0); // Reset reconnect attempts on successful connection
       clearWebSocketTimers(); // Clear any lingering reconnect timers
-      // Send INIT_CHAT message to backend
-      ws.current.send(JSON.stringify({type: 'INIT_CHAT', payload: {playlistId: playlistIdToConnect}}));
+      // Send INIT_CHAT message to backend, including the selected model ID
+      ws.current.send(JSON.stringify({
+        type: 'INIT_CHAT',
+        payload: {
+          playlistId: playlistIdToConnect,
+          modelId: selectedModelId, // Include the selected model ID
+        },
+      }));
       if (setAppPopup) setAppPopup({visible: true, message: 'Chat service connected.', type: 'info'});
       setTimeout(() => {
         if (setAppPopup) setAppPopup((p) => ({...p, visible: false}));
@@ -227,7 +234,17 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
 
     ws.current.onclose = handleWSCloseOrError;
     ws.current.onerror = handleWSCloseOrError;
-  }, [selectedPlaylistId, reconnectAttempt, closeWebSocket, clearWebSocketTimers, setAppPopup, setAppError, flushThinkingBuffer, setActiveOutputTab]);
+  }, [
+    selectedPlaylistId,
+    selectedModelId,
+    reconnectAttempt,
+    closeWebSocket,
+    clearWebSocketTimers,
+    setAppPopup,
+    setAppError,
+    flushThinkingBuffer,
+    setActiveOutputTab, // Trailing comma for multi-line array
+  ]);
 
   /** @type {React.RefObject<string|null>} Stores the previously selected playlist ID to detect changes. */
   const prevSelectedPlaylistIdRef = useRef(selectedPlaylistId);
@@ -320,7 +337,12 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
       thinkingChunkBuffer.current = '';
       if (thinkingUpdateTimeout.current) clearTimeout(thinkingUpdateTimeout.current);
     }
-  }, [selectedPlaylistId, setAppPopup, setAppError, setActiveOutputTab]);
+  }, [
+    selectedPlaylistId,
+    setAppPopup,
+    setAppError,
+    setActiveOutputTab, // Trailing comma for multi-line array
+  ]);
 
   return {
     suggestedVideos,
