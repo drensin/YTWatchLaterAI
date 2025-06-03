@@ -1,0 +1,52 @@
+import React from 'react';
+
+// Placeholder for a potential icon component or direct SVG
+const SettingsIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
+    <path d="M222.62,100.88A3.29,3.29,0,0,0,224,103.2V152.8a3.29,3.29,0,0,0,1.38,2.32,8,8,0,0,1-4.2,14.07l-20.52-5.47a72.12,72.12,0,0,1-21.34,21.34l5.47,20.52a8,8,0,0,1-14.07,4.2,3.29,3.29,0,0,0-2.32-1.38H103.2a3.29,3.29,0,0,0-2.32,1.38,8,8,0,0,1-14.07-4.2l-5.47-20.52a72.12,72.12,0,0,1-21.34-21.34l-20.52,5.47a8,8,0,0,1-4.2-14.07,3.29,3.29,0,0,0-1.38-2.32V103.2a3.29,3.29,0,0,0-1.38-2.32,8,8,0,0,1,4.2-14.07l20.52,5.47A72.12,72.12,0,0,1,80,71.34L74.53,50.82a8,8,0,0,1,14.07-4.2,3.29,3.29,0,0,0,2.32,1.38H152.8a3.29,3.29,0,0,0,2.32-1.38,8,8,0,0,1,14.07,4.2l5.47,20.52a72.12,72.12,0,0,1,21.34,21.34l20.52-5.47a8,8,0,0,1,4.2,14.07ZM128,96a32,32,0,1,0,32,32A32,32,0,0,0,128,96Z"></path>
+  </svg>
+);
+
+const BackArrowIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
+    <path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm36-88a8,8,0,0,1-8,8H107.31l18.35,18.34a8,8,0,0,1-11.32,11.32l-32-32a8,8,0,0,1,0-11.32l32-32a8,8,0,0,1,11.32,11.32L107.31,120H156A8,8,0,0,1,164,128Z"></path>
+  </svg>
+);
+
+
+/**
+ * Renders a generic screen header.
+ * @param {object} props - The component's props.
+ * @param {string} props.title - The title of the screen.
+ * @param {React.ReactNode} [props.leftIcon] - Optional icon/button for the left side.
+ * @param {Function} [props.onLeftIconClick] - Optional click handler for the left icon.
+ * @param {React.ReactNode} [props.rightIcon] - Optional icon/button for the right side.
+ * @param {Function} [props.onRightIconClick] - Optional click handler for the right icon.
+ * @returns {React.ReactElement} The rendered screen header.
+ */
+function ScreenHeader({title, leftIcon, onLeftIconClick, rightIcon, onRightIconClick}) {
+  const finalRightIcon = rightIcon || (onRightIconClick ? <SettingsIcon /> : null);
+  const finalLeftIcon = leftIcon || (onLeftIconClick ? <BackArrowIcon /> : null);
+
+  return (
+    <header className="screen-header">
+      <div className="screen-header-action-left">
+        {finalLeftIcon && (
+          <button onClick={onLeftIconClick} className="screen-header-icon-button" aria-label="Header left action">
+            {finalLeftIcon}
+          </button>
+        )}
+      </div>
+      <h1 className="screen-header-title">{title}</h1>
+      <div className="screen-header-action-right">
+        {finalRightIcon && (
+          <button onClick={onRightIconClick} className="screen-header-icon-button" aria-label="Header right action">
+            {finalRightIcon}
+          </button>
+        )}
+      </div>
+    </header>
+  );
+}
+
+export default ScreenHeader;

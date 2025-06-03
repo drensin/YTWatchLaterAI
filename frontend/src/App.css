@@ -1,10 +1,20 @@
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* Prevent body scrollbars */
+}
+
 .App {
   text-align: center;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100%;
+  overflow: hidden; /* Prevent .App itself from scrolling */
 }
 
+/* Remove .App-header as it's replaced by screen-specific headers */
+/*
 .App-header {
   background-color: #282c34;
   display: flex;
@@ -16,23 +26,20 @@
   padding: 10px 20px; 
 }
 
-/* Removed #app-logo styles */
-
-.app-header-title { /* New style for the ReelWorthy text title */
-  font-size: 1.6em; /* Adjust as needed */
+.app-header-title { 
+  font-size: 1.6em; 
   font-weight: bold;
-  margin: 0; /* Remove default h1 margin */
-  color: white; /* Ensure it's white */
-  flex-shrink: 0; /* Prevent shrinking if header gets crowded */
+  margin: 0; 
+  color: white; 
+  flex-shrink: 0; 
 }
-
-/* Removed .header-title-text and .header-title-text p styles */
 
 .header-login-control {
-  flex-shrink: 0; /* Prevent login icon from shrinking */
+  flex-shrink: 0; 
 }
+*/
 
-/* Styles for the new text-based Login/Logout button */
+/* Styles for the new text-based Login/Logout button (used in App.js for now) */
 .auth-button {
   background-color: #fff; /* White background */
   color: #000; /* Black text */
@@ -52,47 +59,39 @@
   background-color: #f0f0f0; /* Light grey on hover */
 }
 
-/* Remove old icon button styles if they are no longer used by anything else */
-/* .login-icon-button, .logout-icon-button { ... } */
-/* .login-icon-button img, .logout-icon-button img { ... } */
-
 
 main {
-  padding: 20px;
-  flex-grow: 1; /* Allows main to take up available space */
-  max-width: 1200px; /* Max width for content area */
+  padding: 0; /* Screens will handle their own padding */
+  flex-grow: 1; 
   width: 100%;
-  margin: 0 auto; /* Center content */
   box-sizing: border-box;
+  display: flex; 
+  flex-direction: column; 
 }
 
 form {
   margin-bottom: 20px;
-  display: flex; /* For aligning input and send button */
-  align-items: center; /* Vertically align items */
+  display: flex; 
+  align-items: center; 
 }
 
 input[type="text"] {
   padding: 10px;
-  /* margin-right: 10px; */ /* Will be handled by send-button margin */
   border: 1px solid #ccc;
   border-radius: 4px;
-  /* width: 70%; */ /* Let flexbox handle width */
   flex-grow: 1; 
-  /* max-width: 400px; */ /* Removing max-width to allow it to match select if select grows larger */
   box-sizing: border-box;
-  height: 40px; /* Explicit height for alignment */
+  height: 40px; 
 }
 
-/* General button styles - apply to login button, others will override */
 button {
   padding: 10px 15px;
-  background-color: #61dafb;
+  background-color: #61dafb; /* Default button color, will be overridden */
   border: none;
   border-radius: 4px;
   cursor: pointer;
   font-size: 1em;
-  height: 40px; /* Explicit height for alignment */
+  height: 40px; 
   box-sizing: border-box;
 }
 
@@ -105,16 +104,15 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* Specific styles for icon buttons to override general button styles */
 .refresh-button, .send-button {
   background: none;
   border: none;
-  color: #282c34; /* Default icon color */
-  padding: 0 8px; /* Minimal horizontal padding */
+  color: #282c34; 
+  padding: 0 8px; 
   margin-left: 8px;
-  font-size: 1.5em; /* Adjust icon size */
-  line-height: 1; /* Helps with vertical alignment of icon character */
-  height: 40px; /* Match input/select height */
+  font-size: 1.5em; 
+  line-height: 1; 
+  height: 40px; 
   display: flex;
   align-items: center;
   justify-content: center;
@@ -122,7 +120,7 @@ button:disabled {
 
 .refresh-button:hover, .send-button:hover {
   background: none;
-  color: #61dafb; /* Icon color change on hover */
+  color: #61dafb; 
 }
 
 .refresh-button:disabled, .send-button:disabled {
@@ -130,7 +128,6 @@ button:disabled {
   color: #ccc;
 }
 
-/* Ensure the send button icon is a bit larger if desired */
 .send-button {
   font-size: 1.8em;
 }
@@ -141,186 +138,106 @@ ul {
   padding: 0;
 }
 
-/* Styles for .video-list and .video-list-item from App.js */
 .video-list-item {
   background-color: #f9f9f9;
   border: 1px solid #eee;
-  padding: 15px; /* Increased padding */
-  margin-bottom: 15px; /* Increased margin */
+  padding: 15px; 
+  margin-bottom: 15px; 
   border-radius: 4px;
   text-align: left;
-  display: flex; /* Use flexbox for layout */
-  flex-direction: row; /* Default: image on left, text on right */
-  align-items: flex-start; /* Align items to the top */
-  /* overflow: hidden; was here for fixed height, remove if items can grow */
+  display: flex; 
+  flex-direction: row; 
+  align-items: flex-start; 
 }
 
-.video-list-item img.video-thumbnail, /* Added class for specificity */
-.video-list-item img { /* Fallback */
+.video-list-item img.video-thumbnail, 
+.video-list-item img { 
   width: 120px;
   height: 90px;
-  margin-right: 15px; /* Increased margin */
-  object-fit: cover; /* Ensure image covers the area without distortion */
-  flex-shrink: 0; /* Prevent image from shrinking */
+  margin-right: 15px; 
+  object-fit: cover; 
+  flex-shrink: 0; 
 }
 
-.video-list-item div { /* Text content container */
-  flex-grow: 1; /* Allow text content to take remaining space */
+.video-list-item div { 
+  flex-grow: 1; 
 }
 
 .video-list-item h4 {
   margin-top: 0;
-  margin-bottom: 8px; /* Added margin */
+  margin-bottom: 8px; 
 }
 
 .video-list-item p {
-  margin-top: 4px; /* Added margin */
-  margin-bottom: 4px; /* Added margin */
-  font-size: 0.9em; /* Slightly smaller paragraph text */
+  margin-top: 4px; 
+  margin-bottom: 4px; 
+  font-size: 0.9em; 
 }
 
 .video-description {
-  white-space: pre-wrap; /* Preserve whitespace and newlines */
+  white-space: pre-wrap; 
 }
 
-.video-list-item p.video-reason { /* Style for the reason paragraph */
-  /* Ensure it wraps and is visible */
+.video-list-item p.video-reason { 
   white-space: normal;
   word-break: break-word;
-  color: green; /* Retain from inline style */
-  font-style: italic; /* Retain from inline style */
+  color: green; 
+  font-style: italic; 
 }
 
-
-/* Playlist Selector Div adjustments - Apply to all screen sizes */
-main > div:first-child { /* This is the playlist selector container */
-  display: flex;
+main > div:first-child { 
+  /* This selector might be too broad if other screens don't have this as first child */
+  /* display: flex;
   flex-direction: row; 
   align-items: center; 
   justify-content: flex-start; 
   margin-bottom: 20px; 
-  flex-wrap: nowrap; /* Ensure no wrapping */
+  flex-wrap: nowrap; */
 }
 
-main > div:first-child label {
-  margin-right: 10px; 
-  white-space: nowrap;
-  flex-shrink: 0; /* Prevent label from shrinking */
-}
-
-main > div:first-child select {
-  font-size: 1em; 
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  flex-grow: 1; /* Allow select to take up space */
-  flex-shrink: 1; /* Allow select to shrink if needed */
-  min-width: 150px; 
-  height: 40px; 
-  box-sizing: border-box;
-  margin-right: 0; /* Button will have margin-left */
-}
-
-/* .refresh-button styles are defined globally, ensure it doesn't shrink */
-.refresh-button {
-  flex-shrink: 0; /* Prevent button from shrinking */
-}
-
+/* ... (other existing styles for playlist selector, media queries, etc. are kept below) ... */
 /* Media Queries for Responsiveness */
 @media (max-width: 768px) {
-  .App-header {
-    font-size: calc(12px + 2vmin); /* Adjust font size */
-  }
+  /* .App-header {
+    font-size: calc(12px + 2vmin); 
+  } */
   
-  /* Specific adjustments for playlist selector on smaller screens, if any, can go here. */
-  /* For now, the default row behavior is desired across all sizes. */
-  /* If select needs to be even smaller on very small screens: */
-  /* main > div:first-child select { min-width: 120px; } */
-
-
-  /* Chat form styling */
-  /* The global 'form' style `display: flex; align-items: center;` handles the row layout and vertical alignment. */
-  /* `input[type="text"]` has `flex-grow: 1` and `height: 40px`. */
-  /* `.send-button` has `height: 40px`. */
-  /* This should make the chat input and send button vertically aligned and same height. */
-  /* To make chat input and playlist select the same width, we can give them a shared class or rely on flex behavior. */
-  /* For now, let's ensure their container (main > div:first-child for select, and form for input) are structured well. */
-  /* The select has min-width: 200px and flex-grow:1. The input has flex-grow:1. */
-  /* If they are in different flex containers that don't align, their widths might differ. */
-  /* Let's try to give them a similar max-width for consistency on larger screens if they are not in the same direct layout parent */
-  main > div:first-child select, 
-  form input[type="text"] { /* Targeting both select and chat input */
-    /* max-width: 450px; */ /* Example shared max-width, adjust as needed */
-    /* This might be better handled by a shared parent container for these two rows */
-  }
-
-
-  /* Responsive adjustments for the form specifically */
-  /* The general form stacking for 768px might be too aggressive now */
-  /* Let's ensure the chat form stays row-oriented unless very small */
-  
-  /* Keep input[type="text"] and form button (general) stacking for other forms if any */
-  /* but for the chat form specifically, we want it to be a row */
-  /* The form element itself already has display:flex and align-items:center from above */
-  /* We just need to ensure its children (input and .send-button) behave */
-
-  /* The media query for form stacking at 768px: */
-  /* form {
-    display: flex;
+  .video-list-item {
     flex-direction: column; 
-    align-items: stretch; 
+    align-items: flex-start; 
+    text-align: left; 
   }
-  form button {
-    width: 100%; 
-  }
-  input[type="text"] {
-    width: 100%; 
+
+  .video-list-item img.video-thumbnail, 
+  .video-list-item img { 
     margin-right: 0;
     margin-bottom: 10px; 
-  } */
-  /* The above general form stacking might conflict. Let's assume ChatInterface's form is the primary one we care about for this row style. */
-  /* If other forms exist and need stacking, they'd need specific classes or more specific selectors. */
-  /* For now, the global `form { display: flex; align-items: center; }` will keep the chat input and send button in a row. */
-  /* The `input[type="text"]` width will be controlled by `flex-grow: 1` */
-
-
-  .video-list-item {
-    flex-direction: column; /* Stack image and text content */
-    align-items: flex-start; /* Align items to the top-left */
-    text-align: left; /* Align text to the left */
+    width: 100%; 
+    max-width: 160px; 
+    height: auto; 
   }
 
-  .video-list-item img.video-thumbnail, /* Using specific class if available */
-  .video-list-item img { /* Fallback for general img if class not there */
-    margin-right: 0;
-    margin-bottom: 10px; /* Space between image and text */
-    width: 100%; /* Allow image to take full width of its container */
-    max-width: 160px; /* Reduced max-width for smaller screens */
-    height: auto; /* Maintain aspect ratio */
+  .video-list-item div.video-details, 
+  .video-list-item div { 
+    width: 100%; 
+    min-width: 0; 
   }
 
-  .video-list-item div.video-details, /* More specific selector */
-  .video-list-item div { /* Fallback */
-    width: 100%; /* Ensure text div takes full width */
-    min-width: 0; /* Helps with text wrapping in flex children */
-  }
-
-  /* Ensure all text within video details can wrap properly on mobile */
   .video-list-item div.video-details p,
   .video-list-item div.video-details h4 {
-    white-space: normal; /* Ensure natural wrapping */
-    word-break: break-word; /* Break long words */
+    white-space: normal; 
+    word-break: break-word; 
   }
 
-  /* Specific for reason text if it has unique styling or needs override */
-  .video-list-item p.video-reason { /* Target the class now */
-    white-space: normal !important; /* Ensure wrapping, use important if necessary */
+  .video-list-item p.video-reason { 
+    white-space: normal !important; 
     word-break: break-word;
   }
 }
 
 @media (max-width: 480px) {
   main {
-    padding: 10px; /* Reduce padding on very small screens */
+    /* padding: 10px; /* Let screens handle their padding */
   }
   
   .video-list-item {
@@ -328,32 +245,32 @@ main > div:first-child select {
   }
 
   .video-list-item h4 {
-    font-size: 1.1em; /* Adjust heading size */
+    font-size: 1.1em; 
   }
    .video-list-item p {
-    font-size: 0.85em; /* Adjust paragraph text size */
+    font-size: 0.85em; 
   }
 }
 
 /* Loading Overlay Styles */
 .loading-overlay {
-  position: fixed; /* Cover the whole screen */
+  position: fixed; 
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+  background-color: rgba(0, 0, 0, 0.5); 
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  z-index: 1000; /* Ensure it's on top */
+  z-index: 1000; 
   color: white;
 }
 
 .spinner {
-  border: 8px solid #f3f3f3; /* Light grey */
-  border-top: 8px solid #3498db; /* Blue */
+  border: 8px solid #f3f3f3; 
+  border-top: 8px solid #3498db; 
   border-radius: 50%;
   width: 60px;
   height: 60px;
@@ -369,59 +286,58 @@ main > div:first-child select {
 /* Status Popup Styles */
 .status-popup {
   position: fixed;
-  bottom: 20px; /* Position at the bottom */
+  bottom: 20px; 
   left: 50%;
-  transform: translateX(-50%); /* Center horizontally */
+  transform: translateX(-50%); 
   padding: 10px 20px;
   border-radius: 5px;
   color: white;
   font-size: 0.9em;
-  z-index: 1001; /* Above loading overlay if both were to show, though unlikely */
+  z-index: 1001; 
   box-shadow: 0 2px 10px rgba(0,0,0,0.2);
   opacity: 1;
-  transition: opacity 0.5s ease-out, bottom 0.5s ease-out; /* For fade out effect */
+  transition: opacity 0.5s ease-out, bottom 0.5s ease-out; 
 }
 
 .status-popup.success {
-  background-color: #4CAF50; /* Green for success */
+  background-color: #4CAF50; 
 }
 
 .status-popup.error {
-  background-color: #f44336; /* Red for error */
+  background-color: #f44336; 
 }
 
-/* For hiding the popup */
 .status-popup.hidden {
   opacity: 0;
-  bottom: -50px; /* Move it off screen when hiding */
+  bottom: -50px; 
 }
 
 .last-query-display {
   font-size: 0.9em;
   color: #555;
   font-style: italic;
-  margin-top: -10px; /* Adjust to be closer to the h2 */
+  margin-top: -10px; 
   margin-bottom: 15px;
 }
 
 .watch-link {
-  display: inline-block; /* Or 'inline-flex' if more complex alignment needed */
+  display: inline-block; 
   align-items: center;
   margin-top: 8px;
-  padding: 0; /* Remove padding if it's just icon + text */
-  background-color: transparent; /* No background */
-  color: #282c34; /* Default text/icon color, same as .refresh-button */
+  padding: 0; 
+  background-color: transparent; 
+  color: #282c34; 
   text-decoration: none;
-  border: none; /* No border */
-  border-radius: 4px; /* Optional: keep if slight rounding is desired on hover/focus */
-  font-size: 0.9em; /* Adjust as needed, or inherit */
+  border: none; 
+  border-radius: 4px; 
+  font-size: 0.9em; 
   cursor: pointer;
 }
 
 .watch-link:hover {
-  background-color: transparent; /* No background on hover */
-  color: #61dafb; /* Icon/text color change on hover, same as .refresh-button */
-  text-decoration: underline; /* Optional: underline on hover for link affordance */
+  background-color: transparent; 
+  color: #61dafb; 
+  text-decoration: underline; 
 }
 
 .more-less-button {
@@ -432,15 +348,14 @@ main > div:first-child select {
   cursor: pointer;
   padding: 0;
   margin-left: 5px;
-  font-size: inherit; /* Inherit font size from parent <p> tag */
+  font-size: inherit; 
 }
 
-/* Tabs for Output */
 .tabs {
   margin-bottom: 15px;
   border-bottom: 1px solid #ddd;
   padding-bottom: 5px;
-  text-align: left; /* Align tabs to the left */
+  text-align: left; 
 }
 
 .tabs button {
@@ -458,7 +373,7 @@ main > div:first-child select {
 .tabs button.active {
   background-color: white;
   border-color: #ddd;
-  border-bottom-color: white; /* Makes it look like tab is part of content area */
+  border-bottom-color: white; 
   font-weight: bold;
 }
 
@@ -469,24 +384,369 @@ main > div:first-child select {
 }
 
 .thinking-output-container {
-  max-height: 300px; /* Adjust as needed */
+  /* max-height: 300px; /* Removed to allow flex-grow to work */
   overflow-y: auto;
-  background-color: #2c3e50; /* Dark background for pre */
-  color: #ecf0f1; /* Light text */
+  background-color: #2c3e50; 
+  color: #ecf0f1; 
   padding: 10px;
   border-radius: 5px;
   margin-top: 10px;
   text-align: left;
-  border: 1px solid #34495e; /* Added a border */
+  border: 1px solid #34495e; 
 }
 
 .thinking-output {
-  white-space: pre-wrap;   /* CSS3 */
-  white-space: -moz-pre-wrap; /* Firefox */
-  white-space: -pre-wrap;     /* Opera <7 */
-  white-space: -o-pre-wrap;   /* Opera 7 */
-  word-wrap: break-word;      /* IE */
+  white-space: pre-wrap;   
+  white-space: -moz-pre-wrap; 
+  white-space: -pre-wrap;     
+  white-space: -o-pre-wrap;   
+  word-wrap: break-word;      
   margin: 0;
   font-family: monospace;
   font-size: 0.9em;
+}
+
+/* This is the new main scrollable content wrapper between header and footer */
+.screen-content-wrapper {
+  flex-grow: 1;
+  overflow-y: auto; /* This is THE scrollbar for screen content */
+  min-height: 0; /* Crucial for flex child scrolling */
+  padding-bottom: 70px; /* Space for the BottomNavigationBar */
+  box-sizing: border-box;
+  width: 100%;
+  /* Children of this (e.g. .playlists-screen, .chat-screen) should NOT have overflow-y:auto or height:100%
+     They should just take their natural height based on their content. */
+}
+
+/* Remove .main-content-area styles as it's replaced by .screen-content-wrapper logic in App.js */
+/*
+.main-content-area { ... }
+*/
+
+
+/* --- Bottom Navigation Bar Styles --- */
+.bottom-nav-bar {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 60px; /* Adjust as needed */
+  background-color: #ffffff; /* White background */
+  border-top: 1px solid #e0e0e0; /* Light grey separator line */
+  box-shadow: 0 -2px 5px rgba(0,0,0,0.05); /* Softer shadow */
+  z-index: 100; 
+}
+
+.bottom-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent !important; /* Ensure no background on tap */
+  border: none;
+  color: #757575; /* Default inactive icon/label color (medium grey) */
+  cursor: pointer;
+  padding: 5px;
+  -webkit-tap-highlight-color: transparent; /* For mobile Safari */
+  font-size: 0.75rem; 
+  height: 100%;
+  flex-grow: 1;
+  transition: color 0.2s ease-in-out; /* Smooth color transition */
+}
+
+.bottom-nav-item:hover {
+  color: #000000; /* Black on hover, for affordance */
+  background-color: transparent !important;
+}
+
+.bottom-nav-item.active {
+  color: #000000; /* Active color: Black */
+  font-weight: bold; /* Optionally make active label bold */
+  background-color: transparent !important;
+}
+
+.bottom-nav-item:focus, .bottom-nav-item:active {
+  background-color: transparent !important;
+  outline: none; /* Remove focus outline if not desired */
+}
+
+.send-button {
+  font-size: 1.8em;
+  background-color: transparent !important; /* Ensure no background on tap */
+  -webkit-tap-highlight-color: transparent; /* For mobile Safari */
+}
+
+.send-button:focus, .send-button:active {
+  background-color: transparent !important;
+  outline: none; /* Remove focus outline if not desired */
+}
+
+.bottom-nav-icon {
+  font-size: 1.5rem; /* Icon size */
+  margin-bottom: 2px;
+  /* The color will be inherited from .bottom-nav-item or .bottom-nav-item.active */
+}
+
+.bottom-nav-label {
+  /* The color will be inherited */
+}
+
+/* --- Screen Header Styles --- */
+.screen-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem; /* Equivalent to p-4 from mockups */
+  background-color: #fff; /* bg-white */
+  /* border-bottom: 1px solid #e0e0e0; /* Optional: if a separator is needed */
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.screen-header-title {
+  color: #111418; 
+  font-size: 1.125rem; 
+  font-weight: 700; 
+  line-height: 1.375; 
+  letter-spacing: -0.015em; 
+  text-align: center;
+  flex-grow: 1;
+  margin: 0; /* Ensure no default h1 margins interfere */
+}
+
+.screen-header-action-left, /* Changed from spacer-left */
+.screen-header-action-right {
+  display: flex;
+  align-items: center;
+  justify-content: center; 
+  min-width: 48px; 
+  flex-shrink: 0;
+}
+
+.screen-header-icon-button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #111418; /* Default icon color */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.screen-header-icon-button svg {
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+}
+
+
+/* --- Playlists Screen Styles --- */
+.playlists-screen {
+  /* This is now a child of .screen-content-wrapper, so it should not try to be 100% height or scroll itself. */
+  /* It just provides a background and structure for its content. */
+  background-color: #f8f9fa; 
+  padding: 1rem; /* Padding for the content of the playlist screen */
+  /* display: flex; flex-direction: column; /* Not needed if it's not managing flex children's height */
+}
+
+.playlists-list-container {
+  /* This is just a container for items, no specific height or overflow here. */
+  /* flex-grow: 1; /* Remove */
+  /* overflow-y: auto; /* Remove */
+  /* padding: 1rem; /* Moved to .playlists-screen */
+  /* min-height: 0; /* Remove */
+}
+
+.playlists-empty-message {
+  text-align: center;
+  color: #6c757d; /* Secondary text color */
+  padding: 2rem;
+  font-size: 1rem;
+}
+
+/* --- Playlist Item Styles --- */
+.playlist-item {
+  display: flex;
+  align-items: center;
+  background-color: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px; /* rounded-lg */
+  padding: 1rem; /* p-4 */
+  margin-bottom: 1rem; /* Space between items */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05); /* Subtle shadow */
+}
+
+.playlist-item-thumbnail-container {
+  width: 60px; /* Adjust as needed, e.g., w-16 (4rem = 64px) or w-12 (3rem = 48px) */
+  height: 60px;
+  margin-right: 1rem; /* mr-4 */
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #e9ecef; /* Placeholder background */
+  border-radius: 4px; /* rounded */
+  overflow: hidden;
+}
+
+.playlist-item-thumbnail {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.playlist-item-thumbnail-placeholder span {
+  font-size: 2rem; /* Larger icon */
+  color: #adb5bd;
+}
+
+.playlist-item-info {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0; /* Important for text truncation if needed */
+}
+
+.playlist-item-title {
+  font-size: 1rem; /* text-base */
+  font-weight: 600; /* font-semibold or similar */
+  color: #212529; /* Darker text */
+  margin: 0 0 0.25rem 0; /* mb-1 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.playlist-item-count {
+  font-size: 0.875rem; /* text-sm */
+  color: #6c757d; /* Muted text */
+  margin: 0;
+}
+
+.playlist-item-action {
+  margin-left: 1rem; /* ml-4 */
+  flex-shrink: 0;
+}
+
+.playlist-item-view-button {
+  background-color: #007bff; /* Primary button color */
+  color: white;
+  border: none;
+  border-radius: 0.375rem; /* rounded-md */
+  padding: 0.5rem 1rem; /* py-2 px-4 */
+  font-size: 0.875rem; /* text-sm */
+  font-weight: 500; /* font-medium */
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.playlist-item-view-button:hover {
+  background-color: #0056b3; /* Darker on hover */
+}
+
+/* --- Chat Screen Styles --- */
+.chat-screen {
+  /* This is now a child of .screen-content-wrapper. */
+  /* It should be a flex container for its own content (.chat-view-content). */
+  display: flex;
+  flex-direction: column;
+  /* height: 100%; /* REMOVE - it will take height from .screen-content-wrapper's flex context */
+  /* overflow: hidden; /* REMOVE - parent .screen-content-wrapper handles scroll */
+  flex-grow: 1; /* Allow it to fill the .screen-content-wrapper if needed, along with its padding */
+  min-height: 0; /* Important if it's a flex child that might contain a scrollable area */
+}
+
+.chat-screen-content {
+  /* This was an intermediate wrapper, might not be strictly necessary anymore if .chat-view-content is direct child of .chat-screen */
+  /* For now, let it be a flex container that grows */
+  flex-grow: 1;
+  display: flex; 
+  flex-direction: column;
+  min-height: 0; 
+  /* overflow: hidden; /* REMOVE - scrolling is for .chat-tab-content-area */
+}
+
+/* If MainAuthenticatedView itself needs to be 100% height of its container */
+.chat-screen-content > .main-authenticated-view-container { /* Assuming MAV has this class */
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ensure MainAuthenticatedView within ChatScreen takes full height */
+.chat-screen-content > div[class*="MainAuthenticatedView_container"] { /* More generic selector if class name changes */
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-screen-content > div[class*="MainAuthenticatedView_container"] > div:first-child { /* Playlist selector area */
+    margin-top: 1rem; /* Add space below the ScreenHeader */
+    padding-left: 1rem; /* Add some horizontal padding */
+    padding-right: 1rem;
+}
+
+/* Styles for the new ChatViewContent component */
+.chat-view-content {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1; /* This should fill .chat-screen-content */
+  box-sizing: border-box;
+  overflow: hidden; /* Crucial: this container should not scroll. */
+  min-height: 0; /* For its child .chat-tab-content-area to scroll */
+}
+
+.chat-form { 
+  margin-bottom: 1rem; 
+  padding: 0 1rem; /* Horizontal padding for the form */
+  flex-shrink: 0; /* Prevent form from shrinking */
+}
+
+.chat-view-content > .last-query-display { 
+  padding: 0 1rem; 
+  margin-top: -10px; 
+  margin-bottom: 15px; 
+  flex-shrink: 0; /* Prevent from shrinking */
+}
+
+.chat-view-content > .tabs { 
+  padding: 0 1rem; 
+  margin-bottom: 15px; 
+  flex-shrink: 0; /* Prevent tabs from shrinking */
+}
+
+/* VideoList within ChatViewContent (suggestions) specific styling if needed */
+.chat-view-content .video-list,
+.chat-view-content .thinking-output-container { 
+  width: 100%; 
+  box-sizing: border-box;
+  /* These children of .chat-tab-content-area should not have flex-grow or overflow-y themselves. */
+  /* Their natural height will make .chat-tab-content-area scroll if they are too tall. */
+}
+
+.chat-view-content .video-list {
+  overflow-x: hidden; /* Still prevent horizontal scroll on video list items if they are too wide */
+}
+
+
+/* New wrapper for tab content - THIS IS THE SCROLLING CONTAINER */
+.chat-tab-content-area {
+  flex-grow: 1; 
+  overflow-y: auto; 
+  min-height: 0; 
+  width: 100%; 
+  box-sizing: border-box;
+  padding: 1rem; /* Apply consistent padding inside the scrollable area */
+}
+
+/* Ensure the actual content inside the scrollable area doesn't try to flex-grow */
+.chat-tab-content-area > .video-list,
+.chat-tab-content-area > .thinking-output-container {
+    /* These should not have flex-grow. Their natural height will make .chat-tab-content-area scroll. */
+    /* width: 100%; /* Already set by .chat-view-content .video-list etc. */
+    /* box-sizing: border-box; /* Already set */
 }

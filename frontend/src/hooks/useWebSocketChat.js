@@ -31,8 +31,8 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
   const ws = useRef(null);
   const pingIntervalRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
-  const thinkingChunkBuffer = useRef(''); // To buffer incoming stream chunks
-  const thinkingUpdateTimeout = useRef(null); // To manage debounced updates
+  const thinkingChunkBuffer = useRef('');
+  const thinkingUpdateTimeout = useRef(null);
 
   const [suggestedVideos, setSuggestedVideos] = useState([]);
   const [lastQuery, setLastQuery] = useState('');
@@ -46,7 +46,7 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
     pingIntervalRef.current = null;
     if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
     reconnectTimeoutRef.current = null;
-    if (thinkingUpdateTimeout.current) clearTimeout(thinkingUpdateTimeout.current); // Clear thinking update timeout
+    if (thinkingUpdateTimeout.current) clearTimeout(thinkingUpdateTimeout.current);
     thinkingUpdateTimeout.current = null;
   }, []);
 
@@ -62,10 +62,10 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
   }, []);
 
   const closeWebSocket = useCallback(() => {
-    flushThinkingBuffer(); // Ensure buffer is flushed before closing
+    flushThinkingBuffer();
     clearWebSocketTimers();
     if (ws.current) {
-      ws.current.onopen = null; // Prevent onopen from firing during intentional close
+      ws.current.onopen = null;
       ws.current.onmessage = null;
       ws.current.onclose = null;
       ws.current.onerror = null;
@@ -73,23 +73,21 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
       ws.current = null;
       console.log('WebSocket connection intentionally closed.');
     }
-  }, [clearWebSocketTimers]);
+  }, [clearWebSocketTimers, flushThinkingBuffer]);
 
   const startWebSocketConnection = useCallback((playlistIdToConnect) => {
     if (!playlistIdToConnect) {
-      // If no playlist is selected, ensure any existing connection is closed.
       if (ws.current) {
         console.log('No playlist selected, closing WebSocket.');
         closeWebSocket();
       }
       return;
     }
-    // If a playlist is selected, proceed to connect/reconnect.
-    closeWebSocket(); // Close existing before opening new
+    closeWebSocket();
     console.log(`Attempting WebSocket connection for playlist: ${playlistIdToConnect}`);
     ws.current = new WebSocket(WEBSOCKET_SERVICE_URL);
-    setIsStreaming(false); // Reset streaming state on new connection
-    thinkingChunkBuffer.current = ''; // Clear buffer on new connection
+    setIsStreaming(false);
+    thinkingChunkBuffer.current = '';
 
     ws.current.onopen = () => {
       console.log('WebSocket connected. Initializing chat...');
@@ -119,20 +117,19 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
       } else if (message.type === 'STREAM_CHUNK') {
         thinkingChunkBuffer.current += message.payload.textChunk;
         if (!isStreaming) setIsStreaming(true);
-        setActiveOutputTab('Thinking'); // Switch to thinking tab immediately
+        setActiveOutputTab('Thinking');
 
-        // Clear previous timeout and set a new one to update the UI
         if (thinkingUpdateTimeout.current) {
           clearTimeout(thinkingUpdateTimeout.current);
         }
         thinkingUpdateTimeout.current = setTimeout(() => {
           if (thinkingChunkBuffer.current.length > 0) {
             setThinkingOutput((prev) => prev + thinkingChunkBuffer.current);
-            thinkingChunkBuffer.current = ''; // Clear buffer after updating state
+            thinkingChunkBuffer.current = '';
           }
-        }, 200); // Update UI every 200ms
+        }, 200);
       } else if (message.type === 'STREAM_END') {
-        flushThinkingBuffer(); // Ensure all buffered text is displayed
+        flushThinkingBuffer();
         setSuggestedVideos(message.payload.suggestedVideos || []);
         if (setAppPopup) setAppPopup({visible: true, message: 'Suggestions received!', type: 'success'});
         setTimeout(() => {
@@ -141,7 +138,7 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
         setActiveOutputTab('Results');
         setIsStreaming(false);
       } else if (message.type === 'ERROR') {
-        flushThinkingBuffer(); // Flush buffer on error too
+        flushThinkingBuffer();
         if (setAppError) setAppError(`Chat Error: ${message.error}`);
         if (setAppPopup) setAppPopup({visible: true, message: `Chat Error: ${message.error}`, type: 'error'});
         setTimeout(() => {
@@ -152,17 +149,10 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
       }
     };
 
-    /**
-     * Handles WebSocket close or error events, attempting reconnection if appropriate.
-     * @param {Event} event - The WebSocket close or error event.
-     */
     const handleWSCloseOrError = (event) => {
       console.log('WebSocket closed or error:', event.type);
       clearWebSocketTimers();
-      // Only attempt to reconnect if a playlist is still selected
-      // and we haven't exceeded max attempts.
       if (selectedPlaylistId && ws.current && !ws.current.onclose) {
-        // if onclose is null, it means it was an intentional close, so don't reconnect.
         return;
       }
 
@@ -173,7 +163,6 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
         if (setAppPopup) setAppPopup({visible: true, message: `Chat connection lost. Reconnecting (${nextAttempt}/${MAX_RECONNECT_ATTEMPTS})...`, type: 'warning'});
 
         reconnectTimeoutRef.current = setTimeout(() => {
-          // Check again if a playlist is selected before attempting to reconnect
           if (selectedPlaylistId) {
             console.log(`Reconnection attempt ${nextAttempt}`);
             startWebSocketConnection(selectedPlaylistId);
@@ -185,31 +174,40 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
         if (setAppError) setAppError('Failed to reconnect to chat service.');
         if (setAppPopup) setAppPopup({visible: true, message: 'Failed to reconnect to chat. Please re-select playlist or refresh.', type: 'error'});
       }
-      // ws.current might be null if closed intentionally, so no further action if so.
     };
 
     ws.current.onclose = handleWSCloseOrError;
     ws.current.onerror = handleWSCloseOrError;
   }, [selectedPlaylistId, reconnectAttempt, closeWebSocket, clearWebSocketTimers, setAppPopup, setAppError, flushThinkingBuffer]);
 
-  // Effect to manage WebSocket connection when selectedPlaylistId changes
+  const prevSelectedPlaylistIdRef = useRef(selectedPlaylistId);
+
   useEffect(() => {
     if (selectedPlaylistId && isPlaylistDataReady) {
-      setThinkingOutput(''); // Clear previous thinking output
-      setSuggestedVideos([]); // Clear previous suggestions
-      setLastQuery(''); // Clear last query
-      setActiveOutputTab('Results'); // Reset to results tab
+      let needsToClearData = false;
+      if (selectedPlaylistId !== prevSelectedPlaylistIdRef.current) {
+        console.log('New playlist selected in useEffect, clearing states.');
+        needsToClearData = true;
+        prevSelectedPlaylistIdRef.current = selectedPlaylistId;
+      } else if (!ws.current) {
+        console.log('Initial connection for playlist, not clearing data (it should be empty).');
+      }
+
+      if (needsToClearData) {
+        setThinkingOutput('');
+        setSuggestedVideos([]);
+        setLastQuery('');
+        setActiveOutputTab('Results');
+      }
       startWebSocketConnection(selectedPlaylistId);
     } else {
-      closeWebSocket(); // Close WebSocket if no playlist is selected
+      closeWebSocket();
+      prevSelectedPlaylistIdRef.current = null;
     }
-    // Cleanup function to close WebSocket when component unmounts or selectedPlaylistId changes
     return () => {
-      // flushThinkingBuffer(); // Flushed by closeWebSocket
       closeWebSocket();
     };
-  }, [selectedPlaylistId, isPlaylistDataReady, startWebSocketConnection, closeWebSocket, flushThinkingBuffer]);
-  // Note: isStreaming was not added as a dependency here as it's not directly used.
+  }, [selectedPlaylistId, isPlaylistDataReady, startWebSocketConnection, closeWebSocket, setActiveOutputTab]);
 
 
   const handleQuerySubmit = useCallback(async (query) => {
@@ -225,15 +223,14 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
       setTimeout(() => {
         if (setAppPopup) setAppPopup((p) => ({...p, visible: false}));
       }, 5000);
-      // DO NOT Attempt to reconnect if WS is not open from here; let other mechanisms handle it.
       return;
     }
     setLastQuery(query);
-    if (setAppError) setAppError(null); // Clear previous errors
+    if (setAppError) setAppError(null);
     setSuggestedVideos([]);
-    setThinkingOutput(''); // Clear previous full output
-    thinkingChunkBuffer.current = ''; // Clear buffer
-    if (thinkingUpdateTimeout.current) clearTimeout(thinkingUpdateTimeout.current); // Clear pending timeout
+    setThinkingOutput('');
+    thinkingChunkBuffer.current = '';
+    if (thinkingUpdateTimeout.current) clearTimeout(thinkingUpdateTimeout.current);
 
     setActiveOutputTab('Thinking');
     setIsStreaming(true);
@@ -248,10 +245,10 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
       }, 5000);
       setActiveOutputTab('Results');
       setIsStreaming(false);
-      thinkingChunkBuffer.current = ''; // Ensure buffer is clear on error too
+      thinkingChunkBuffer.current = '';
       if (thinkingUpdateTimeout.current) clearTimeout(thinkingUpdateTimeout.current);
     }
-  }, [selectedPlaylistId, setAppPopup, setAppError]); // Removed flushThinkingBuffer as it's stable
+  }, [selectedPlaylistId, setAppPopup, setAppError]);
 
   return {
     suggestedVideos,
