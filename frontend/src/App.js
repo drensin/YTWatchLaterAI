@@ -332,7 +332,7 @@ function App() {
       title = 'Playlists';
     } else if (currentScreen === 'chat') {
       const selected = userPlaylists.find((p) => p.id === selectedPlaylistId);
-      title = selected ? selected.title : 'Chat'; // Show playlist title or generic "Chat"
+      title = selected ? `Playlist: ${selected.title}` : 'Chat'; // Updated title format
     } else if (currentScreen === 'settings') {
       title = 'Settings';
     } else {

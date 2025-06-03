@@ -481,7 +481,9 @@ main > div:first-child {
 
 .send-button:focus, .send-button:active {
   background-color: transparent !important;
-  outline: none; /* Remove focus outline if not desired */
+  outline: none !important; /* Remove focus outline if not desired, added important for good measure */
+  box-shadow: none !important; /* Ensure no box shadow on interaction */
+  color: #282c34 !important; /* Ensure icon color does not change on active/focus */
 }
 
 .bottom-nav-icon {
