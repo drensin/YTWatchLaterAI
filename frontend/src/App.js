@@ -20,6 +20,7 @@ import {UserStatusMessages} from './components/UserStatusMessages';
 import {BottomNavigationBar} from './components/BottomNavigationBar';
 import {PlaylistsScreen} from './components/PlaylistsScreen';
 import {ChatScreen} from './components/ChatScreen';
+import {SettingsScreen} from './components/SettingsScreen';
 
 
 /**
@@ -411,24 +412,16 @@ function App() {
           />
         );
       case 'settings':
-        // Settings screen with model selection and logout
         return (
-          <div style={{padding: '20px', textAlign: 'center'}}>
-            <h1>Settings</h1>
-            <div>
-              <label htmlFor="model-select">Select AI Model: </label>
-              <select id="model-select" value={selectedModelId} onChange={(e) => handleModelSelection(e.target.value)} disabled={availableModels.length === 0}>
-                {availableModels.length === 0 && <option value="">Loading models...</option>}
-                {availableModels.map((model) => (
-                  <option key={model} value={model}>
-                    {model.split('/').pop()} {/* Display a cleaner name */}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <br />
-            <button onClick={handleFirebaseLogout}>Logout</button>
-          </div>
+          <SettingsScreen
+            selectedModelId={selectedModelId}
+            availableModels={availableModels}
+            onModelSelection={handleModelSelection}
+            onLogout={handleFirebaseLogout}
+            userPlaylists={userPlaylists} // Prop for Phase 2
+            // currentDefaultPlaylistId will be added in Phase 2
+            // onSetDefaultPlaylist will be added in Phase 2
+          />
         );
       default:
         // Default to playlists screen if currentScreen is unrecognized or user is in a valid state for it
