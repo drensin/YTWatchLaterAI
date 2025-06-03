@@ -1,3 +1,7 @@
+/**
+ * @fileoverview Defines the ChatScreen React component, which serves as a container
+ * for the chat interaction view (`ChatViewContent`).
+ */
 import React from 'react';
 // ScreenHeader is now rendered by App.js
 import ChatViewContent from './ChatViewContent';

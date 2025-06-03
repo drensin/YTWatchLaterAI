@@ -1,3 +1,7 @@
+/**
+ * @fileoverview Defines the LoginFooter React component, which displays
+ * the terms of service and privacy policy notice on the login screen.
+ */
 import React from 'react';
 
 /**

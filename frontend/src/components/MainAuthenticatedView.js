@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Defines the MainAuthenticatedView React component.
+ * This component renders the primary interface for users who are logged in
+ * and have connected their YouTube account. It includes functionality for
+ * playlist selection, interacting with the AI chat, and viewing video suggestions.
+ */
 import React from 'react';
 import ChatInterface from './ChatInterface';
 import VideoList from './VideoList';

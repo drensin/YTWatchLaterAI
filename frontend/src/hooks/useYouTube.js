@@ -38,60 +38,84 @@ const CLOUD_FUNCTIONS_BASE_URL = {
  * - `setYoutubeSpecificError`: (Function) Setter for `youtubeSpecificError`.
  */
 function useYouTube(currentUser, isLoggedIn, isAuthorizedUser, setAppPopup, initialYouTubeLinkedStatus) {
+  /** @state Tracks if the user's YouTube account is currently considered linked. Initialized by `initialYouTubeLinkedStatus`. */
   const [isYouTubeLinked, setIsYouTubeLinked] = useState(initialYouTubeLinkedStatus);
+  /** @state Stores the list of the user's YouTube playlists. */
   const [userPlaylists, setUserPlaylists] = useState([]);
+  /** @state Stores the ID of the currently selected YouTube playlist. */
   const [selectedPlaylistId, setSelectedPlaylistId] = useState('');
+  /** @state Stores the list of videos for the currently selected playlist. */
   const [videos, setVideos] = useState([]);
+  /** @state Stores any error messages specific to YouTube operations. */
   const [youtubeSpecificError, setYoutubeSpecificError] = useState(null);
+  /** @state Flag indicating if any YouTube-related operations (fetching playlists/items) are in progress. */
   const [isLoadingYouTube, setIsLoadingYouTube] = useState(false);
 
+  /**
+   * Effect to synchronize the internal `isYouTubeLinked` state with the
+   * `initialYouTubeLinkedStatus` prop, which might change if `useAuth` re-evaluates.
+   */
   useEffect(() => {
     // Update internal isYouTubeLinked state if the initial check from useAuth changes
     // This helps if useAuth re-evaluates and provides a new initial status.
     setIsYouTubeLinked(initialYouTubeLinkedStatus);
   }, [initialYouTubeLinkedStatus]);
 
+  /**
+   * Fetches the list of the current user's YouTube playlists from the backend.
+   * Requires the user to be logged in. Updates `userPlaylists`, `isYouTubeLinked`,
+   * and `youtubeSpecificError` states based on the outcome.
+   * @returns {Promise<boolean>} True if playlists were fetched successfully, false otherwise.
+   */
   const fetchUserPlaylistsInternal = useCallback(async () => {
     if (!currentUser) {
       setYoutubeSpecificError('User not logged in. Cannot fetch playlists.');
       return false;
     }
     setIsLoadingYouTube(true);
-    setYoutubeSpecificError(null);
+    setYoutubeSpecificError(null); // Clear previous errors
     try {
       const idToken = await currentUser.getIdToken();
       const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.listUserPlaylists, {headers: {'Authorization': `Bearer ${idToken}`}});
-      let data = {};
+      let data = {}; // Initialize data to handle potential non-JSON responses gracefully
+
+      // Attempt to parse response, robustly handling non-JSON or error statuses
       try {
         if (!response.ok) {
-          const rawText = await response.text();
+          const rawText = await response.text(); // Get raw text for detailed error
           try {
-            data = JSON.parse(rawText);
+            data = JSON.parse(rawText); // Try to parse as JSON if possible
           } catch (parseError) {
+            // If parsing fails, use the raw text in the error
             data = {error: `Server returned non-OK status ${response.status} with non-JSON body: ${rawText.substring(0, 100)}`, code: 'SERVER_ERROR_NON_JSON'};
           }
         } else {
-          data = await response.json();
+          data = await response.json(); // Standard JSON parsing for OK responses
         }
       } catch (e) {
+        // Catch network errors or issues during response.json()/text()
         setYoutubeSpecificError('Failed to get playlist data (network or processing error).');
         setIsYouTubeLinked(false); setUserPlaylists([]); return false;
       }
 
       if (!response.ok) {
-        setIsYouTubeLinked(false);
+        setIsYouTubeLinked(false); // Assume not linked if fetching playlists fails
+        // Handle specific error codes from backend
         if (data && (data.code === 'YOUTUBE_AUTH_REQUIRED' || data.code === 'YOUTUBE_REAUTH_REQUIRED')) {
           setYoutubeSpecificError(data.error || 'YouTube authorization issue. Please connect/re-connect.');
         } else {
+          // Generic error message
           setYoutubeSpecificError(data.error || data.message || response.statusText || `Failed to fetch playlists (${response.status}).`);
         }
         setUserPlaylists([]); return false;
       } else {
+        // Success case
         setUserPlaylists(data.playlists || []);
-        setIsYouTubeLinked(true);
+        setIsYouTubeLinked(true); // Successfully fetched, so YouTube is linked
         setYoutubeSpecificError(null); return true;
       }
     } catch (err) {
+      // Catch errors from getIdToken or other unexpected issues
       setUserPlaylists([]); setIsYouTubeLinked(false);
       setYoutubeSpecificError(err.message || 'An unexpected error occurred while fetching playlists.');
       if (setAppPopup) setAppPopup({visible: true, message: `Error fetching playlists: ${err.message}`, type: 'error'});
@@ -101,13 +125,20 @@ function useYouTube(currentUser, isLoggedIn, isAuthorizedUser, setAppPopup, init
     }
   }, [currentUser, setAppPopup]);
 
+  /**
+   * Fetches the items (videos) for a specific playlist ID from the backend.
+   * Requires the user to be logged in and a playlist ID to be provided.
+   * Updates `videos`, `isYouTubeLinked`, and `youtubeSpecificError` states.
+   * @param {string} playlistId - The ID of the playlist to fetch items for.
+   * @returns {Promise<boolean>} True if items were fetched successfully, false otherwise.
+   */
   const fetchPlaylistItemsInternal = useCallback(async (playlistId) => {
     if (!playlistId || !currentUser) {
-      setVideos([]);
+      setVideos([]); // Clear videos if no playlist or user
       if (!currentUser) setYoutubeSpecificError('User not logged in. Cannot fetch playlist items.');
       return false;
     }
-    setIsLoadingYouTube(true); setYoutubeSpecificError(null);
+    setIsLoadingYouTube(true); setYoutubeSpecificError(null); // Clear previous errors
     try {
       const idToken = await currentUser.getIdToken();
       const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.getWatchLaterPlaylist, {
@@ -115,23 +146,25 @@ function useYouTube(currentUser, isLoggedIn, isAuthorizedUser, setAppPopup, init
         headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}`},
         body: JSON.stringify({playlistId}),
       });
-      const data = await response.json();
+      const data = await response.json(); // Assume JSON response for simplicity here, add robust parsing if needed
       if (!response.ok) {
         if (data.code === 'YOUTUBE_AUTH_REQUIRED' || data.code === 'YOUTUBE_REAUTH_REQUIRED') {
-          setIsYouTubeLinked(false);
+          setIsYouTubeLinked(false); // Mark as not linked if auth is required
           setYoutubeSpecificError(data.error || 'YouTube authorization required for this playlist.');
         } else {
           setYoutubeSpecificError(data.message || response.statusText || 'Failed to fetch playlist items.');
         }
         setVideos([]); return false;
       }
+      // Success case
       setVideos(data.videos || []);
-      setIsYouTubeLinked(true);
+      setIsYouTubeLinked(true); // Successfully fetched, so YouTube is linked
       setYoutubeSpecificError(null);
       const playlistTitle = userPlaylists.find((p) => p.id === playlistId)?.title || 'selected playlist';
       if (setAppPopup) setAppPopup({visible: true, message: `Loaded ${data.videos?.length || 0} videos from "${playlistTitle}".`, type: 'success'});
       return true;
     } catch (err) {
+      // Catch errors from getIdToken or other unexpected issues
       setVideos([]);
       setYoutubeSpecificError(err.message || 'An unexpected error occurred while fetching items.');
       if (setAppPopup) setAppPopup({visible: true, message: `Error fetching playlist items: ${err.message}`, type: 'error'});
@@ -141,16 +174,24 @@ function useYouTube(currentUser, isLoggedIn, isAuthorizedUser, setAppPopup, init
     }
   }, [currentUser, userPlaylists, setAppPopup]);
 
-  // Effect for handling YouTube OAuth redirect parameters
+  /**
+   * Effect to handle the OAuth redirect from YouTube.
+   * It parses URL parameters for authentication status and errors,
+   * validates the OAuth state nonce, and updates YouTube linkage status.
+   * Cleans up URL parameters after processing.
+   */
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const youtubeAuthStatus = urlParams.get('youtube_auth_status');
     const stateFromRedirect = urlParams.get('state');
     const oauthError = urlParams.get('error_message');
 
+    // Only process if youtube_auth_status parameter is present
     if (youtubeAuthStatus) {
       const storedNonce = localStorage.getItem('youtubeOAuthNonce');
       let stateObjectFromRedirect = {};
+
+      // Safely parse the state from redirect
       if (stateFromRedirect) {
         try {
           stateObjectFromRedirect = JSON.parse(atob(stateFromRedirect));
@@ -158,36 +199,50 @@ function useYouTube(currentUser, isLoggedIn, isAuthorizedUser, setAppPopup, init
           console.error('Error parsing state from redirect:', e);
           setYoutubeSpecificError('Invalid state received from YouTube auth redirect.');
           if (setAppPopup) setAppPopup({visible: true, message: 'YouTube connection failed (invalid state).', type: 'error'});
+          // Clear nonce and URL params even on parse error to prevent re-processing
+          localStorage.removeItem('youtubeOAuthNonce');
+          window.history.replaceState({}, document.title, window.location.pathname);
+          return; // Stop further processing
         }
       }
 
+      // Validate nonce
       if (stateObjectFromRedirect.nonce && storedNonce === stateObjectFromRedirect.nonce) {
         if (youtubeAuthStatus === 'success') {
           if (setAppPopup) setAppPopup({visible: true, message: 'YouTube account connected successfully!', type: 'success'});
           setIsYouTubeLinked(true);
-          if (isLoggedIn && isAuthorizedUser) { // Check app auth status before fetching
+          // Fetch playlists only if user is fully authenticated and authorized at app level
+          if (isLoggedIn && isAuthorizedUser) {
             fetchUserPlaylistsInternal();
           }
-        } else {
+        } else { // youtubeAuthStatus is 'error' or other unexpected value
           const detailedError = oauthError || 'Unknown YouTube connection error';
           setYoutubeSpecificError(`YouTube connection failed: ${detailedError}`);
           if (setAppPopup) setAppPopup({visible: true, message: `YouTube connection error: ${detailedError}`, type: 'error'});
           setIsYouTubeLinked(false);
         }
-      } else if (stateFromRedirect) {
+      } else if (stateFromRedirect) { // Nonce mismatch or missing nonce in parsed state
         setYoutubeSpecificError('YouTube authorization failed (security check). Please try again.');
         if (setAppPopup) setAppPopup({visible: true, message: 'YouTube connection security check failed.', type: 'error'});
         setIsYouTubeLinked(false);
       } else if (!stateFromRedirect && youtubeAuthStatus === 'error') {
+        // Case where state might be missing but error is reported directly
         setYoutubeSpecificError(`YouTube connection failed: ${oauthError || 'Unknown error during OAuth flow.'}`);
         if (setAppPopup) setAppPopup({visible: true, message: `YouTube connection error: ${oauthError || 'Unknown error.'}`, type: 'error'});
         setIsYouTubeLinked(false);
       }
+
+      // Clean up: remove nonce from local storage and clear URL parameters
       localStorage.removeItem('youtubeOAuthNonce');
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, [isLoggedIn, isAuthorizedUser, fetchUserPlaylistsInternal, setAppPopup]); // Dependencies
 
+  /**
+   * Initiates the YouTube OAuth connection flow.
+   * Generates a nonce for security, stores it, and redirects the user to Google's OAuth page.
+   * Requires the user to be logged in via Firebase.
+   */
   const handleConnectYouTube = useCallback(async () => {
     if (!currentUser) {
       if (setAppPopup) setAppPopup({visible: true, message: 'Please log in with Firebase first.', type: 'error'});

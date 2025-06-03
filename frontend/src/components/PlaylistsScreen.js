@@ -1,3 +1,7 @@
+/**
+ * @fileoverview Defines the PlaylistsScreen React component, which displays a list
+ * of the user's YouTube playlists. Each playlist is rendered using the PlaylistItem component.
+ */
 import React from 'react';
 // ScreenHeader is now rendered by App.js
 import PlaylistItem from './PlaylistItem';

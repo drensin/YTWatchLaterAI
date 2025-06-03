@@ -1,3 +1,7 @@
+/**
+ * @fileoverview Defines the LoginButton React component, which provides a
+ * simple button to initiate the login process.
+ */
 import React from 'react';
 
 /**

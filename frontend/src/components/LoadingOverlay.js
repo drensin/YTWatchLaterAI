@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Defines the LoadingOverlay React component, which displays
+ * a semi-transparent overlay with a spinner and "Loading..." text to indicate
+ * background activity.
+ */
 import React from 'react';
 
 /**

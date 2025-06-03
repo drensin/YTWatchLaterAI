@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Defines the PlaylistItem React component, which displays
+ * information about a single YouTube playlist (thumbnail, title, video count)
+ * and provides a button to view/select it.
+ */
 import React from 'react';
 
 /**

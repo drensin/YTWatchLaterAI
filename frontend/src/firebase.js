@@ -1,3 +1,7 @@
+/**
+ * @fileoverview This file initializes and configures Firebase for the ReelWorthy application.
+ * It sets up the Firebase app instance and exports the Firebase auth service.
+ */
 import {initializeApp} from 'firebase/app';
 import {getAuth} from 'firebase/auth';
 

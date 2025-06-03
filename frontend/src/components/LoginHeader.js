@@ -1,3 +1,7 @@
+/**
+ * @fileoverview Defines the LoginHeader React component, which displays
+ * the application title "ReelWorthy" and a help icon on the login screen.
+ */
 import React from 'react';
 
 /**

@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Defines the UserStatusMessages React component, which displays
+ * messages to the user based on their authentication and authorization status
+ * (e.g., not logged in, not authorized).
+ */
 import React from 'react';
 
 /**

@@ -1,10 +1,29 @@
+/**
+ * @fileoverview Defines the BottomNavigationBar React component, which provides
+ * navigation between the main screens of the application (Playlists, Chat, Settings).
+ */
 import React from 'react';
 
 // Placeholder SVGs - replace with actual SVG components or paths later
 // For now, using simple text characters that will inherit color.
 // Actual SVGs should use fill="currentColor" or stroke="currentColor"
+
+/**
+ * Placeholder component for the Home/Playlists icon.
+ * @returns {React.ReactElement} A span element representing the home icon.
+ */
 const HomeIcon = () => <span style={{fontSize: '24px'}}>🏠</span>;
+
+/**
+ * Placeholder component for the Chat icon.
+ * @returns {React.ReactElement} A span element representing the chat icon.
+ */
 const ChatIcon = () => <span style={{fontSize: '24px'}}>💬</span>;
+
+/**
+ * Placeholder component for the Settings icon.
+ * @returns {React.ReactElement} A span element representing the settings icon.
+ */
 const SettingsIcon = () => <span style={{fontSize: '24px'}}>⚙️</span>;
 
 /**

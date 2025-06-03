@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Defines the VideoList React component, which displays a list of
+ * YouTube videos with their thumbnails, titles, durations, descriptions (expandable),
+ * and a link to watch on YouTube.
+ */
 import React, {useState} from 'react';
 // Removed memo and FixedSizeList as we are removing virtualization
 
@@ -8,20 +13,33 @@ import React, {useState} from 'react';
  * @returns {React.ReactElement} The rendered video list.
  */
 function VideoList({videos}) {
+  /** @state Manages the expanded/collapsed state of video descriptions, keyed by video ID. */
   const [expandedDescriptions, setExpandedDescriptions] = useState({});
 
   if (!videos || videos.length === 0) {
     return <p>No videos to display.</p>;
   }
 
+  /**
+   * Toggles the expanded state of a video's description.
+   * @param {string} videoId - The ID of the video whose description state to toggle.
+   */
   const toggleDescription = (videoId) =>
     setExpandedDescriptions((prev) => ({
       ...prev, [videoId]: !prev[videoId],
     }));
 
+  /**
+   * Renders the description for a video, with a "More..."/"Less..." button
+   * if the description exceeds a certain length.
+   * @param {object} video - The video object containing description and other details.
+   * @param {string} videoId - The ID of the video.
+   * @returns {React.ReactElement} The rendered video description.
+   */
   const renderDescription = (video, videoId) => {
     const description = video.description || 'No description';
     const isExpanded = expandedDescriptions[videoId];
+    // Maximum length for the truncated description.
     const maxLength = 150; // This can be adjusted or made responsive if needed
     if (description.length <= maxLength) {
       return <p className="video-description"><strong>Description:</strong> {description}</p>;
@@ -39,6 +57,8 @@ function VideoList({videos}) {
   return (
     <ul className="video-list"> {/* Changed from List to ul, removed virtualization-specific props */}
       {videos.map((video) => {
+        // Use video.videoId if available (from YouTube API for playlist items),
+        // otherwise fallback to video.id (potentially for suggested videos if structure differs).
         const videoId = video.videoId || video.id;
         return (
           <li key={videoId} className="video-list-item"> {/* Using li for semantic list items */}

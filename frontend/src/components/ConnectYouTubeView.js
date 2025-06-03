@@ -1,3 +1,7 @@
+/**
+ * @fileoverview Defines the ConnectYouTubeView React component, which provides
+ * the UI for users to initiate the YouTube account connection process.
+ */
 import React from 'react';
 
 /**

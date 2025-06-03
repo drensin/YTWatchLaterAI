@@ -1,3 +1,7 @@
+/**
+ * @fileoverview Defines the StatusPopup React component, which displays
+ * temporary messages (e.g., success, error, info) to the user.
+ */
 import React from 'react';
 
 /**

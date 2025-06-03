@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Defines the LoginScreen React component, which serves as the
+ * main container for the login page, composing the LoginHeader, LoginContent,
+ * and LoginFooter components.
+ */
 import React from 'react';
 import LoginHeader from './LoginHeader';
 import LoginContent from './LoginContent';

@@ -1,12 +1,24 @@
+/**
+ * @fileoverview Defines the ScreenHeader React component, a generic header
+ * used across various screens in the application. It displays a title and
+ * can optionally include left and right action icons/buttons.
+ */
 import React from 'react';
 
-// Placeholder for a potential icon component or direct SVG
+/**
+ * Placeholder component for a settings icon.
+ * @returns {React.ReactElement} An SVG element representing a settings icon.
+ */
 const SettingsIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
     <path d="M222.62,100.88A3.29,3.29,0,0,0,224,103.2V152.8a3.29,3.29,0,0,0,1.38,2.32,8,8,0,0,1-4.2,14.07l-20.52-5.47a72.12,72.12,0,0,1-21.34,21.34l5.47,20.52a8,8,0,0,1-14.07,4.2,3.29,3.29,0,0,0-2.32-1.38H103.2a3.29,3.29,0,0,0-2.32,1.38,8,8,0,0,1-14.07-4.2l-5.47-20.52a72.12,72.12,0,0,1-21.34-21.34l-20.52,5.47a8,8,0,0,1-4.2-14.07,3.29,3.29,0,0,0-1.38-2.32V103.2a3.29,3.29,0,0,0-1.38-2.32,8,8,0,0,1,4.2-14.07l20.52,5.47A72.12,72.12,0,0,1,80,71.34L74.53,50.82a8,8,0,0,1,14.07-4.2,3.29,3.29,0,0,0,2.32,1.38H152.8a3.29,3.29,0,0,0,2.32-1.38,8,8,0,0,1,14.07,4.2l5.47,20.52a72.12,72.12,0,0,1,21.34,21.34l20.52-5.47a8,8,0,0,1,4.2,14.07ZM128,96a32,32,0,1,0,32,32A32,32,0,0,0,128,96Z"></path>
   </svg>
 );
 
+/**
+ * Placeholder component for a back arrow icon.
+ * @returns {React.ReactElement} An SVG element representing a back arrow icon.
+ */
 const BackArrowIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
     <path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm36-88a8,8,0,0,1-8,8H107.31l18.35,18.34a8,8,0,0,1-11.32,11.32l-32-32a8,8,0,0,1,0-11.32l32-32a8,8,0,0,1,11.32,11.32L107.31,120H156A8,8,0,0,1,164,128Z"></path>
@@ -25,7 +37,11 @@ const BackArrowIcon = () => (
  * @returns {React.ReactElement} The rendered screen header.
  */
 function ScreenHeader({title, leftIcon, onLeftIconClick, rightIcon, onRightIconClick}) {
+  // Determines the icon to display on the right. Uses provided `rightIcon` if available,
+  // otherwise defaults to SettingsIcon if `onRightIconClick` is provided.
   const finalRightIcon = rightIcon || (onRightIconClick ? <SettingsIcon /> : null);
+  // Determines the icon to display on the left. Uses provided `leftIcon` if available,
+  // otherwise defaults to BackArrowIcon if `onLeftIconClick` is provided.
   const finalLeftIcon = leftIcon || (onLeftIconClick ? <BackArrowIcon /> : null);
 
   return (

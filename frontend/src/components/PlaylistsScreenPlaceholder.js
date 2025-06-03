@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Defines the PlaylistsScreenPlaceholder React component.
+ * This component serves as a temporary placeholder for the playlists screen,
+ * often used during development or for navigation testing.
+ */
 import React from 'react';
 
 /**

@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Defines the LoginContent React component, which displays
+ * the main welcome message, introductory text, and the "Sign in with Google" button
+ * on the login screen.
+ */
 import React from 'react';
 
 /**
