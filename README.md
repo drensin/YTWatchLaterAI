@@ -35,6 +35,7 @@ d.  **OAuth Flow:**
    - iii. Google redirects to the `handleYouTubeAuth` Cloud Function (the pre-configured OAuth redirect URI). This function receives an authorization `code` and the `state` parameter.  
    - iv. `handleYouTubeAuth` validates the `finalRedirectUri` from the state, exchanges the `code` for YouTube API access and refresh tokens, and securely stores these tokens in Datastore, keyed by the user's Firebase UID.  
    - v.  The user is then redirected back to the `finalRedirectUri` on the frontend, with status parameters (`youtube_auth_status`, `error_message`, `state`).  
+   
 e.  **Post-Connection:** The frontend (`useYouTube` hook) processes these redirect parameters, validates the nonce, and if successful, marks YouTube as linked and proceeds to fetch the user's playlists.  
 
 ### 2. Viewing Playlists & Selecting a Playlist for Chat
