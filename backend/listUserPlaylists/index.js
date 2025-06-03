@@ -1,7 +1,15 @@
+const express = require('express');
+const compressionMiddleware = require('compression');
 const {Datastore} = require('@google-cloud/datastore');
 const {OAuth2Client} = require('google-auth-library');
 const {google} = require('googleapis');
 const admin = require('firebase-admin');
+
+// Create an Express app
+const app = express();
+
+// Apply compression middleware
+app.use(compressionMiddleware());
 
 // Initialize Firebase Admin SDK
 try {
@@ -43,7 +51,7 @@ async function getTokens(firebaseUid) {
  * @param {Object} req Cloud Function request context.
  * @param {Object} res Cloud Function response context.
  */
-exports.listUserPlaylists = async (req, res) => {
+const handleListUserPlaylists = async (req, res) => {
   // Set CORS headers
   res.set('Access-Control-Allow-Origin', '*'); // Adjust for production
   res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'); // Allow POST if frontend sends it
@@ -154,3 +162,9 @@ exports.listUserPlaylists = async (req, res) => {
     res.status(500).json({error: 'Failed to fetch playlists from YouTube.'});
   }
 };
+
+// Define the route for the Express app
+app.all('/', handleListUserPlaylists);
+
+// Export the Express app as the Cloud Function
+exports.listUserPlaylists = app;

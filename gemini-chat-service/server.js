@@ -24,7 +24,16 @@ const datastore = new Datastore();
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({
+  server,
+  perMessageDeflate: {
+    zlibDeflateOptions: {
+      level: 6 // Compression level (0-9)
+    },
+    // clientNoContextTakeover: true, // Default is true
+    // serverNoContextTakeover: true  // Default is true
+  }
+});
 
 // In-memory store for active Gemini chat sessions
 // ws -> { chat: GeminiChatSession, playlistId: string, modelId: string, videosForPlaylist: Array }

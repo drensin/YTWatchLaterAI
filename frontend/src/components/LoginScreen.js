@@ -7,6 +7,7 @@ import React from 'react';
 import {LoginHeader} from './LoginHeader';
 import {LoginContent} from './LoginContent';
 import {LoginFooter} from './LoginFooter';
+import './LoginScreen.css'; // Import the new CSS file
 
 /**
  * Renders the Login screen, which is composed of a header, main content area, and a footer.

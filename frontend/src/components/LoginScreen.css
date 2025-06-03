@@ -1,0 +1,95 @@
+/* Styles for the Login Screen */
+
+.login-screen-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh; /* Ensure it takes full viewport height */
+  background-color: #fff; /* Consistent white background */
+  justify-content: space-between; /* Pushes footer down */
+  font-family: 'Inter', 'Noto Sans', sans-serif; /* Ensure global font is applied */
+}
+
+/* --- Login Header Styles --- */
+.login-header {
+  background-color: #fff; /* Match ScreenHeader background */
+  padding: 1rem; /* Consistent padding, similar to ScreenHeader */
+  text-align: center;
+  /* border-bottom: 1px solid #e0e0e0; /* Optional: if a separator is desired */
+}
+
+.login-header-title {
+  color: #111418; /* Match ScreenHeader title color */
+  font-size: 1.25rem; /* Slightly larger or same as ScreenHeader */
+  font-weight: 700; /* Match ScreenHeader title weight */
+  margin: 0;
+}
+
+/* --- Login Content Styles --- */
+.login-content {
+  padding: 2rem 1rem; /* Add ample padding */
+  text-align: center;
+  flex-grow: 1; /* Allows content to take available space */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-welcome-title {
+  color: #111418; /* Dark text, consistent with other titles */
+  font-size: 1.75rem; /* Prominent welcome title (e.g., text-[28px] from comments) */
+  font-weight: 700; /* Bold */
+  margin-bottom: 0.75rem;
+}
+
+.login-intro-text {
+  color: #333; /* Standard body text color */
+  font-size: 1rem; /* Standard text size (e.g., text-base from comments) */
+  font-weight: 400; /* Normal weight */
+  max-width: 500px; /* Keep text readable */
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+/* --- Login Button Styles --- */
+.login-button-container {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: 1rem; /* Space above button */
+}
+
+.login-google-button {
+  background-color: #007bff; /* Primary blue, consistent with playlist 'View' button */
+  color: white;
+  border: none;
+  border-radius: 0.375rem; /* Consistent border-radius (rounded-md) */
+  padding: 0.75rem 1.5rem; /* Generous padding (py-3 px-6) */
+  font-size: 1rem; /* text-base */
+  font-weight: 500; /* font-medium */
+  cursor: pointer;
+  transition: background-color 0.2s;
+  min-width: 200px; /* Ensure a good minimum width */
+  display: inline-flex; /* For icon + text if you add Google icon later */
+  align-items: center;
+  justify-content: center;
+}
+
+.login-google-button:hover {
+  background-color: #0056b3; /* Darker blue on hover */
+}
+
+/* --- Login Footer Styles --- */
+.login-footer {
+  background-color: #f8f9fa; /* Light grey, distinct from main white or same as playlist bg */
+  padding: 1rem;
+  text-align: center;
+  border-top: 1px solid #e0e0e0; /* Subtle separator */
+}
+
+.login-terms-text {
+  color: #60758a; /* Muted text color (from comments) */
+  font-size: 0.875rem; /* text-sm */
+  font-weight: 400; /* Normal */
+  margin: 0;
+}

@@ -1,6 +1,14 @@
+const express = require('express');
+const compressionMiddleware = require('compression');
 const {Datastore} = require('@google-cloud/datastore');
 const admin = require('firebase-admin');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenerativeAI } = require('@google/generative-ai'); // This might not be used if GEMINI_API_KEY is for direct HTTPS
+
+// Create an Express app
+const app = express();
+
+// Apply compression middleware
+app.use(compressionMiddleware());
 
 // Initialize Firebase Admin SDK
 try {
@@ -42,7 +50,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
  * @param {Object} req Cloud Function request context.
  * @param {Object} res Cloud Function response context.
  */
-exports.checkUserAuthorization = async (req, res) => {
+const handleCheckUserAuthorization = async (req, res) => {
   // Set CORS headers for preflight requests and actual requests
   res.set('Access-Control-Allow-Origin', '*'); // Adjust to your frontend URL in production
   res.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
@@ -157,3 +165,9 @@ exports.checkUserAuthorization = async (req, res) => {
     return res.status(500).send({authorized: false, error: 'Internal server error during authorization check.'});
   }
 };
+
+// Define the route for the Express app
+app.all('/', handleCheckUserAuthorization);
+
+// Export the Express app as the Cloud Function
+exports.checkUserAuthorization = app;

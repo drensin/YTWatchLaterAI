@@ -4,10 +4,18 @@
  * and manage associations between videos and playlists.
  * It handles YouTube API authentication, token refresh, and data transformation.
  */
+const express = require('express');
+const compressionMiddleware = require('compression'); // Renamed to avoid conflict if 'compression' is used as a var
 const {Datastore} = require('@google-cloud/datastore');
 const {OAuth2Client} = require('google-auth-library');
 const {google} = require('googleapis');
 const admin = require('firebase-admin');
+
+// Create an Express app
+const app = express();
+
+// Apply compression middleware
+app.use(compressionMiddleware());
 
 // Initialize Firebase Admin SDK
 try {
@@ -87,7 +95,8 @@ function parseISO8601Duration(durationString) {
  * @return {Promise<void>} A promise that resolves when the response has been sent,
  *     or rejects if an unrecoverable error occurs.
  */
-exports.getWatchLaterPlaylist = async (req, res) => {
+const handleGetWatchLaterPlaylist = async (req, res) => {
+  // CORS headers are set. Note: If using Express globally, CORS middleware (like `cors` package) can also be used.
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
@@ -295,3 +304,10 @@ exports.getWatchLaterPlaylist = async (req, res) => {
     res.status(500).json({error: 'Failed to fetch or sync playlist items.'});
   }
 };
+
+// Define the route for the Express app
+// Cloud Functions typically expect a single handler, so all traffic to the function URL will hit this.
+app.all('/', handleGetWatchLaterPlaylist); // Using app.all to handle OPTIONS, POST, etc. on the root path of the function
+
+// Export the Express app as the Cloud Function
+exports.getWatchLaterPlaylist = app;

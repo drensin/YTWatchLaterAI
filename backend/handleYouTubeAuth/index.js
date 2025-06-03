@@ -1,8 +1,16 @@
+const express = require('express');
+const compressionMiddleware = require('compression');
 const {google} = require('googleapis');
 const {OAuth2Client} = require('google-auth-library');
 const {Datastore} = require('@google-cloud/datastore');
 const {SecretManagerServiceClient} = require('@google-cloud/secret-manager');
 // const admin = require('firebase-admin'); // Not strictly needed here if not verifying an ID token passed in state
+
+// Create an Express app
+const app = express();
+
+// Apply compression middleware
+app.use(compressionMiddleware());
 
 // Initialize Firebase Admin SDK (optional here, but good for consistency if other Firebase services are used)
 // try {
@@ -68,7 +76,7 @@ async function getClientSecrets() {
  * Redirects the user back to the frontend application.
  * Expects 'code' and 'state' (containing Firebase UID and nonce) as query parameters.
  */
-exports.handleYouTubeAuth = async (req, res) => {
+const handleYouTubeAuthHandler = async (req, res) => {
   // CORS is not strictly necessary for a redirect, but good practice if it were an API endpoint.
   // For redirects, the browser doesn't typically block them due to CORS.
   res.set('Access-Control-Allow-Origin', '*');
@@ -165,3 +173,9 @@ exports.handleYouTubeAuth = async (req, res) => {
     res.redirect(`${targetRedirectUrl}?youtube_auth_status=error&error_message=${encodeURIComponent(errorMessage)}&state=${encodedState}`);
   }
 };
+
+// Define the route for the Express app
+app.all('/', handleYouTubeAuthHandler);
+
+// Export the Express app as the Cloud Function
+exports.handleYouTubeAuth = app;
