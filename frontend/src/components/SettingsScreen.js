@@ -3,7 +3,7 @@
  * to configure application settings, such as AI model selection and logging out.
  * It will also handle default playlist preferences in a future update.
  */
-import React from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 
 /**
  * Renders the Settings screen.
@@ -20,15 +20,45 @@ function SettingsScreen({
   availableModels,
   onModelSelection,
   onLogout,
-  userPlaylists, // Prop for Phase 2: Default playlist selection
+  userPlaylists,
 }) {
-  // Phase 2 state will be added here:
-  // const [useDefaultPlaylist, setUseDefaultPlaylist] = useState(false);
-  // const [currentSelectedDefaultPlaylistId, setCurrentSelectedDefaultPlaylistId] = useState('');
+  const [useDefaultPlaylistEnabled, setUseDefaultPlaylistEnabled] = useState(false);
+  const [defaultPlaylistId, setDefaultPlaylistId] = useState('');
 
-  // Phase 2 useEffect for loading from localStorage will be added here.
+  // Load preferences from localStorage on component mount
+  useEffect(() => {
+    const storedUseDefault = localStorage.getItem('reelworthy_useDefaultPlaylistEnabled') === 'true';
+    const storedDefaultId = localStorage.getItem('reelworthy_defaultPlaylistId');
 
-  // Phase 2 handlers for checkbox and dropdown will be added here.
+    setUseDefaultPlaylistEnabled(storedUseDefault);
+    if (storedUseDefault && storedDefaultId) {
+      setDefaultPlaylistId(storedDefaultId);
+    } else {
+      setDefaultPlaylistId(''); // Ensure it's cleared if not enabled or no ID
+    }
+  }, []);
+
+  const handleUseDefaultChange = useCallback((event) => {
+    const isChecked = event.target.checked;
+    setUseDefaultPlaylistEnabled(isChecked);
+    localStorage.setItem('reelworthy_useDefaultPlaylistEnabled', isChecked);
+    if (!isChecked) {
+      // If disabling, clear the stored default playlist ID
+      setDefaultPlaylistId('');
+      localStorage.removeItem('reelworthy_defaultPlaylistId');
+    }
+  }, []);
+
+  const handleDefaultPlaylistChange = useCallback((event) => {
+    const newPlaylistId = event.target.value;
+    setDefaultPlaylistId(newPlaylistId);
+    if (useDefaultPlaylistEnabled && newPlaylistId) {
+      localStorage.setItem('reelworthy_defaultPlaylistId', newPlaylistId);
+    } else if (useDefaultPlaylistEnabled && !newPlaylistId) {
+      // If "Select a Playlist" is chosen while enabled, clear it
+      localStorage.removeItem('reelworthy_defaultPlaylistId');
+    }
+  }, [useDefaultPlaylistEnabled]);
 
   return (
     <div style={{padding: '20px', textAlign: 'center'}}>
@@ -42,7 +72,7 @@ function SettingsScreen({
           value={selectedModelId}
           onChange={(e) => onModelSelection(e.target.value)}
           disabled={!availableModels || availableModels.length === 0}
-          style={{padding: '5px', minWidth: '200px'}}
+          style={{padding: '5px', width: '280px'}}
         >
           {(!availableModels || availableModels.length === 0) && <option value="">Loading models...</option>}
           {availableModels && availableModels.map((model) => (
@@ -53,41 +83,41 @@ function SettingsScreen({
         </select>
       </div>
 
-      {/* Default Playlist Settings (Placeholder for Phase 2) */}
-      {/*
+      {/* Default Playlist Settings */}
       <div style={{marginTop: '30px', marginBottom: '20px', borderTop: '1px solid #ccc', paddingTop: '20px'}}>
         <h2>Default Playlist</h2>
-        <div>
+        <div style={{marginBottom: '10px'}}>
           <label>
             <input
               type="checkbox"
-              // checked={useDefaultPlaylist}
-              // onChange={handleUseDefaultChange}
-              style={{marginRight: '10px'}}
+              checked={useDefaultPlaylistEnabled}
+              onChange={handleUseDefaultChange}
+              style={{marginRight: '10px', verticalAlign: 'middle'}}
             />
-            Use Default Playlist
+            Automatically load a default playlist on startup
           </label>
         </div>
-        <div style={{marginTop: '10px'}}>
-          <label htmlFor="default-playlist-select" style={{marginRight: '10px'}}>Select Playlist:</label>
+        <div>
+          <label htmlFor="default-playlist-select" style={{marginRight: '10px'}}>
+            Default playlist to load:
+          </label>
           <select
             id="default-playlist-select"
-            // value={currentSelectedDefaultPlaylistId}
-            // onChange={handleDefaultPlaylistChange}
-            // disabled={!useDefaultPlaylist || !userPlaylists || userPlaylists.length === 0}
-            style={{padding: '5px', minWidth: '200px'}}
+            value={defaultPlaylistId}
+            onChange={handleDefaultPlaylistChange}
+            disabled={!useDefaultPlaylistEnabled || !userPlaylists || userPlaylists.length === 0}
+            style={{padding: '5px', width: '280px'}}
           >
             <option value="">-- Select a Playlist --</option>
-            {userPlaylists && userPlaylists.map(playlist => (
+            {userPlaylists && userPlaylists.map((playlist) => (
               <option key={playlist.id} value={playlist.id}>{playlist.title}</option>
             ))}
-            {(!userPlaylists || userPlaylists.length === 0) && useDefaultPlaylist && (
+            {(!userPlaylists || userPlaylists.length === 0) && useDefaultPlaylistEnabled && (
               <option value="" disabled>No playlists available</option>
             )}
           </select>
         </div>
       </div>
-      */}
 
       {/* Logout Button */}
       <div style={{marginTop: '30px', borderTop: '1px solid #ccc', paddingTop: '20px'}}>

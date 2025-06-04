@@ -64,16 +64,19 @@ function App() {
    * @type {string}
    */
   const [selectedModelId, setSelectedModelId] = useState('');
-
+  const [initialAutoNavAttempted, setInitialAutoNavAttempted] = useState(false);
+  // No App.js state needed for localStorageDefaultPlaylistId for settings UI itself,
+  // as SettingsScreen now handles its own localStorage interactions for setting the default.
+  // App.js will read directly from localStorage for auto-navigation logic.
 
   /**
    * Navigates to the specified screen.
    * @param {string} screen - The name of the screen to navigate to (e.g., 'login', 'playlists', 'chat', 'settings').
    * @returns {void}
    */
-  const navigateTo = (screen) => {
+  const navigateTo = useCallback((screen) => {
     setCurrentScreen(screen);
-  };
+  }, [setCurrentScreen]); // setCurrentScreen is stable
 
   // Authentication-related state and handlers.
   const {
@@ -180,6 +183,88 @@ function App() {
     setYoutubeSpecificError: setYouTubeErrorAppLevel,
   } = useYouTube(currentUser, isLoggedIn, isAuthorizedUser, setPopup, isYouTubeLinkedByAuthCheck);
 
+  /**
+   * Handles playlist selection from the main playlists screen.
+   * Fetches items for the selected playlist and navigates to the chat screen.
+   * @param {string} playlistId - The ID of the selected playlist.
+   * @returns {Promise<void>}
+   */
+  const handleSelectPlaylistFromList = useCallback(async (playlistId) => {
+    if (!playlistId) {
+      console.warn('handleSelectPlaylistFromList called with no playlistId');
+      return;
+    }
+    setIsPlaylistDataReadyForChat(false);
+    setSelectedPlaylistId(playlistId);
+    setError(null); // Clear previous general errors
+    setYouTubeErrorAppLevel(null); // Clear previous YouTube specific errors
+    const fetchSuccess = await fetchPlaylistItems(playlistId);
+    if (fetchSuccess) {
+      setIsPlaylistDataReadyForChat(true);
+      navigateTo('chat');
+    } else {
+      // Error handled by useYouTube hook via setPopup
+      // A generic popup is already shown by useYouTube on fetch failure.
+    }
+  }, [fetchPlaylistItems, setSelectedPlaylistId, navigateTo, setIsPlaylistDataReadyForChat, setError, setYouTubeErrorAppLevel, setPopup]);
+
+  /**
+   * Handles playlist selection changes within the chat interface.
+   * Fetches items for the newly selected playlist.
+   * @param {React.SyntheticEvent<HTMLSelectElement>} event - The selection event from a dropdown.
+   * @returns {Promise<void>}
+   */
+  const handlePlaylistSelectionInChat = useCallback(async (event) => {
+    const newPlaylistId = event.target.value;
+    setIsPlaylistDataReadyForChat(false); // Indicate data is not ready for the new playlist
+    setSelectedPlaylistId(newPlaylistId);
+    setError(null); // Clear previous general errors
+    setYouTubeErrorAppLevel(null); // Clear previous YouTube specific errors
+    if (newPlaylistId) {
+      const fetchSuccess = await fetchPlaylistItems(newPlaylistId);
+      if (fetchSuccess) {
+        setIsPlaylistDataReadyForChat(true); // Data is ready for chat
+      }
+      // If fetchSuccess is false, error is handled by useYouTube hook via setPopup
+    } else {
+      // If no playlist is selected (e.g., "Select a playlist" option)
+      setYouTubeVideos([]); // Clear videos
+    }
+  }, [fetchPlaylistItems, setSelectedPlaylistId, setYouTubeVideos, setYouTubeErrorAppLevel, setError, setIsPlaylistDataReadyForChat]);
+
+  /**
+   * Refreshes the items for the currently selected playlist.
+   * Shows a status popup on success or if no playlist is selected.
+   * @returns {Promise<void>}
+   */
+  const refreshSelectedPlaylistItems = async () => {
+    if (selectedPlaylistId) {
+      setError(null); // Clear previous general errors
+      setYouTubeErrorAppLevel(null); // Clear previous YouTube specific errors
+      const fetchSuccess = await fetchPlaylistItems(selectedPlaylistId);
+      if (fetchSuccess) {
+        setIsPlaylistDataReadyForChat(true);
+        if (setPopup) {
+          setPopup({visible: true, message: 'Playlist refreshed.', type: 'info'});
+        }
+        setTimeout(() => {
+          if (setPopup) {
+            setPopup((p) => ({...p, visible: false}));
+          }
+        }, 2000);
+      }
+    } else {
+      if (setPopup) {
+        setPopup({visible: true, message: 'Please select a playlist first.', type: 'error'});
+      }
+      setTimeout(() => {
+        if (setPopup) {
+          setPopup((p) => ({...p, visible: false}));
+        }
+      }, 3000);
+    }
+  };
+
   // WebSocket chat functionality state and handlers.
   const {
     suggestedVideos,
@@ -254,11 +339,74 @@ function App() {
       if (!isLoggedIn || !isAuthorizedUser || !isYouTubeLinked) {
         setCurrentScreen('login');
       } else if (currentScreen === 'login' && isLoggedIn && isAuthorizedUser && isYouTubeLinked) {
-        // If user was on login but is now fully authenticated, move to playlists
-        setCurrentScreen('playlists');
+        // If user was on login but is now fully authenticated,
+        // check for default playlist before navigating to 'playlists'.
+        // The auto-navigation effect below will handle this.
+        // If no default, it will effectively fall through to 'playlists' or stay if already there.
+        // No direct navigation to 'playlists' here anymore if a default might take precedence.
       }
     }
   }, [authChecked, isLoggedIn, isAuthorizedUser, isYouTubeLinked, currentScreen]);
+
+  /**
+   * Effect to automatically load and navigate to a default playlist if configured.
+   * This runs when auth status is confirmed, user is fully authenticated, YouTube is linked,
+   * playlists are loaded, and a default playlist is enabled in localStorage.
+   */
+  useEffect(() => {
+    const useDefaultEnabled = localStorage.getItem('reelworthy_useDefaultPlaylistEnabled') === 'true';
+    const storedDefaultPlaylistId = localStorage.getItem('reelworthy_defaultPlaylistId');
+
+    // Exit if initial checks not complete or if auto-nav already attempted
+    if (!authChecked || !isLoggedIn || !isAuthorizedUser || !isYouTubeLinked || initialAutoNavAttempted) {
+      return;
+    }
+
+    // If playlists are not loaded yet, and we might need them (because a default is set), wait.
+    if (useDefaultEnabled && storedDefaultPlaylistId && userPlaylists.length === 0) {
+      return; // Will re-run when userPlaylists updates
+    }
+
+    // At this point, all auth checks passed, and if a default is set, playlists are also loaded.
+    // Now we can make a definitive decision and then mark auto-nav as attempted.
+
+    if (useDefaultEnabled && storedDefaultPlaylistId) {
+      // A default playlist is configured
+      if (userPlaylists.length > 0) { // This check is now more of a safeguard
+        const defaultPlaylistExists = userPlaylists.some((p) => p.id === storedDefaultPlaylistId);
+        if (defaultPlaylistExists) {
+          if (currentScreen !== 'chat') { // Only attempt auto-nav if not already in chat
+            if (selectedPlaylistId === storedDefaultPlaylistId && isPlaylistDataReadyForChat) {
+              navigateTo('chat'); // Already loaded, just navigate
+            } else if (selectedPlaylistId !== storedDefaultPlaylistId || !isPlaylistDataReadyForChat) {
+              console.log(`Auto-loading default playlist: ${storedDefaultPlaylistId}`);
+              handleSelectPlaylistFromList(storedDefaultPlaylistId);
+            }
+          }
+        } else {
+          // Default playlist from localStorage doesn't exist in current userPlaylists
+          console.warn('Default playlist from localStorage not found. Clearing default settings.');
+          localStorage.removeItem('reelworthy_defaultPlaylistId');
+          localStorage.removeItem('reelworthy_useDefaultPlaylistEnabled');
+          // If user was on login, and default is now invalid, send to playlists
+          if (currentScreen === 'login') {
+            navigateTo('playlists');
+          }
+        }
+      }
+    } else if (currentScreen === 'login') {
+      // No default playlist is set (or enabled), and user is on login screen after full auth.
+      // Navigate to playlists screen.
+      navigateTo('playlists');
+    }
+    // Mark auto-navigation as attempted so this logic doesn't run again unnecessarily.
+    setInitialAutoNavAttempted(true);
+  }, [
+    authChecked, isLoggedIn, isAuthorizedUser, isYouTubeLinked,
+    userPlaylists, currentScreen, handleSelectPlaylistFromList,
+    selectedPlaylistId, isPlaylistDataReadyForChat, navigateTo,
+    initialAutoNavAttempted,
+  ]);
 
 
   /**
@@ -269,88 +417,6 @@ function App() {
       thinkingOutputContainerRef.current.scrollTop = thinkingOutputContainerRef.current.scrollHeight;
     }
   }, [thinkingOutput, activeOutputTab]);
-
-  /**
-   * Handles playlist selection changes within the chat interface.
-   * Fetches items for the newly selected playlist.
-   * @param {React.SyntheticEvent<HTMLSelectElement>} event - The selection event from a dropdown.
-   * @returns {Promise<void>}
-   */
-  const handlePlaylistSelectionInChat = useCallback(async (event) => {
-    const newPlaylistId = event.target.value;
-    setIsPlaylistDataReadyForChat(false); // Indicate data is not ready for the new playlist
-    setSelectedPlaylistId(newPlaylistId);
-    setError(null); // Clear previous general errors
-    setYouTubeErrorAppLevel(null); // Clear previous YouTube specific errors
-    if (newPlaylistId) {
-      const fetchSuccess = await fetchPlaylistItems(newPlaylistId);
-      if (fetchSuccess) {
-        setIsPlaylistDataReadyForChat(true); // Data is ready for chat
-      }
-      // If fetchSuccess is false, error is handled by useYouTube hook via setPopup
-    } else {
-      // If no playlist is selected (e.g., "Select a playlist" option)
-      setYouTubeVideos([]); // Clear videos
-    }
-  }, [fetchPlaylistItems, setSelectedPlaylistId, setYouTubeVideos, setYouTubeErrorAppLevel, setError, setIsPlaylistDataReadyForChat]);
-
-  /**
-   * Handles playlist selection from the main playlists screen.
-   * Fetches items for the selected playlist and navigates to the chat screen.
-   * @param {string} playlistId - The ID of the selected playlist.
-   * @returns {Promise<void>}
-   */
-  const handleSelectPlaylistFromList = useCallback(async (playlistId) => {
-    if (!playlistId) {
-      console.warn('handleSelectPlaylistFromList called with no playlistId');
-      return;
-    }
-    setIsPlaylistDataReadyForChat(false);
-    setSelectedPlaylistId(playlistId);
-    setError(null); // Clear previous general errors
-    setYouTubeErrorAppLevel(null); // Clear previous YouTube specific errors
-    const fetchSuccess = await fetchPlaylistItems(playlistId);
-    if (fetchSuccess) {
-      setIsPlaylistDataReadyForChat(true);
-      navigateTo('chat');
-    } else {
-      // Error handled by useYouTube hook via setPopup
-      // A generic popup is already shown by useYouTube on fetch failure.
-    }
-  }, [fetchPlaylistItems, setSelectedPlaylistId, navigateTo, setIsPlaylistDataReadyForChat, setError, setYouTubeErrorAppLevel, setPopup]);
-
-  /**
-   * Refreshes the items for the currently selected playlist.
-   * Shows a status popup on success or if no playlist is selected.
-   * @returns {Promise<void>}
-   */
-  const refreshSelectedPlaylistItems = async () => {
-    if (selectedPlaylistId) {
-      setError(null); // Clear previous general errors
-      setYouTubeErrorAppLevel(null); // Clear previous YouTube specific errors
-      const fetchSuccess = await fetchPlaylistItems(selectedPlaylistId);
-      if (fetchSuccess) {
-        setIsPlaylistDataReadyForChat(true);
-        if (setPopup) {
-          setPopup({visible: true, message: 'Playlist refreshed.', type: 'info'});
-        }
-        setTimeout(() => {
-          if (setPopup) {
-            setPopup((p) => ({...p, visible: false}));
-          }
-        }, 2000);
-      }
-    } else {
-      if (setPopup) {
-        setPopup({visible: true, message: 'Please select a playlist first.', type: 'error'});
-      }
-      setTimeout(() => {
-        if (setPopup) {
-          setPopup((p) => ({...p, visible: false}));
-        }
-      }, 3000);
-    }
-  };
 
   /**
    * Renders the content for the current active screen.
@@ -418,14 +484,18 @@ function App() {
             availableModels={availableModels}
             onModelSelection={handleModelSelection}
             onLogout={handleFirebaseLogout}
-            userPlaylists={userPlaylists} // Prop for Phase 2
-            // currentDefaultPlaylistId will be added in Phase 2
-            // onSetDefaultPlaylist will be added in Phase 2
+            userPlaylists={userPlaylists}
+            // SettingsScreen now manages its own localStorage for default playlist settings
           />
         );
       default:
+        // If currentScreen is 'login' here, it means all auth checks passed,
+        // and we are likely waiting for an effect to navigate to 'playlists' or 'chat'.
+        // Avoid warning for 'login' in this specific scenario.
+        if (currentScreen !== 'login') {
+          console.warn(`Unknown screen: ${currentScreen}, defaulting to playlists.`);
+        }
         // Default to playlists screen if currentScreen is unrecognized or user is in a valid state for it
-        console.warn(`Unknown screen: ${currentScreen}, defaulting to playlists.`);
         return <PlaylistsScreen userPlaylists={userPlaylists} onSelectPlaylist={handleSelectPlaylistFromList} />;
     }
   };
