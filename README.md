@@ -58,41 +58,49 @@ f.  **Display Results:** The frontend displays the suggested videos, along with 
 
 ### 4. Playlist Data Synchronization (Background/On-Demand)
 a.  **Trigger:** Occurs when a user selects a playlist for the first time or manually triggers a refresh. This is handled by the `getWatchLaterPlaylist` Cloud Function.  
+
 b.  **Fetch from YouTube:** The function fetches the current list of video IDs and basic metadata from the specified YouTube playlist.  
+
 c.  **Fetch/Update Video Details:** For each video in the YouTube playlist:  
    - It checks if a detailed record for the video already exists in Datastore (`Videos` kind).  
    - If not, or if crucial details like `durationSeconds` are missing, it fetches full video details (snippet, contentDetails, statistics, topicDetails) from the YouTube Data API (`youtube.videos.list`).  
    - It updates/creates the video entity in Datastore.  
+
 d.  **Manage Associations:** The `associatedPlaylistIds` array on each video entity in Datastore is updated to include the current `playlistId`.  
+
 e.  **Cleanup Stale Data:** If a video previously associated with the current playlist (in Datastore) is no longer found in the YouTube playlist, its association is removed. If it's no longer in *any* playlist, the video entity itself might be deleted from Datastore.  
+
 f.  **Frontend Update:** The function returns the list of videos (with key details) for the frontend to display.  
 
-### 5. User Subscription Feed Synchronization (Background)
-*(This describes the new feature for fetching recent videos from user subscriptions)*
-a.  **Trigger (Scheduled):** A Cloud Scheduler job ("TriggerSubscriptionFeedUpdates") runs twice daily (e.g., 03:00 and 15:00 UTC). It invokes the `scheduleAllUserFeedUpdates` Cloud Function using an OIDC token for authentication.
+### 5. User Subscription Feed Synchronization (Background)  
+
+a.  **Trigger (Scheduled):** A Cloud Scheduler job ("TriggerSubscriptionFeedUpdates") runs twice daily (e.g., 03:00 and 15:00 UTC). It invokes the `scheduleAllUserFeedUpdates` Cloud Function using an OIDC token for authentication.  
     *   `scheduleAllUserFeedUpdates` queries Datastore for all users with linked YouTube accounts and publishes a message for each user to the `user-feed-update-requests` Pub/Sub topic.  
+
 b.  **Trigger (On-Demand/Initial):**  
     *   When a user successfully links their YouTube account for the first time (handled in `useYouTube.js` after OAuth callback).  
     *   When a logged-in, YouTube-linked user's `checkUserAuthorization` response indicates their subscription feed is not ready (handled in `useAuth.js`).  
     *   In these cases, the frontend calls the `requestSubscriptionFeedUpdate` Cloud Function, which then publishes a message for that specific user to the `user-feed-update-requests` Pub/Sub topic.  
+
 c.  **Processing (`fetchUserSubscriptionFeed` Pub/Sub-triggered Function):**  
       *   i.  Receives a message from `user-feed-update-requests` containing a `userId`.  
-      *   ii. Retrieves and refreshes (if necessary) the user's OAuth tokens from Datastore using `YOUTUBE_CLIENT_ID` and `YOUTUBE_CLIENT_SECRET`.
+      *   ii. Retrieves and refreshes (if necessary) the user's OAuth tokens from Datastore using `YOUTUBE_CLIENT_ID` and `YOUTUBE_CLIENT_SECRET`.  
       *   iii. Fetches all of the user's YouTube channel subscriptions (`subscriptions.list`).  
       *   iv. For each subscribed channel:  
             *   Gets the channel's "uploads" playlist ID (`channels.list`).  
             *   Fetches up to 10 most recent video items from that uploads playlist (`playlistItems.list`).  
       *   v.  Aggregates all collected video items.  
       *   vi. Sorts these videos globally by publication date (newest first).  
-      *   vii. Selects the top 100 most recent video items.
-      *   viii. Fetches full video details (including `contentDetails` for duration) for these 100 videos using `youtube.videos.list`.
-      *   ix. Filters out YouTube Shorts (e.g., videos with duration <= 61 seconds).
-      *   x. Stores these filtered, non-Short video details (ID, title, description, durationSeconds, etc.) and a `lastUpdated` timestamp in the `UserSubscriptionFeedCache` Datastore kind, keyed by `userId`. The video `description` field is explicitly excluded from Datastore indexes.
+      *   vii. Selects the top 100 most recent video items.  
+      *   viii. Fetches full video details (including `contentDetails` for duration) for these 100 videos using `youtube.videos.list`.  
+      *   ix. Filters out YouTube Shorts (e.g., videos with duration <= 61 seconds).  
+      *   x. Stores these filtered, non-Short video details (ID, title, description, durationSeconds, etc.) and a `lastUpdated` timestamp in the `UserSubscriptionFeedCache` Datastore kind, keyed by `userId`. The video `description` field is explicitly excluded from Datastore indexes.  
+
 d.  **AI Chat Context Enhancement (User-Controlled):**
-    *   The user can toggle a setting on the Settings page ("Include recent videos from my subscriptions in AI suggestions"). This preference is managed in `App.js` state and persisted in `localStorage`.
-    *   Changing this setting triggers a reset of the WebSocket chat session to ensure the new preference is immediately applied.
-    *   When `useWebSocketChat.js` sends the `INIT_CHAT` message to `gemini-chat-service`, it includes the `userId` and this preference flag.
-    *   If the flag is true, `gemini-chat-service` fetches the user's cached subscription videos from `UserSubscriptionFeedCache` (in addition to the selected playlist's videos), combines and de-duplicates them, and uses this richer dataset as context for Gemini.
+    *   The user can toggle a setting on the Settings page ("Include recent videos from my subscriptions in AI suggestions"). This preference is managed in `App.js` state and persisted in `localStorage`.  
+    *   Changing this setting triggers a reset of the WebSocket chat session to ensure the new preference is immediately applied.  
+    *   When `useWebSocketChat.js` sends the `INIT_CHAT` message to `gemini-chat-service`, it includes the `userId` and this preference flag.  
+    *   If the flag is true, `gemini-chat-service` fetches the user's cached subscription videos from `UserSubscriptionFeedCache` (in addition to the selected playlist's videos), combines and de-duplicates them, and uses this richer dataset as context for Gemini.  
 
 ## Technical Architecture Overview
 
@@ -402,30 +410,3 @@ For comprehensive, step-by-step deployment commands and configurations for all s
 
 ## Environment Variables
 (Refer to `DEPLOYMENT_INSTRUCTIONS.md` for a detailed list of environment variables for frontend, Cloud Functions, and Cloud Run.)
-
-</final_file_content>
-
-IMPORTANT: For any future changes to this file, use the final_file_content shown above as your reference. This content reflects the current state of the file, including any auto-formatting (e.g., if you used single quotes but the formatter converted them to double quotes). Always base your SEARCH/REPLACE operations on this final version to ensure accuracy.
-
-<environment_details>
-# VSCode Visible Files
-README.md
-
-# VSCode Open Tabs
-backend/requestSubscriptionFeedUpdate/index.js
-backend/fetchUserSubscriptionFeed/index.js
-frontend/src/components/SettingsScreen.js
-frontend/src/hooks/useWebSocketChat.js
-frontend/src/App.js
-README.md
-state.md
-
-# Current Time
-6/4/2025, 3:21:29 AM (America/Chicago, UTC-5:00)
-
-# Context Window Usage
-521,242 / 1,048.576K tokens used (50%)
-
-# Current Mode
-ACT MODE
-</environment_details>
