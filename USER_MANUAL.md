@@ -2,7 +2,7 @@
 
 Welcome to ReelWorthy! This guide will help you understand how to use ReelWorthy to manage, explore, and get intelligent insights from your YouTube playlists, especially your "Watch Later" list.
 
-![ReelWorthy Logo](frontend/public/ReelWorthyLogo.png)
+<img src="frontend/public/ReelWorthyLogo.png" alt="ReelWorthy Logo" width="200px">
 
 ## Table of Contents
 
@@ -98,9 +98,9 @@ ReelWorthy has a simple and intuitive interface.
 ### Bottom Navigation Bar
 
 At the bottom of the screen, you'll find a navigation bar to easily switch between the main sections:
-*   <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNHB4IiBoZWlnaHQ9IjI0cHgiIGZpbGw9ImN1cnJlbnRDb2xvciIgdmlld0JveD0iMCAwIDI1NiAyNTYiPgogICAgPHBhdGggZD0iTTIxOC44MywxMDMuNzdsLTgwLTc1LjQ4YTEuMTQsMS4xNCwwLDAsMS0uMTEtLjExLDE2LDE2LDAsMCwwLTIxLjUzLDBsLS4xMS4xMUwzNy4xNywxMDMuNzdBMTYsMTYsMCwwLDAsMzIsMTE1LjU1VjIwOGExNiwxNiwwLDAsMCwxNiwxNkg5NmExNiwxNiwwLDAsMCwxNi0xNlYxNjBoMzJ2NDhhMTYsMTYsMCwwLDAsMTYsMTZoNDhhMTYsMTYsMCwwLDAsMTYtMTZWMTExNS41NUExNiwxNiwwLDAsMCwyMTguODMsMTAzLjc3Wk0yMDgsMjA4SDE2MFYxNjBhMTYsMTYsMCwwLDAtMTYtMTZIMTEyYTE2LDE2LDAsMCwwLTE2LDE2djQ4SDQ4VjExNS41NWwuMTEtLjFMMTI4LDQwbDc5LjksNzUuNDMuMTEuMVoiPjwvcGF0aD4KICA8L3N2Zz4=" alt="Playlists Icon" width="24" height="24" /> **Playlists:** Takes you to the Playlists Screen.
-*   <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNHB4IiBoZWlnaHQ9IjI0cHgiIGZpbGw9ImN1cnJlbnRDb2xvciIgdmlld0JveD0iMCAwIDI1NiAyNTYiPgogICAgPHBhdGggZD0iTTIyOS42NiwyMTguMzRsLTUwLjA3LTUwLjA2YTg4LjExLDg4LjExLDAsMSwwLTExLjMxLDExLjMxbDUwLjA2LDUwLjA3YTgsOCwwLDAsMCwxMS4zMi0xMS4zMlpNNDAsMTEyYTcyLDcyLDAsMSwxLDcyLDcyQTcyLjA4LDcyLjA4LDAsMCwxLDQwLDExMloiPjwvcGF0aD4KICA8L3N2Zz4=" alt="Chat Icon" width="24" height="24" /> **Chat:** Takes you to the Chat Screen (usually active after selecting a playlist).
-*   <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNHB4IiBoZWlnaHQ9IjI0cHgiIGZpbGw9ImN1cnJlbnRDb2xvciIgdmlld0JveD0iMCAwIDI1NiAyNTYiPgogICAgPHBhdGggZD0iTTEyOCw4MGE0OCw0OCwwLDEsMCw0OCw0OEE0OC4wNSw0OC4wNSwwLDAsMCwxMjgsODBabTAsODBBMzIsMzIsMCwxLDEsMTYwLDEyOEEzMiwzMiwwLDAsMSwxMjgsMTYwWm04OC0yOS44NHFxLjA2LTIuMTYsMC00LjMybDE0LjkyLTE4LjY0YTgsOCwwLDAsMCwxLjQ4LTcuMDZBMTA3LjIxLDEwNy4yMSwwLDAsMCwyMTYuMDcsNzMuOWE4LDgsMCwwLDAtNi0zLjkzbC0yMy43Mi0yLjY0cS0xLjQ4LTEuNTYtMy0zTDE4Niw0MC41NGE4LDgsMCwwLDAtMy45NC02QTEwNy43MSwxMDcuNzEsMCwwLDAsMTU1LjgyLDIzLjYxYTgsOCwwLDAsMC03LjA2LDEuNDlMMTMwLjE2LDQwUTEyOCw0MCwxMjUuODQsNDBMMTA3LjIsMjUuMTFhOCw4LDAsMCwwLTcuMDYtMS40OEExMDcuNiwxMDcuNiwwLDAsMCw3My44OSwzNC41MWE4LDgsMCwwLDAtMy45Myw2TDY3LjMyLDY0LjI3cS0xLjU2LDEuNDktMywzTDQwLjU0LDcwYTgsOCwwLDAsMC02LDMuOTRB MTA3LjcxLDEwNy43MSwwLDAsMCwyMy42NiwxMDAuMmE4LDgsMCwwLDAsMS40OSw3LjA2TDQwLDEyNS44NFE0MCwxMjgsNDAsMTMwLjE2TDI1LjExLDE0OC44YTgsOCwwLDAsMC0xLjQ4LDcuMDZB MTA3LjIxLDEwNy4yMSwwLDAsMCwzNC41MSwxODJhOCw4LDAsMCwwLDYsMy45M2wyMy43MiwyLjY0cTEuNDksMS41NiwzLDNMNzAsMjE1LjQ2YTgsOCwwLDAsMCwzLjk0LDZBMTA3LjcxLDEwNy43MSwwLDAsMCwxMDAuMTksMjMwYTgsOCwwLDAsMCw3LjA2LTEuNDlMMTI1Ljg0LDIxNnEyLjE2LjA2LDQuMzIsMGwxOC42NCwxNC45MmE4LDgsMCwwLDAsNy4wNiwxLjQ4QTEwNy4yMSwxMDcuMjEsMCwwLDAsMTgyLDIxNS44YTgsOCwwLDAsMCwzLjkzLTZMMTg4LjU1LDY0LjI3cTEuNTYtMS40OCwzLTNMMjE1LjQ2LDE4NmE4LDgsMCwwLDAsNi0zLjk0QTEwNy43MSwxMDcuNzEsMCwwLDAsMjMwLDE1NS44MmE4LDgsMCwwLDAtMS40OS03LjA2Wm0tMTYuMS02LjVhNzMuOTMsNzMuOTMsMCwwLDEsMCw4LjY4YTgsOCwwLDAsMCwxLjc0LDUuNDhsMTQuMTksMTcuNzNhOTEuNTcsOTEuNTcsMCwwLDEtNi4yMywxNUwxODcsMTczLjExYTgsOCwwLDAsMC01LjEsMi42NCw3NC4xMSw3NC4xMSwwLDAsMS02LjE0LDYuMTRhOCw4LDAsMCwwLTIuNjQsNS4xbC0yLjUxLDIyLjU4YTkxLjMyLDkxLjMyLDAsMCwxLTE1LDYuMjNsLTE3Ljc0LTE0LjE5YTgsOCwwLDAsMC01LTEuNzVoLS40OGE3My45Myw3My45MywwLDAsMS04LjY4LDAsOCw4LDAsMCwwLTUuNDgsMS43NEwxMDAuNDUsMjE1LjhBOTEuNTcsOTEuNTcsMCwwLDEsODUuNDUsMjA5LjU1TDgyLjg5LDE4N2E4LDgsMCwwLDAtMi42NC01LjEsNzQuMTEsNzQuMTEsMCwwLDEtNi4xNC02LjE0YTgsOCwwLDAsMC01LjEtMi42NEw0Ni40MywxNzAuNmE5MS4zMiw5MS4zMiwwLDAsMS02LjIzLTE1bDE0LjE5LTE3Ljc0YTgsOCwwLDAsMCwxLjc0LTUuNDgsNzMuOTMsNzMuOTMsMCwwLDEsMC04LjY4YTgsOCwwLDAsMC0xLjc0LTUuNDhMNDAuMiwxMDAuNDVhOTEuNTcsOTEuNTcsMCwwLDEsNi4yMy0xNUw2OSw4Mi44OWE4LDgsMCwwLDAsNS4xLTIuNjQsNzQuMTEsNzQuMTEsMCwwLDEsNi4xNC02LjE0QTgsOCwwLDAsMCw4Mi44OSw2OUw4NS40LDQ2LjQzYTkxLjMyLDkxLjMyLDAsMCwxLDE1LTYuMjNsMTcuNzQsMTQuMTlhOCw4LDAsMCwwLDUuNDgsMS43NCw3My45Myw3My45MywwLDAsMSw4LjY4LDAsOCw4LDAsMCwwLDUuNDgtMS43NEwxNTUuNTUsNDAuMmE5MS41Nyw5MS41NywwLDAsMSwxNSw2LjIzTDE3My4xMSw2OWE4LDgsMCwwLDAsMi42NCw1LjEsNzQuMTEsNzQuMTEsMCwwLDEsNi4xNCw2LjE0YTgsOCwwLDAsMCw1LjEsMi42NGwyMi41OCwyLjUxYTkxLjMyLDkxLjMyLDAsMCwxLDYuMjMsMTVsLTE0LjE5LDE3Ljc0QTgsOCwwLDAsMCwxOTkuODcsMTIzLjY2WiI+PC9wYXRoPgogIDwvc3ZnPg==" alt="Settings Icon" width="24" height="24" /> **Settings:** Takes you to the Settings Screen.
+*   <img src="docs/img/playlists_icon.png?raw=true" alt="Playlists Icon" width="24" height="24"> **Playlists:** Takes you to the Playlists Screen.
+*   <img src="docs/img/chat_icon.png?raw=true" alt="Chat Icon" width="24" height="24"> **Chat:** Takes you to the Chat Screen (usually active after selecting a playlist).
+*   <img src="docs/img/settings_icon.png?raw=true" alt="Settings Icon" width="24" height="24"> **Settings:** Takes you to the Settings Screen.
 
 <!-- Placeholder: General screenshot of the app interface showing the bottom navigation bar -->
 Image: Application Interface with Navigation
@@ -118,8 +118,7 @@ Image: Application Interface with Navigation
     *   Number of videos in the playlist
 *   Your "Watch Later" playlist will be listed here as well.
 
-<!-- Placeholder: Screenshot of the Playlists Screen -->
-Image: Playlists Screen
+<img src="docs/img/playlists_screenshot.png" alt="Playlists Screen" width="400px">
 
 ### Selecting a Playlist for AI Chat
 
@@ -155,20 +154,21 @@ You can ask things like:
 
 ### Understanding AI Responses
 
-1.  **"Thinking..."**: While the AI processes your query, you might see a "thinking" or streaming indicator.
+1.  **"Thinking..."**: While the AI processes your query, you might see a "thinking" or streaming indicator (e.g., <img src="docs/img/chat_thinking_screenshot.png" alt="AI Thinking Indicator" width="400px">).
 2.  **Suggested Videos:** The AI will respond with a list of suggested videos. Each suggestion usually includes:
     *   Video Title (and possibly thumbnail)
     *   A brief reason why the AI suggested that video based on your query.
 3.  **Interacting with Suggestions:** You can typically click on a suggested video to open it on YouTube.
 
-<!-- Placeholder: Screenshot of the Chat Screen with AI suggestions -->
-Image: Chat Screen with AI Suggestions
+<img src="docs/img/chat_results_screenshot.png" alt="Chat Results" width="400px">
 
 ---
 
 ## 7. Settings
 
-Access the Settings screen to customize your ReelWorthy experience. You can find the Settings option via the <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNHB4IiBoZWlnaHQ9IjI0cHgiIGZpbGw9ImN1cnJlbnRDb2xvciIgdmlld0JveD0iMCAwIDI1NiAyNTYiPgogICAgPHBhdGggZD0iTTEyOCw4MGE0OCw0OCwwLDEsMCw0OCw0OEE0OC4wNSw0OC4wNSwwLDAsMCwxMjgsODBabTAsODBBMzIsMzIsMCwxLDEsMTYwLDEyOEEzMiwzMiwwLDAsMSwxMjgsMTYwWm04OC0yOS44NHFxLjA2LTIuMTYsMC00LjMybDE0LjkyLTE4LjY0YTgsOCwwLDAsMCwxLjQ4LTcuMDZBMTA3LjIxLDEwNy4yMSwwLDAsMCwyMTYuMDcsNzMuOWE4LDgsMCwwLDAtNi0zLjkzbC0yMy43Mi0yLjY0cS0xLjQ4LTEuNTYtMy0zTDE4Niw0MC41NGE4LDgsMCwwLDAtMy45NC02QTEwNy43MSwxMDcuNzEsMCwwLDAsMTU1LjgyLDIzLjYxYTgsOCwwLDAsMC03LjA2LDEuNDlMMTMwLjE2LDQwUTEyOCw0MCwxMjUuODQsNDBMMTA3LjIsMjUuMTFhOCw4LDAsMCwwLTcuMDYtMS40OEExMDcuNiwxMDcuNiwwLDAsMCw3My44OSwzNC41MWE4LDgsMCwwLDAtMy45Myw2TDY3LjMyLDY0LjI3cS0xLjU2LDEuNDktMywzTDQwLjU0LDcwYTgsOCwwLDAsMC02LDMuOTRB MTA3LjcxLDEwNy43MSwwLDAsMCwyMy42NiwxMDAuMmE4LDgsMCwwLDAsMS40OSw3LjA2TDQwLDEyNS44NFE0MCwxMjgsNDAsMTMwLjE2TDI1LjExLDE0OC44YTgsOCwwLDAsMC0xLjQ4LDcuMDZB MTA3LjIxLDEwNy4yMSwwLDAsMCwzNC41MSwxODJhOCw4LDAsMCwwLDYsMy45M2wyMy43MiwyLjY0cTEuNDksMS41NiwzLDNMNzAsMjE1LjQ2YTgsOCwwLDAsMCwzLjk0LDZBMTA3LjcxLDEwNy43MSwwLDAsMCwxMDAuMTksMjMwYTgsOCwwLDAsMCw3LjA2LTEuNDlMMTI1Ljg0LDIxNnEyLjE2LjA2LDQuMzIsMGwxOC42NCwxNC45MmE4LDgsMCwwLDAsNy4wNiwxLjQ4QTEwNy4yMSwxMDcuMjEsMCwwLDAsMTgyLDIxNS44YTgsOCwwLDAsMCwzLjkzLTZMMTg4LjU1LDY0LjI3cTEuNTYtMS40OCwzLTNMMjE1LjQ2LDE4NmE4LDgsMCwwLDAsNi0zLjk0QTEwNy43MSwxMDcuNzEsMCwwLDAsMjMwLDE1NS44MmE4LDgsMCwwLDAtMS40OS03LjA2Wm0tMTYuMS02LjVhNzMuOTMsNzMuOTMsMCwwLDEsMCw4LjY4YTgsOCwwLDAsMCwxLjc0LDUuNDhsMTQuMTksMTcuNzNhOTEuNTcsOTEuNTcsMCwwLDEtNi4yMywxNUwxODcsMTczLjExYTgsOCwwLDAsMC01LjEsMi42NCw3NC4xMSw3NC4xMSwwLDAsMS02LjE0LDYuMTRhOCw4LDAsMCwwLTIuNjQsNS4xbC0yLjUxLDIyLjU4YTkxLjMyLDkxLjMyLDAsMCwxLTE1LDYuMjNsLTE3Ljc0LTE0LjE5YTgsOCwwLDAsMC01LTEuNzVoLS40OGE3My45Myw3My45MywwLDAsMS04LjY4LDAsOCw4LDAsMCwwLTUuNDgsMS43NEwxMDAuNDUsMjE1LjhBOTEuNTcsOTEuNTcsMCwwLDEsODUuNDUsMjA5LjU1TDgyLjg5LDE4N2E4LDgsMCwwLDAtMi42NC01LjEsNzQuMTEsNzQuMTEsMCwwLDEtNi4xNC02LjE0YTgsOCwwLDAsMC01LjEtMi42NEw0Ni40MywxNzAuNmE5MS4zMiw5MS4zMiwwLDAsMS02LjIzLTE1bDE0LjE5LTE3Ljc0YTgsOCwwLDAsMCwxLjc0LTUuNDgsNzMuOTMsNzMuOTMsMCwwLDEsMC04LjY4YTgsOCwwLDAsMC0xLjc0LTUuNDhMNDAuMiwxMDAuNDVhOTEuNTcsOTEuNTcsMCwwLDEsNi4yMy0xNUw2OSw4Mi44OWE4LDgsMCwwLDAsNS4xLTIuNjQsNzQuMTEsNzQuMTEsMCwwLDEsNi4xNC02LjE0QTgsOCwwLDAsMCw4Mi44OSw2OUw4NS40LDQ2LjQzYTkxLjMyLDkxLjMyLDAsMCwxLDE1LTYuMjNsMTcuNzQsMTQuMTlhOCw4LDAsMCwwLDUuNDgsMS43NCw3My45Myw3My45MywwLDAsMSw4LjY4LDAsOCw4LDAsMCwwLDUuNDgtMS43NEwxNTUuNTUsNDAuMmE5MS41Nyw5MS41NywwLDAsMSwxNSw2LjIzTDE3My4xMSw2OWE4LDgsMCwwLDAsMi42NCw1LjEsNzQuMTEsNzQuMTEsMCwwLDEsNi4xNCw2LjE0YTgsOCwwLDAsMCw1LjEsMi42NGwyMi41OCwyLjUxYTkxLjMyLDkxLjMyLDAsMCwxLDYuMjMsMTVsLTE0LjE5LDE3Ljc0QTgsOCwwLDAsMCwxOTkuODcsMTIzLjY2WiI+PC9wYXRoPgogIDwvc3ZnPg==" alt="Settings Icon" width="24" height="24" /> **Settings Icon** in the bottom navigation bar.
+Access the Settings screen to customize your ReelWorthy experience. You can find the Settings option via the <img src="docs/img/settings_icon.png?raw=true" alt="Settings Icon" width="24" height="24"> **Settings Icon** in the bottom navigation bar.
+
+<img src="docs/img/settings_screenshot.png" alt="Settings Screen Overview" width="400px">
 
 ### AI Model Selection
 *   **Dropdown Menu:** You can choose your preferred AI model for chat interactions from a dropdown menu labeled "Select AI Chat Model:".
