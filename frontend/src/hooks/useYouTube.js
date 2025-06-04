@@ -7,9 +7,10 @@ import {useState, useEffect, useCallback} from 'react';
 // This will be imported from a shared config or App.js if not defined here.
 // For now, defining it here for clarity of the hook's dependencies.
 const CLOUD_FUNCTIONS_BASE_URL = {
-  getWatchLaterPlaylist: 'https://us-central1-watchlaterai-460918.cloudfunctions.net/getWatchLaterPlaylist',
-  listUserPlaylists: 'https://us-central1-watchlaterai-460918.cloudfunctions.net/listUserPlaylists',
-  handleYouTubeAuth: 'https://us-central1-watchlaterai-460918.cloudfunctions.net/handleYouTubeAuth',
+  getWatchLaterPlaylist: process.env.REACT_APP_GET_PLAYLIST_ITEMS_URL || 'https://us-central1-watchlaterai-460918.cloudfunctions.net/getWatchLaterPlaylist',
+  listUserPlaylists: process.env.REACT_APP_LIST_USER_PLAYLISTS_URL || 'https://us-central1-watchlaterai-460918.cloudfunctions.net/listUserPlaylists',
+  handleYouTubeAuth: process.env.REACT_APP_HANDLE_YOUTUBE_AUTH_URL_FOR_HOOK || 'https://us-central1-watchlaterai-460918.cloudfunctions.net/handleYouTubeAuth',
+  requestSubscriptionFeedUpdate: process.env.REACT_APP_REQUEST_SUBSCRIPTION_FEED_UPDATE_URL || 'https://us-central1-watchlaterai-460918.cloudfunctions.net/requestSubscriptionFeedUpdate', // Add new function URL
 };
 
 /**
@@ -241,7 +242,22 @@ function useYouTube(currentUser, isLoggedIn, isAuthorizedUser, setAppPopup, init
           setIsYouTubeLinked(true);
           // Fetch playlists only if user is fully authenticated and authorized at app level
           if (isLoggedIn && isAuthorizedUser) {
-            fetchUserPlaylistsInternal();
+            fetchUserPlaylistsInternal().then(async (playlistsFetched) => {
+              if (playlistsFetched && currentUser) { // Also ensure currentUser is available for getIdToken
+                console.log('YouTube connected and playlists fetched. Requesting subscription feed update.');
+                try {
+                  const idToken = await currentUser.getIdToken();
+                  // No need to await, let it run in background
+                  fetch(CLOUD_FUNCTIONS_BASE_URL.requestSubscriptionFeedUpdate, {
+                    method: 'POST',
+                    headers: {'Authorization': `Bearer ${idToken}`, 'Content-Type': 'application/json'},
+                  });
+                } catch (feedUpdateError) {
+                  console.error('Error requesting subscription feed update after YouTube connect:', feedUpdateError);
+                  // Non-critical
+                }
+              }
+            });
           }
         } else { // youtubeAuthStatus is 'error' or other unexpected value
           const detailedError = oauthError || 'Unknown YouTube connection error';

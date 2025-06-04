@@ -1,0 +1,17 @@
+{
+  "name": "schedule-all-user-feed-updates",
+  "version": "0.0.1",
+  "private": true,
+  "license": "Apache-2.0",
+  "author": "Google LLC",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@google-cloud/datastore": "^8.0.0",
+    "@google-cloud/pubsub": "^4.0.0"
+  }
+}

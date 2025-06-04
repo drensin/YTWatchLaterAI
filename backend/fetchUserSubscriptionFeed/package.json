@@ -1,0 +1,22 @@
+{
+  "name": "fetch-user-subscription-feed",
+  "version": "0.0.1",
+  "private": true,
+  "license": "Apache-2.0",
+  "author": "Google LLC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GoogleCloudPlatform/nodejs-docs-samples.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@google-cloud/datastore": "^8.0.0",
+    "googleapis": "^120.0.0",
+    "google-auth-library": "^9.0.0"
+  }
+}

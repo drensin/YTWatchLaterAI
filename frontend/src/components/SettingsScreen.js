@@ -13,6 +13,8 @@ import React, {useState, useEffect, useCallback} from 'react';
  * @param {(newModelId: string) => void} props.onModelSelection - Callback function when a new model is selected.
  * @param {() => void} props.onLogout - Callback function to handle user logout.
  * @param {Array<{id: string, title: string}>} props.userPlaylists - Array of user's playlist objects (for future use).
+ * @param {boolean} props.includeSubscriptionFeed - Current state of the 'include subscription feed' preference.
+ * @param {(newValue: boolean) => void} props.onIncludeSubscriptionFeedChange - Callback when 'include subscription feed' preference changes.
  * @returns {JSX.Element} The rendered Settings screen.
  */
 function SettingsScreen({
@@ -21,14 +23,18 @@ function SettingsScreen({
   onModelSelection,
   onLogout,
   userPlaylists,
+  includeSubscriptionFeed,
+  onIncludeSubscriptionFeedChange,
 }) {
   const [useDefaultPlaylistEnabled, setUseDefaultPlaylistEnabled] = useState(false);
   const [defaultPlaylistId, setDefaultPlaylistId] = useState('');
+  // includeSubscriptionFeed is now a prop, no longer local state
 
   // Load preferences from localStorage on component mount
   useEffect(() => {
     const storedUseDefault = localStorage.getItem('reelworthy_useDefaultPlaylistEnabled') === 'true';
     const storedDefaultId = localStorage.getItem('reelworthy_defaultPlaylistId');
+    // includeSubscriptionFeed is now managed by parent, so no need to load from localStorage here
 
     setUseDefaultPlaylistEnabled(storedUseDefault);
     if (storedUseDefault && storedDefaultId) {
@@ -60,13 +66,22 @@ function SettingsScreen({
     }
   }, [useDefaultPlaylistEnabled]);
 
+  const handleIncludeSubscriptionFeedChange = useCallback((event) => {
+    const isChecked = event.target.checked;
+    // Update localStorage and call the prop callback
+    localStorage.setItem('reelworthy_settings_includeSubscriptionFeed', isChecked);
+    if (onIncludeSubscriptionFeedChange) {
+      onIncludeSubscriptionFeedChange(isChecked);
+    }
+  }, [onIncludeSubscriptionFeedChange]); // Add onIncludeSubscriptionFeedChange to dependencies
+
   return (
     <div style={{padding: '20px', textAlign: 'center'}}>
-      <h1>Settings</h1>
+      {/* <h1>Settings</h1> */}
 
       {/* AI Model Selection */}
       <div style={{marginBottom: '20px'}}>
-        <label htmlFor="model-select" style={{marginRight: '10px'}}>Select AI Model:</label>
+        <label htmlFor="model-select" style={{marginRight: '10px'}}>Select AI Chat Model:</label>
         <select
           id="model-select"
           value={selectedModelId}
@@ -85,7 +100,7 @@ function SettingsScreen({
 
       {/* Default Playlist Settings */}
       <div style={{marginTop: '30px', marginBottom: '20px', borderTop: '1px solid #ccc', paddingTop: '20px'}}>
-        <h2>Default Playlist</h2>
+        {/* <h2>Default Playlist</h2> */}
         <div style={{marginBottom: '10px'}}>
           <label>
             <input
@@ -98,9 +113,9 @@ function SettingsScreen({
           </label>
         </div>
         <div>
-          <label htmlFor="default-playlist-select" style={{marginRight: '10px'}}>
+          {/* <label htmlFor="default-playlist-select" style={{marginRight: '10px'}}>
             Default playlist to load:
-          </label>
+          </label> */}
           <select
             id="default-playlist-select"
             value={defaultPlaylistId}
@@ -116,6 +131,22 @@ function SettingsScreen({
               <option value="" disabled>No playlists available</option>
             )}
           </select>
+        </div>
+      </div>
+
+      {/* Subscription Feed Setting */}
+      <div style={{marginTop: '30px', marginBottom: '20px', borderTop: '1px solid #ccc', paddingTop: '20px'}}>
+        {/*  <h2>AI Suggestions</h2> */}
+        <div style={{marginBottom: '10px'}}>
+          <label>
+            <input
+              type="checkbox"
+              checked={includeSubscriptionFeed}
+              onChange={handleIncludeSubscriptionFeedChange}
+              style={{marginRight: '10px', verticalAlign: 'middle'}}
+            />
+            Include recent videos from my subscriptions in AI suggestions
+          </label>
         </div>
       </div>
 

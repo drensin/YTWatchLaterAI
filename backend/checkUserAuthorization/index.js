@@ -92,6 +92,25 @@ const handleCheckUserAuthorization = async (req, res) => {
 
       const youtubeLinked = !!(tokenEntity && tokenEntity.refresh_token);
 
+      // Check UserSubscriptionFeedCache
+      let isSubscriptionFeedReady = false;
+      if (youtubeLinked) { // Only check if YouTube is linked
+        try {
+          const feedCacheKey = datastore.key(['UserSubscriptionFeedCache', decodedToken.uid]);
+          const [feedCacheEntity] = await datastore.get(feedCacheKey);
+          if (feedCacheEntity && feedCacheEntity.lastUpdated) {
+            // Define "recent" - e.g., updated in the last 13 hours for a twice-daily update
+            const thirteenHoursAgo = new Date(Date.now() - 13 * 60 * 60 * 1000);
+            if (new Date(feedCacheEntity.lastUpdated) > thirteenHoursAgo) {
+              isSubscriptionFeedReady = true;
+            }
+          }
+        } catch (feedCacheError) {
+          console.error(`Error checking UserSubscriptionFeedCache for ${decodedToken.uid}:`, feedCacheError);
+          // Do not block authorization if this check fails, default to false
+        }
+      }
+
       let availableGeminiModels = [];
       if (GEMINI_API_KEY) {
         try {
@@ -148,11 +167,12 @@ const handleCheckUserAuthorization = async (req, res) => {
         email: userEmail,
         uid: decodedToken.uid,
         youtubeLinked: youtubeLinked,
+        isSubscriptionFeedReady: isSubscriptionFeedReady, // Add new flag
         availableModels: availableGeminiModels,
       });
     } else {
       // Email is not in the allow-list
-      return res.status(403).send({authorized: false, error: 'User email not authorized.', youtubeLinked: false, availableModels: []});
+      return res.status(403).send({authorized: false, error: 'User email not authorized.', youtubeLinked: false, isSubscriptionFeedReady: false, availableModels: []});
     }
   } catch (error) {
     console.error('Error verifying Firebase ID token, checking Datastore, or fetching models:', error);

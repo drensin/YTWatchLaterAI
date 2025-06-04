@@ -3,7 +3,7 @@
  */
 import {useState, useEffect, useCallback, useRef} from 'react';
 
-const WEBSOCKET_SERVICE_URL = 'wss://gemini-chat-service-679260739905.us-central1.run.app'; // Define or import
+const WEBSOCKET_SERVICE_URL = process.env.REACT_APP_WEBSOCKET_SERVICE_URL || 'wss://gemini-chat-service-679260739905.us-central1.run.app';
 const MAX_RECONNECT_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY_MS = 1000;
 const MAX_RECONNECT_DELAY_MS = 30000;
@@ -41,9 +41,19 @@ const MAX_RECONNECT_DELAY_MS = 30000;
  * @param {(config: {visible: boolean, message: string, type: string}) => void} setAppPopup - Callback to show app-level popups.
  * @param {(errorMessage: string | null) => void} setAppError - Callback to set app-level error messages.
  * @param {string} selectedModelId - The ID of the user-selected Gemini model to be used for chat.
+ * @param {string | null | undefined} userId - The Firebase UID of the current user.
+ * @param {boolean} currentIncludeSubscriptionFeed - The current preference for including subscription feed videos.
  * @returns {WebSocketChatHookReturn} An object containing chat state and handler functions.
  */
-function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, setAppError, selectedModelId) {
+function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, setAppError, selectedModelId, userId, currentIncludeSubscriptionFeed) {
+  // Internal state to manage the subscription feed preference, synced with prop
+  const [includeSubscriptionFeedPreference, setIncludeSubscriptionFeedPreference] = useState(currentIncludeSubscriptionFeed);
+
+  // Effect to update internal state when the prop changes
+  useEffect(() => {
+    setIncludeSubscriptionFeedPreference(currentIncludeSubscriptionFeed);
+  }, [currentIncludeSubscriptionFeed]);
+
   /** @type {React.RefObject<WebSocket|null>} Reference to the WebSocket instance. */
   const ws = useRef(null);
   /** @type {React.RefObject<NodeJS.Timeout|null>} Reference to the ping interval timer. */
@@ -147,12 +157,18 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
       console.log('WebSocket connected. Initializing chat...');
       setReconnectAttempt(0); // Reset reconnect attempts on successful connection
       clearWebSocketTimers(); // Clear any lingering reconnect timers
-      // Send INIT_CHAT message to backend, including the selected model ID
+
+      // Use the internal state for includeSubscriptionFeed preference
+      console.log(`Chat Init: includeSubscriptionFeed preference: ${includeSubscriptionFeedPreference}`);
+
+      // Send INIT_CHAT message to backend, including the selected model ID and subscription feed preference
       ws.current.send(JSON.stringify({
         type: 'INIT_CHAT',
         payload: {
           playlistId: playlistIdToConnect,
           modelId: selectedModelId, // Include the selected model ID
+          includeSubscriptionFeed: includeSubscriptionFeedPreference, // Use the state variable
+          userId: userId, // Add userId
         },
       }));
       if (setAppPopup) setAppPopup({visible: true, message: 'Chat service connected.', type: 'info'});
@@ -260,6 +276,8 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
   }, [
     selectedPlaylistId,
     selectedModelId,
+    userId,
+    includeSubscriptionFeedPreference, // ADDED: Add preference to dependencies
     reconnectAttempt,
     closeWebSocket,
     clearWebSocketTimers,

@@ -11,7 +11,8 @@ import {GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut} from '
 // For simplicity, let's assume it's defined globally or imported if needed.
 // If it's from App.js, it would need to be passed or imported from a shared config.
 const CLOUD_FUNCTIONS_BASE_URL = {
-  checkUserAuthorization: 'https://us-central1-watchlaterai-460918.cloudfunctions.net/checkUserAuthorization',
+  checkUserAuthorization: process.env.REACT_APP_CHECK_USER_AUTHORIZATION_URL || 'https://us-central1-watchlaterai-460918.cloudfunctions.net/checkUserAuthorization',
+  requestSubscriptionFeedUpdate: process.env.REACT_APP_REQUEST_SUBSCRIPTION_FEED_UPDATE_URL || 'https://us-central1-watchlaterai-460918.cloudfunctions.net/requestSubscriptionFeedUpdate', // Add new function URL
 };
 
 /**
@@ -25,6 +26,7 @@ const CLOUD_FUNCTIONS_BASE_URL = {
  *   isLoggedIn: boolean,
  *   isAuthorizedUser: boolean,
  *   isYouTubeLinkedByAuthCheck: boolean,
+ *   isSubscriptionFeedReady: boolean, // New state
  *   availableModels: string[],
  *   authChecked: boolean,
  *   appAuthorizationError: string | null,
@@ -46,6 +48,8 @@ function useAuth(setAppPopup) {
    * @type {boolean}
    */
   const [isYouTubeLinkedByAuthCheck, setIsYouTubeLinkedByAuthCheck] = useState(false);
+  /** @state True if the user's subscription feed is ready based on backend check. @type {boolean} */
+  const [isSubscriptionFeedReady, setIsSubscriptionFeedReady] = useState(false);
   /** @state List of available Gemini model IDs fetched from the backend. @type {string[]} */
   const [availableModels, setAvailableModels] = useState([]);
   /** @state Stores any error message related to application-level authorization. @type {string|null} */
@@ -67,6 +71,7 @@ function useAuth(setAppPopup) {
       setIsLoadingAuth(true); // Show loading during async checks
       setAppAuthorizationError(null); // Clear previous app auth errors
       setAvailableModels([]); // Reset models on auth change
+      setIsSubscriptionFeedReady(false); // Reset on auth change
 
       if (user) {
         setCurrentUser(user);
@@ -81,12 +86,31 @@ function useAuth(setAppPopup) {
 
           if (response.ok && authZData.authorized) {
             setIsAuthorizedUser(true);
-            setIsYouTubeLinkedByAuthCheck(!!authZData.youtubeLinked);
-            setAvailableModels(authZData.availableModels || []); // Set available models
-            console.log('User is authorized. YouTube linked:', !!authZData.youtubeLinked, 'Models:', authZData.availableModels);
+            const youtubeLinked = !!authZData.youtubeLinked;
+            const subscriptionFeedReady = !!authZData.isSubscriptionFeedReady;
+            setIsYouTubeLinkedByAuthCheck(youtubeLinked);
+            setIsSubscriptionFeedReady(subscriptionFeedReady);
+            setAvailableModels(authZData.availableModels || []);
+            console.log('User is authorized. YouTube linked:', youtubeLinked, 'Feed Ready:', subscriptionFeedReady, 'Models:', authZData.availableModels);
+
+            // If YouTube is linked but feed isn't ready, request an update
+            if (youtubeLinked && !subscriptionFeedReady) {
+              console.log('YouTube linked but subscription feed not ready. Requesting update.');
+              try {
+                // No need to await, let it run in background
+                fetch(CLOUD_FUNCTIONS_BASE_URL.requestSubscriptionFeedUpdate, {
+                  method: 'POST',
+                  headers: {'Authorization': `Bearer ${idToken}`, 'Content-Type': 'application/json'},
+                });
+              } catch (feedUpdateError) {
+                console.error('Error requesting subscription feed update:', feedUpdateError);
+                // Non-critical, don't block UI
+              }
+            }
           } else {
             setIsAuthorizedUser(false);
             setIsYouTubeLinkedByAuthCheck(false);
+            setIsSubscriptionFeedReady(false);
             setAppAuthorizationError(authZData.error || 'User not on allow-list.');
             console.warn('User not on allow-list or backend error:', user.email, authZData.error);
           }
@@ -94,6 +118,7 @@ function useAuth(setAppPopup) {
           console.error('Error checking user authorization (allow-list) or fetching models:', err);
           setIsAuthorizedUser(false);
           setIsYouTubeLinkedByAuthCheck(false);
+          setIsSubscriptionFeedReady(false);
           setAppAuthorizationError('Failed to verify app authorization status.');
         }
       } else { // User is logged out
@@ -101,6 +126,7 @@ function useAuth(setAppPopup) {
         setIsLoggedIn(false);
         setIsAuthorizedUser(false);
         setIsYouTubeLinkedByAuthCheck(false);
+        setIsSubscriptionFeedReady(false);
         setAppAuthorizationError(null);
         // setAvailableModels([]); // Already reset at the start of onAuthStateChanged callback
       }
@@ -173,6 +199,7 @@ function useAuth(setAppPopup) {
     isLoggedIn,
     isAuthorizedUser,
     isYouTubeLinkedByAuthCheck,
+    isSubscriptionFeedReady, // Expose new state
     availableModels, // Expose available models
     authChecked,
     appAuthorizationError,

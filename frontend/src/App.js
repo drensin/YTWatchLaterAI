@@ -65,6 +65,9 @@ function App() {
    */
   const [selectedModelId, setSelectedModelId] = useState('');
   const [initialAutoNavAttempted, setInitialAutoNavAttempted] = useState(false);
+  const [includeSubscriptionFeed, setIncludeSubscriptionFeed] = useState(() => {
+    return localStorage.getItem('reelworthy_settings_includeSubscriptionFeed') === 'true';
+  });
   // No App.js state needed for localStorageDefaultPlaylistId for settings UI itself,
   // as SettingsScreen now handles its own localStorage interactions for setting the default.
   // App.js will read directly from localStorage for auto-navigation logic.
@@ -274,7 +277,15 @@ function App() {
     setActiveOutputTab,
     isStreaming,
     handleQuerySubmit: originalHandleQuerySubmit,
-  } = useWebSocketChat(selectedPlaylistId, isPlaylistDataReadyForChat, setPopup, setError, selectedModelId);
+  } = useWebSocketChat(
+      selectedPlaylistId,
+      isPlaylistDataReadyForChat,
+      setPopup,
+      setError,
+      selectedModelId,
+      currentUser?.uid,
+      includeSubscriptionFeed, // Pass the state here
+  );
 
   /**
    * Handles the submission of a new query to the chat, setting the active output tab to 'Thinking'.
@@ -485,6 +496,8 @@ function App() {
             onModelSelection={handleModelSelection}
             onLogout={handleFirebaseLogout}
             userPlaylists={userPlaylists}
+            includeSubscriptionFeed={includeSubscriptionFeed}
+            onIncludeSubscriptionFeedChange={setIncludeSubscriptionFeed}
             // SettingsScreen now manages its own localStorage for default playlist settings
           />
         );

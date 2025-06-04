@@ -61,10 +61,10 @@ wss.on('connection', (ws) => {
              * Handles the 'INIT_CHAT' message from a client.
              * Initializes a new Gemini chat session for the specified playlist.
              * Fetches video data for the playlist from Datastore to provide context.
-             * Expected message.payload: { playlistId: string, modelId?: string }
+             * Expected message.payload: { playlistId: string, modelId?: string, includeSubscriptionFeed?: boolean, userId?: string }
              * Sends 'CHAT_INITIALIZED' on success or 'ERROR' on failure.
              */
-            const { playlistId, modelId: clientModelId } = message.payload;
+            const { playlistId, modelId: clientModelId, includeSubscriptionFeed, userId } = message.payload; // Added includeSubscriptionFeed and userId
             const effectiveModelId = clientModelId || "gemini-2.5-flash-preview-05-20";
 
             if (!playlistId) {
@@ -76,16 +76,63 @@ wss.on('connection', (ws) => {
                 console.log(`[INIT_CHAT] Fetching videos for playlist: ${playlistId}`);
                 const videosQuery = datastore.createQuery('Videos')
                     .filter('associatedPlaylistIds', '=', playlistId);
-                const [videosForPlaylist] = await datastore.runQuery(videosQuery);
+                const [playlistVideos] = await datastore.runQuery(videosQuery); // Renamed for clarity
                 
-                if (!videosForPlaylist || videosForPlaylist.length === 0) {
-                    ws.send(JSON.stringify({ type: 'ERROR', error: `No videos found for playlist ${playlistId}` }));
-                    activeSessions.delete(ws);
+                let combinedVideos = playlistVideos || []; // Initialize with playlist videos
+                console.log(`[INIT_CHAT] Fetched ${combinedVideos.length} videos for playlist ${playlistId}.`);
+
+                // Logic for fetching and merging subscription feed will be added in the next step
+
+                // Placeholder for where videoListForContext will be created using combinedVideos
+                // For now, let's assume combinedVideos is what we use, and it might be just playlistVideos
+                // The actual mapping will be done after potential merge
+                // const videoListForContext = combinedVideos.map(video => ({
+                // ID: video.videoId, Title: video.title, Description: video.description || 'N/A',
+                // DurationSeconds: video.durationSeconds, Views: video.viewCount ? parseInt(video.viewCount, 10) : null,
+                
+                // This part will be moved after potential merge
+                // const videoContextString = `Video List (JSON format):\n${JSON.stringify(videoListForContext, null, 2)}`;
+                
+                // The following mapping will be done after combinedVideos is finalized
+                // const videoListForContext = videosForPlaylist.map(video => ({
+                // ID: video.videoId, Title: video.title, Description: video.description || 'N/A',
+                // DurationSeconds: video.durationSeconds, Views: video.viewCount ? parseInt(video.viewCount, 10) : null,
+
+                // --- Start of new logic to fetch and merge subscription feed ---
+                if (includeSubscriptionFeed && userId) {
+                    console.log(`[INIT_CHAT] includeSubscriptionFeed is true for userId: ${userId}. Fetching feed cache.`);
+                    try {
+                        const feedCacheKey = datastore.key(['UserSubscriptionFeedCache', userId]);
+                        const [feedCacheEntity] = await datastore.get(feedCacheKey);
+                        if (feedCacheEntity && Array.isArray(feedCacheEntity.videos) && feedCacheEntity.videos.length > 0) {
+                            console.log(`[INIT_CHAT] Fetched ${feedCacheEntity.videos.length} videos from subscription feed cache for userId: ${userId}.`);
+                            
+                            const feedVideosMap = new Map(feedCacheEntity.videos.map(v => [v.videoId, v]));
+                            const playlistVideosMap = new Map(combinedVideos.map(v => [v.videoId, v])); // combinedVideos is initially playlistVideos
+                            
+                            const mergedVideosMap = new Map([...playlistVideosMap, ...feedVideosMap]); // Feed videos overwrite playlist videos if same videoId, adjust if needed
+                            combinedVideos = Array.from(mergedVideosMap.values());
+                            console.log(`[INIT_CHAT] Combined and de-duplicated videos. Total: ${combinedVideos.length}`);
+                        } else {
+                            console.log(`[INIT_CHAT] No videos found in subscription feed cache for userId: ${userId} or cache is empty.`);
+                        }
+                    } catch (cacheError) {
+                        console.error(`[INIT_CHAT] Error fetching UserSubscriptionFeedCache for userId ${userId}:`, cacheError);
+                        // Proceed with playlist videos only (combinedVideos already holds them)
+                    }
+                } else if (includeSubscriptionFeed && !userId) {
+                    console.warn('[INIT_CHAT] includeSubscriptionFeed is true, but no userId was provided in the payload. Client needs to send userId.');
+                }
+                // --- End of new logic ---
+
+                if (combinedVideos.length === 0) {
+                    ws.send(JSON.stringify({ type: 'ERROR', error: `No videos found for playlist ${playlistId} (and subscription feed if applicable).` }));
+                    activeSessions.delete(ws); // Clean up session if no context
                     return;
                 }
-                console.log(`[INIT_CHAT] Fetched ${videosForPlaylist.length} videos.`);
+                console.log(`[INIT_CHAT] Total videos for context after potential merge: ${combinedVideos.length}.`);
 
-                const videoListForContext = videosForPlaylist.map(video => ({
+                const videoListForContext = combinedVideos.map(video => ({ // Now map the final combinedVideos
                     ID: video.videoId, Title: video.title, Description: video.description || 'N/A',
                     DurationSeconds: video.durationSeconds, Views: video.viewCount ? parseInt(video.viewCount, 10) : null,
                     Likes: video.likeCount ? parseInt(video.likeCount, 10) : null, Topics: Array.isArray(video.topicCategories) ? video.topicCategories : [],
@@ -103,17 +150,18 @@ wss.on('connection', (ws) => {
                 
                 const modelInstance = genAI.getGenerativeModel({ model: effectiveModelId, safetySettings: safetySettings });
                 const chat = modelInstance.startChat({
-                    history: [
-                        { role: "user", parts: [{ text: "You are an AI assistant. I will provide a 'Video List'. Your task is to recommend videos from this list that best match the 'User Query'. Your response MUST be a valid JSON object with a single key: 'suggestedVideos'. The value of 'suggestedVideos' MUST be an array. Each object in the array MUST have two keys: 'videoId' and 'reason'. If NO videos match, 'suggestedVideos' MUST be an empty array. Output ONLY the JSON object." }] },
-                        { role: "model", parts: [{ text: "Understood. I will use the provided video list and user query to make recommendations in the specified JSON format." }] },
-                        { role: "user", parts: [{ text: videoContextString }] }
-                    ],
+                    history: [ // System prompt and initial context
+                        { role: "user", parts: [{ text: "You are an AI assistant. I will provide a 'Video List' containing videos from a specific playlist and potentially from the user's recent subscriptions. Your task is to recommend videos from this combined list that best match the 'User Query'. Your response MUST be a valid JSON object with a single key: 'suggestedVideos'. The value of 'suggestedVideos' MUST be an array. Each object in the array MUST have two keys: 'videoId' (the YouTube video ID) and 'reason' (your concise explanation for suggesting it). If NO videos match the query from the provided list, 'suggestedVideos' MUST be an empty array. Output ONLY the JSON object." }] },
+                        { role: "model", parts: [{ text: "Understood. I will use the provided video list (from playlist and/or subscriptions) and user query to make recommendations in the specified JSON format." }] },
+                        { role: "user", parts: [{ text: videoContextString }] } // The combined video context
+                    ], // End of history
                     generationConfig: generationConfig
                 });
 
-                activeSessions.set(ws, { chat, playlistId, modelId: effectiveModelId, videosForPlaylist });
+                // Store the combined videos and userId in the session
+                activeSessions.set(ws, { chat, playlistId, modelId: effectiveModelId, videosForContext: combinedVideos, userId: userId });
                 ws.send(JSON.stringify({ type: 'CHAT_INITIALIZED', payload: { playlistId, modelId: effectiveModelId } }));
-                console.log(`[INIT_CHAT] Chat initialized for playlist: ${playlistId} with model ${effectiveModelId}`);
+                console.log(`[INIT_CHAT] Chat initialized for playlist: ${playlistId} with model ${effectiveModelId}. UserID: ${userId}, IncludeFeed: ${includeSubscriptionFeed}`);
 
             } catch (error) {
                 console.error('[INIT_CHAT] Error initializing chat:', error);
@@ -135,7 +183,8 @@ wss.on('connection', (ws) => {
                 return;
             }
             const { query } = message.payload;
-            const { videosForPlaylist, chat: userChatSession } = currentSession;
+            // Use videosForContext which contains the combined list
+            const { videosForContext, chat: userChatSession } = currentSession; 
 
             if (!query) {
                 ws.send(JSON.stringify({ type: 'ERROR', error: 'Query is required for USER_QUERY' }));
@@ -241,7 +290,8 @@ wss.on('connection', (ws) => {
                 }
                 
                 const suggestedVideosFull = suggestionsFromGemini.map(suggestion => {
-                    const foundVideo = videosForPlaylist.find(v => v.videoId === suggestion.videoId);
+                    // Enrich suggestions using videosForContext
+                    const foundVideo = videosForContext.find(v => v.videoId === suggestion.videoId); 
                     return foundVideo ? { ...foundVideo, duration: formatSecondsToHHMMSS(foundVideo.durationSeconds), reason: suggestion.reason } : null;
                 }).filter(v => v !== null);
 
