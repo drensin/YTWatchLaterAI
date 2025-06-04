@@ -1,6 +1,10 @@
 # ReelWorthy: AI-Powered YouTube Playlist Explorer
 
-ReelWorthy is a web application designed to help users manage, explore, and gain intelligent insights from their YouTube playlists, with a particular emphasis on the often-overlooked "Watch Later" list. It allows users to connect their YouTube account, view their playlists, and then leverage a sophisticated AI chat interface (powered by Google's Gemini model) to receive video suggestions and engage in contextual conversations about the content of a selected playlist.
+![ReelWorthy Logo](frontend/public/ReelWorthyLogo.png)
+
+For a comprehensive guide on using ReelWorthy, please see the [User Manual](USER_MANUAL.md).
+
+ReelWorthy is a smart web application designed to help you make the most of your YouTube playlists. If you have a long "Watch Later" list or many saved playlists, ReelWorthy provides an interactive way to rediscover and engage with your saved video content using a powerful AI chat interface. Furthermore, you can optionally expand the AI's knowledge base to include recent videos from your YouTube channel subscriptions, offering an even broader range of suggestions.
 
 The application aims to solve the problem of unwieldy playlists by providing a smart, interactive way to rediscover and engage with saved video content.
 
