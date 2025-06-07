@@ -234,12 +234,78 @@ The frontend is a React application structured with components and custom hooks 
 *   **`Dockerfile`**, **`package.json`**: Standard setup.
 
 ## Datastore Data Model
-(Data model remains largely the same as previously described.)
 
-*   **Kind: `Tokens`** (OAuth tokens)
-*   **Kind: `Videos`** (Video metadata)
-*   **Kind: `AuthorizedEmail`** (Allow-list)
-*   **Kind: `UserSubscriptionFeedCache`** (Cached subscription videos)
+The application utilizes Google Cloud Datastore for persistent storage. Below is a description of each Kind and its schema:
+
+1.  **Kind: `AuthorizedEmail`**
+    *   **Key**: User's email address (String).
+    *   **Purpose**: Acts as an allow-list for application access. The existence of an entity with the user's email as the key signifies authorization.
+    *   **Properties**: None are actively used from the entity's data.
+    *   **Indexed Properties**: Key only.
+    *   **Interacting Cloud Functions**:
+        *   `checkUserAuthorization` (Read-only: Checks for key existence).
+
+2.  **Kind: `Tokens`**
+    *   **Key**: User's Firebase UID (String).
+    *   **Purpose**: Securely stores OAuth 2.0 tokens required to access the YouTube Data API on behalf of the user.
+    *   **Properties**:
+        *   `access_token` (String, `excludeFromIndexes: true`) - The token used for API requests.
+        *   `refresh_token` (String, `excludeFromIndexes: true`) - Used to obtain new access tokens.
+        *   `scope` (String) - The scopes granted by the user (e.g., `https://www.googleapis.com/auth/youtube.readonly`).
+        *   `token_type` (String) - Typically "Bearer".
+        *   `expiry_date` (Number/Timestamp) - Milliseconds since epoch, indicating when the `access_token` expires.
+    *   **Indexed Properties**: Key only. `access_token` and `refresh_token` are explicitly excluded from indexes.
+    *   **Interacting Cloud Functions**:
+        *   `checkUserAuthorization`: Reads to check for `refresh_token` existence (indicates YouTube linkage).
+        *   `handleYouTubeAuth`: Writes new tokens after successful OAuth flow.
+        *   `listUserPlaylists`: Reads tokens for API calls; updates tokens if refreshed by the auth library.
+        *   `getWatchLaterPlaylist`: Reads tokens for API calls; updates tokens if refreshed.
+        *   `fetchUserSubscriptionFeed`: Reads tokens for API calls; updates tokens if refreshed.
+        *   `scheduleAllUserFeedUpdates`: Reads entity keys (`__key__`) to get UIDs of all users with stored tokens.
+
+3.  **Kind: `Videos`**
+    *   **Key**: YouTube `videoId` (String).
+    *   **Purpose**: Stores detailed metadata for individual YouTube videos. This data is aggregated from user playlists and synchronized by the `getWatchLaterPlaylist` function.
+    *   **Properties**:
+        *   `videoId` (String) - Same as the key, for convenience in queries if needed.
+        *   `title` (String)
+        *   `description` (String, `excludeFromIndexes: true`) - Full video description.
+        *   `publishedAt` (String/Timestamp) - Video's original YouTube publication date.
+        *   `addedToPlaylistAt` (String/Timestamp) - Timestamp of when the video item was added to the *specific* playlist being synced (from YouTube's `playlistItems.list` snippet).
+        *   `thumbnailUrl` (String | null, `excludeFromIndexes: true`) - URL of the default thumbnail.
+        *   `channelId` (String)
+        *   `channelTitle` (String)
+        *   `durationSeconds` (Number | null) - Video duration in seconds, parsed from ISO 8601 format.
+        *   `viewCount` (Number | null) - Parsed from YouTube statistics.
+        *   `likeCount` (Number | null) - Parsed from YouTube statistics.
+        *   `topicCategories` (Array of Strings | null) - e.g., "Music", "Gaming". Derived from YouTube's `topicDetails`.
+        *   `associatedPlaylistIds` (Array of Strings, **indexed**) - List of playlist IDs (belonging to various users) that this video is part of. This is crucial for context scoping and cleanup.
+        *   `geminiCategories` (Array of Strings, optional) - Placeholder for potential future AI-assigned categories.
+        *   `lastCategorized` (Timestamp | null) - Placeholder for when AI last categorized this video.
+    *   **Indexed Properties**: Key, `associatedPlaylistIds`. `description` and `thumbnailUrl` are explicitly excluded. Other properties are indexed by default unless specified.
+    *   **Interacting Cloud Functions & Services**:
+        *   `getWatchLaterPlaylist`: Primary manager of this Kind. Reads existing video data, writes (upserts) new/updated video details from YouTube, manages the `associatedPlaylistIds` array, and deletes orphaned video entities.
+        *   `gemini-chat-service` (Cloud Run): Reads video details from this Kind to provide context to the AI for playlist-specific queries.
+
+4.  **Kind: `UserSubscriptionFeedCache`**
+    *   **Key**: User's Firebase UID (String).
+    *   **Purpose**: Caches a list of recent, non-Short videos from a user's YouTube subscriptions to provide an optional extended context for the AI.
+    *   **Properties**:
+        *   `videos`: (Array of Objects) - Each object represents a video.
+            *   `videoId` (String)
+            *   `title` (String)
+            *   `description` (String) - The path `videos[].description` is set with `excludeFromIndexes: true` when the entity is saved.
+            *   `channelId` (String)
+            *   `channelTitle` (String)
+            *   `publishedAt` (String/Timestamp) - Video's original YouTube publication date.
+            *   `thumbnailUrl` (String | null)
+            *   `durationSeconds` (Number)
+        *   `lastUpdated` (Date/Timestamp) - Timestamp indicating when this cache entry was last refreshed.
+    *   **Indexed Properties**: Key, `lastUpdated`. The `videos` array and its nested fields (except where `videos[].description` is excluded) are indexed by default, which might be extensive. Consider further exclusions if not needed for queries.
+    *   **Interacting Cloud Functions & Services**:
+        *   `checkUserAuthorization`: Reads `lastUpdated` to determine if the feed cache is considered "ready" or recent.
+        *   `fetchUserSubscriptionFeed`: Writes (saves) the processed list of subscription videos and the `lastUpdated` timestamp. This is the primary manager of this Kind.
+        *   `gemini-chat-service` (Cloud Run): Reads the `videos` array if the user has opted to include their subscription feed in the AI chat context.
 
 ## Setup and Local Development
 (Refer to `DEPLOYMENT_INSTRUCTIONS.md` for detailed setup steps.)
