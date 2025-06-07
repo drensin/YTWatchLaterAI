@@ -227,7 +227,7 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
     setAppPopup,
     setAppError,
     setActiveOutputTab,
-    isStreaming, // Added isStreaming as a dependency
+    // isStreaming, // Removed isStreaming as a dependency
   ]);
 
   const prevSelectedPlaylistIdRef = useRef(selectedPlaylistId);
