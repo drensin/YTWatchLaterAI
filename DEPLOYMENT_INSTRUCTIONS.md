@@ -27,7 +27,7 @@ This document provides detailed instructions for deploying the frontend, backend
     *   Login: `gcloud auth login`
     *   Set project: `gcloud config set project YOUR_PROJECT_ID` (replace `YOUR_PROJECT_ID`)
 *   **Firebase CLI:** Installed (`npm install -g firebase-tools`) and authenticated (`firebase login`).
-*   **Node.js and npm:** Installed locally (v20+ for backend Cloud Functions and Cloud Run service).
+*   **Node.js and npm:** Installed locally (v20 recommended for backend Cloud Functions and Cloud Run service).
 *   **Docker:** Installed locally (if building `gemini-chat-service` image locally or for Cloud Run deployment).
 *   **Google Cloud Project:** A project with billing enabled.
 *   **Firebase Project:** Linked to your Google Cloud Project.
@@ -45,7 +45,7 @@ This document provides detailed instructions for deploying the frontend, backend
     *   Cloud Run API
     *   Cloud Build API (if using Cloud Build for CI/CD)
     *   Artifact Registry API (for Docker images)
-    *   Generative Language API (used by `gemini-chat-service`)
+    *   **Generative Language API** (used by `gemini-chat-service` with the `@google/generative-ai` SDK)
     *   Cloud Pub/Sub API
     *   Cloud Scheduler API
 4.  **OAuth Consent Screen:**
@@ -84,12 +84,12 @@ This document provides detailed instructions for deploying the frontend, backend
 In Google Cloud Secret Manager, create the following secrets. The service accounts for your Cloud Functions and Cloud Run service will need access to these.
 *   `YOUTUBE_CLIENT_ID`: The OAuth Client ID obtained in step 2.5.
 *   `YOUTUBE_CLIENT_SECRET`: The OAuth Client Secret obtained in step 2.5.
-*   `GEMINI_API_KEY`: Your API key for the Google AI Gemini API.
+*   `GEMINI_API_KEY`: Your API key for the Google AI Gemini API (used by `@google/generative-ai` SDK).
 
 ## 5. Service Account Permissions
 
 *   **Cloud Functions Default Service Account:** Usually `YOUR_PROJECT_ID@appspot.gserviceaccount.com` or `PROJECT_NUMBER-compute@developer.gserviceaccount.com` for Gen 2 functions. You can also create and assign a dedicated service account.
-*   **Cloud Run Service Account for `gemini-chat-service`:** It's recommended to use a dedicated service account with minimal privileges. If not specified during deployment, it might use the default Compute Engine service account.
+*   **Cloud Run Service Account for `gemini-chat-service`:** It's recommended to use a dedicated service account (e.g., `youtube-watchlater-fn@watchlaterai-460918.iam.gserviceaccount.com`). If not specified during deployment, it might use the default Compute Engine service account.
 
 Grant the following roles to the respective service accounts:
 *   **Secret Manager Secret Accessor (`roles/secretmanager.secretAccessor`):**
@@ -101,7 +101,7 @@ Grant the following roles to the respective service accounts:
 *   **Pub/Sub Publisher (`roles/pubsub.publisher`):**
     *   Grant to Cloud Functions service account(s) for `requestSubscriptionFeedUpdate` and `scheduleAllUserFeedUpdates`.
 *   **Cloud Functions Invoker (`roles/cloudfunctions.invoker`):**
-    *   Grant to the service account used by Cloud Scheduler (e.g., the default compute SA or a custom one) for the `scheduleAllUserFeedUpdates` function. This is implicitly handled if using OIDC token with the same service account that has invoker rights or if the function is public.
+    *   Grant to the service account used by Cloud Scheduler (e.g., the default compute SA or a custom one like `youtube-watchlater-fn@watchlaterai-460918.iam.gserviceaccount.com`) for the `scheduleAllUserFeedUpdates` function.
 
 Example `gcloud` command to grant a role to a service account for a specific secret:
 ```bash
@@ -130,28 +130,28 @@ Repeat for all necessary secrets, service accounts, and roles.
         REACT_APP_FIREBASE_MESSAGING_SENDER_ID="your-sender-id"
         REACT_APP_FIREBASE_APP_ID="your-app-id"
 
-        REACT_APP_YOUTUBE_CLIENT_ID="your-google-oauth-client-id"
+        REACT_APP_YOUTUBE_CLIENT_ID="your-google-oauth-client-id" # Used by frontend for OAuth initiation if needed directly
 
         REACT_APP_CHECK_USER_AUTHORIZATION_URL="https://YOUR_REGION-YOUR_PROJECT_ID.cloudfunctions.net/checkUserAuthorization"
         REACT_APP_LIST_USER_PLAYLISTS_URL="https://YOUR_REGION-YOUR_PROJECT_ID.cloudfunctions.net/listUserPlaylists"
-        REACT_APP_GET_PLAYLIST_ITEMS_URL="https://YOUR_REGION-YOUR_PROJECT_ID.cloudfunctions.net/getWatchLaterPlaylist"
-        REACT_APP_HANDLE_YOUTUBE_AUTH_URL_FOR_HOOK="https://YOUR_REGION-YOUR_PROJECT_ID.cloudfunctions.net/handleYouTubeAuth"
+        REACT_APP_GET_PLAYLIST_ITEMS_URL="https://YOUR_REGION-YOUR_PROJECT_ID.cloudfunctions.net/getWatchLaterPlaylist" # Note: function name is generic
+        REACT_APP_HANDLE_YOUTUBE_AUTH_URL_FOR_HOOK="https://YOUR_REGION-YOUR_PROJECT_ID.cloudfunctions.net/handleYouTubeAuth" # Used by useYouTube hook to construct redirect_uri for Google
         REACT_APP_REQUEST_SUBSCRIPTION_FEED_UPDATE_URL="https://YOUR_REGION-YOUR_PROJECT_ID.cloudfunctions.net/requestSubscriptionFeedUpdate"
-        REACT_APP_WEBSOCKET_SERVICE_URL="wss://your-gemini-chat-service-xxxxxxxxxx-uc.a.run.app"
+        REACT_APP_WEBSOCKET_SERVICE_URL="wss://your-gemini-chat-service-xxxxxxxxxx-uc.a.run.app" # Cloud Run service URL
         ```
-    *   Update `frontend/src/firebase.js` and relevant hooks to use these environment variables.
+    *   Ensure `frontend/src/firebase.js` and relevant hooks use these environment variables.
 *   **Backend Redirect URIs:**
-    *   The `REDIRECT_URI` in `backend/handleYouTubeAuth/index.js` is constructed. Ensure `GOOGLE_CLOUD_PROJECT` is correctly set for deployed functions. This `REDIRECT_URI` *must* match an "Authorized redirect URI" in Google OAuth Client settings.
-*   **Allowed Frontend Origins in `handleYouTubeAuth` & `requestSubscriptionFeedUpdate`**:
-    *   Update `ALLOWED_FRONTEND_ORIGINS` in `backend/handleYouTubeAuth/index.js`.
-    *   The `requestSubscriptionFeedUpdate/index.js` uses `res.set('Access-Control-Allow-Origin', '*');` for broader access during development; for production, restrict this to your Firebase Hosting URL.
+    *   The `handleYouTubeAuth` Cloud Function constructs its `REDIRECT_URI`. Ensure `GOOGLE_CLOUD_PROJECT` is correctly set as an environment variable for this deployed function. This `REDIRECT_URI` *must* match an "Authorized redirect URI" in Google OAuth Client settings.
+*   **Allowed Frontend Origins in Cloud Functions**:
+    *   Update `ALLOWED_FRONTEND_ORIGINS` in `backend/handleYouTubeAuth/index.js` to include your Firebase Hosting URL and `http://localhost:3000`.
+    *   The `requestSubscriptionFeedUpdate/index.js` should also have its CORS origins restricted in production.
 
 ## 7. Deploying Backend Services
 
 Navigate to the root directory of the project (`YTWatchLaterAI/`) for these commands. (Replace `YOUR_REGION` and `YOUR_PROJECT_ID` accordingly).
 
 ### 7.1 Deploying Cloud Functions
-(All functions use `--runtime nodejs20` and `--allow-unauthenticated` for simplicity here. For production, enforce authentication.)
+(All functions use `--runtime nodejs20` and `--allow-unauthenticated` for simplicity here. For production, enforce authentication, e.g., by requiring Firebase ID tokens via API Gateway or directly in functions.)
 
 *   **`handleYouTubeAuth`**
     ```bash
@@ -183,7 +183,7 @@ Navigate to the root directory of the project (`YTWatchLaterAI/`) for these comm
       --set-env-vars GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID
     ```
 
-*   **`getWatchLaterPlaylist`**
+*   **`getWatchLaterPlaylist`** (Generic name for fetching any playlist items)
     ```bash
     gcloud functions deploy getWatchLaterPlaylist \
       --runtime nodejs20 --trigger-http --allow-unauthenticated \
@@ -235,24 +235,27 @@ gcloud pubsub topics create user-feed-update-requests --project YOUR_PROJECT_ID
     ```
 2.  **Build and Push Docker Image:** (From project root `YTWatchLaterAI/`)
     ```bash
-    gcloud builds submit --tag YOUR_REGION-docker.pkg.dev/YOUR_PROJECT_ID/yt-watchlater-ai-repo/gemini-chat-service:v1 gemini-chat-service/ --project YOUR_PROJECT_ID
+    # Example: gcloud builds submit --tag us-central1-docker.pkg.dev/watchlaterai-460918/yt-watchlater-ai-repo/gemini-chat-service:v2.4-data-indicator gemini-chat-service/ --project watchlaterai-460918
+    gcloud builds submit --tag YOUR_REGION-docker.pkg.dev/YOUR_PROJECT_ID/yt-watchlater-ai-repo/gemini-chat-service:YOUR_TAG gemini-chat-service/ --project YOUR_PROJECT_ID
     ```
 3.  **Deploy to Cloud Run:**
     ```bash
     gcloud run deploy gemini-chat-service \
-      --image YOUR_REGION-docker.pkg.dev/YOUR_PROJECT_ID/yt-watchlater-ai-repo/gemini-chat-service:v1 \
+      --image YOUR_REGION-docker.pkg.dev/YOUR_PROJECT_ID/yt-watchlater-ai-repo/gemini-chat-service:YOUR_TAG \
       --platform managed --region YOUR_REGION --allow-unauthenticated \
-      --port 8080 --min-instances 0 --max-instances 2 --cpu 1 --memory 512Mi \
+      --port 8080 --min-instances 0 --max-instances 1 --cpu 1 --memory 512Mi \
       --set-secrets=GEMINI_API_KEY=GEMINI_API_KEY:latest \
-      --service-account YOUR_DEDICATED_SERVICE_ACCOUNT_EMAIL \
+      --service-account YOUR_SERVICE_ACCOUNT_EMAIL_FOR_CHAT_SERVICE \
       --project YOUR_PROJECT_ID --set-env-vars GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID
     ```
-    *Note the Service URL for `REACT_APP_WEBSOCKET_SERVICE_URL`.*
+    *(Replace `YOUR_TAG` with your latest image tag, e.g., `v2.4-data-indicator`)*.  
+    *(Replace `YOUR_SERVICE_ACCOUNT_EMAIL_FOR_CHAT_SERVICE` with the service account used by Cloud Run, e.g., `youtube-watchlater-fn@watchlaterai-460918.iam.gserviceaccount.com`)*.  
+    *Note the Service URL for `REACT_APP_WEBSOCKET_SERVICE_URL` (it will be `wss://` for WebSocket Secure).*
 
 ## 8. Deploying Frontend (Firebase Hosting)
 
 1.  **Initialize Firebase Hosting (if not done):** (In `frontend/` directory)
-    `firebase init hosting` (select existing project, public directory: `build`, single-page app: `Yes`).
+    `firebase init hosting` (select existing project, public directory: `build`, configure as a single-page app: `Yes`).
 2.  **Build React App:** (In `frontend/` directory)
     ```bash
     npm install 
@@ -268,7 +271,7 @@ The `index.yaml` file in the project root defines necessary Datastore indexes. D
 ```bash
 gcloud datastore indexes create index.yaml --project YOUR_PROJECT_ID
 ```
-Wait for indexes to build. For `UserSubscriptionFeedCache`, the `videos[].description` path is excluded from indexing by the application code when saving entities.
+Wait for indexes to build. The `UserSubscriptionFeedCache` kind has `videos[].description` excluded from indexing by the application code.
 
 ## 10. Create Cloud Scheduler Job
 After `scheduleAllUserFeedUpdates` Cloud Function is deployed and you have its URL:
@@ -280,20 +283,20 @@ gcloud scheduler jobs create http TriggerSubscriptionFeedUpdates \
   --time-zone "Etc/UTC" \
   --description "Triggers updates for all user subscription feeds twice daily." \
   --project YOUR_PROJECT_ID \
-  --oidc-service-account-email YOUR_SERVICE_ACCOUNT_EMAIL_WITH_INVOKER_ROLE \
+  --oidc-service-account-email YOUR_SERVICE_ACCOUNT_EMAIL_FOR_SCHEDULER \
   --location YOUR_REGION
 ```
-*(Replace placeholders. `YOUR_SERVICE_ACCOUNT_EMAIL_WITH_INVOKER_ROLE` is typically the default compute service account for the project, e.g., `PROJECT_NUMBER-compute@developer.gserviceaccount.com` or `YOUR_PROJECT_ID@appspot.gserviceaccount.com` if it has invoker rights, or a custom SA.)*
+*(Replace placeholders. `YOUR_SERVICE_ACCOUNT_EMAIL_FOR_SCHEDULER` is the service account Cloud Scheduler will use to invoke the function, e.g., `youtube-watchlater-fn@watchlaterai-460918.iam.gserviceaccount.com` if it has invoker rights on the function.)*
 
 ## 11. Final Configuration Checks
-1.  **Frontend URLs:** Ensure all backend URLs in frontend `.env` are correct.
-2.  **OAuth Credentials:** Verify Authorized JavaScript Origins and Redirect URIs.
-3.  **CORS:** Review Cloud Function CORS settings for production.
-4.  **Allow-List:** Populate `AuthorizedEmail` Kind in Datastore.
+1.  **Frontend URLs:** Ensure all backend URLs in frontend `.env` are correct and use `https://`. The WebSocket URL should use `wss://`.
+2.  **OAuth Credentials:** Verify Authorized JavaScript Origins and Redirect URIs in Google Cloud Console.
+3.  **CORS:** Review Cloud Function CORS settings for production; restrict origins.
+4.  **Allow-List:** Populate `AuthorizedEmail` Kind in Datastore with emails of authorized users.
 5.  **Test:** Thoroughly test the entire application flow.
 
 ## 12. Example `cloudbuild.yaml` (CI/CD)
-This example demonstrates deploying all services. Ensure Cloud Build service account has necessary roles.
+This example demonstrates deploying all services. Ensure Cloud Build service account has necessary roles (Cloud Functions Admin, Cloud Run Admin, Pub/Sub Admin, Artifact Registry Writer, Firebase Admin, etc.).
 
 ```yaml
 # YTWatchLaterAI/cloudbuild.yaml
@@ -309,7 +312,7 @@ steps:
       '--set-secrets=YOUTUBE_CLIENT_ID=YOUTUBE_CLIENT_ID:latest,YOUTUBE_CLIENT_SECRET=YOUTUBE_CLIENT_SECRET:latest', 
       '--set-env-vars=GOOGLE_CLOUD_PROJECT=${PROJECT_ID},FRONTEND_URL=https://${PROJECT_ID}.web.app'
     ]
-  # ... add steps for all other functions, including fetchUserSubscriptionFeed with its secrets ...
+  # ... add steps for all other functions ...
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     args: [
       'functions', 'deploy', 'fetchUserSubscriptionFeed',
@@ -321,10 +324,14 @@ steps:
       '--set-env-vars=GOOGLE_CLOUD_PROJECT=${PROJECT_ID}'
     ]
 
-  # Create Pub/Sub topic
+  # Create Pub/Sub topic (consider adding --quiet or checking existence in a real script)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    args: ['pubsub', 'topics', 'create', 'user-feed-update-requests', '--project=${PROJECT_ID}']
-    # Add --quiet or check existence in a real script
+    entrypoint: 'bash'
+    args: 
+      - -c
+      - |
+        gcloud pubsub topics describe user-feed-update-requests --project=${PROJECT_ID} || \
+        gcloud pubsub topics create user-feed-update-requests --project=${PROJECT_ID}
 
   # Build and Push gemini-chat-service Docker image
   - name: 'gcr.io/cloud-builders/docker'
@@ -339,9 +346,9 @@ steps:
       '--image=us-central1-docker.pkg.dev/${PROJECT_ID}/yt-watchlater-ai-repo/gemini-chat-service:$SHORT_SHA',
       '--platform=managed', '--region=us-central1', '--allow-unauthenticated',
       '--port=8080', 
-      '--min-instances=0', '--max-instances=2', 
+      '--min-instances=0', '--max-instances=1', '--cpu=1', '--memory=512Mi',
       '--set-secrets=GEMINI_API_KEY=GEMINI_API_KEY:latest',
-      '--service-account=YOUR_DEDICATED_SERVICE_ACCOUNT_EMAIL_FOR_GEMINI_CHAT',
+      '--service-account=YOUR_SERVICE_ACCOUNT_EMAIL_FOR_CHAT_SERVICE', # e.g., youtube-watchlater-fn@watchlaterai-460918.iam.gserviceaccount.com
       '--project=${PROJECT_ID}',
       '--set-env-vars=GOOGLE_CLOUD_PROJECT=${PROJECT_ID}'
     ]
@@ -355,6 +362,20 @@ steps:
     entrypoint: 'npm'
     args: ['run', 'build']
     dir: 'frontend'
+    env: # Pass build-time env vars for React app
+      - 'REACT_APP_FIREBASE_API_KEY=${_REACT_APP_FIREBASE_API_KEY}'
+      - 'REACT_APP_FIREBASE_AUTH_DOMAIN=${_REACT_APP_FIREBASE_AUTH_DOMAIN}'
+      - 'REACT_APP_FIREBASE_PROJECT_ID=${PROJECT_ID}' # Can use GCP Project ID directly
+      - 'REACT_APP_FIREBASE_STORAGE_BUCKET=${_REACT_APP_FIREBASE_STORAGE_BUCKET}'
+      - 'REACT_APP_FIREBASE_MESSAGING_SENDER_ID=${_REACT_APP_FIREBASE_MESSAGING_SENDER_ID}'
+      - 'REACT_APP_FIREBASE_APP_ID=${_REACT_APP_FIREBASE_APP_ID}'
+      - 'REACT_APP_YOUTUBE_CLIENT_ID=${_REACT_APP_YOUTUBE_CLIENT_ID}'
+      - 'REACT_APP_CHECK_USER_AUTHORIZATION_URL=https://us-central1-${PROJECT_ID}.cloudfunctions.net/checkUserAuthorization'
+      - 'REACT_APP_LIST_USER_PLAYLISTS_URL=https://us-central1-${PROJECT_ID}.cloudfunctions.net/listUserPlaylists'
+      - 'REACT_APP_GET_PLAYLIST_ITEMS_URL=https://us-central1-${PROJECT_ID}.cloudfunctions.net/getWatchLaterPlaylist'
+      - 'REACT_APP_HANDLE_YOUTUBE_AUTH_URL_FOR_HOOK=https://us-central1-${PROJECT_ID}.cloudfunctions.net/handleYouTubeAuth'
+      - 'REACT_APP_REQUEST_SUBSCRIPTION_FEED_UPDATE_URL=https://us-central1-${PROJECT_ID}.cloudfunctions.net/requestSubscriptionFeedUpdate'
+      - 'REACT_APP_WEBSOCKET_SERVICE_URL=wss://gemini-chat-service-${_CLOUD_RUN_HASH}-uc.a.run.app' # This needs dynamic resolution or a stable URL
 
   # Deploy Frontend to Firebase Hosting
   - name: 'gcr.io/firebase/firebase'
@@ -363,20 +384,37 @@ steps:
 images:
   - 'us-central1-docker.pkg.dev/${PROJECT_ID}/yt-watchlater-ai-repo/gemini-chat-service:$SHORT_SHA'
 
-# Note: Cloud Scheduler job creation is typically a post-deployment manual step or managed via IaC tools.
-# The gcloud command for scheduler job creation (using OIDC) should be run after scheduleAllUserFeedUpdates is deployed.
-# Example:
-# gcloud scheduler jobs create http TriggerSubscriptionFeedUpdates \
-#   --schedule "0 3,15 * * *" \
-#   --uri "https://us-central1-${PROJECT_ID}.cloudfunctions.net/scheduleAllUserFeedUpdates" \
-#   --http-method POST --time-zone "Etc/UTC" \
-#   --description "Triggers updates for all user subscription feeds twice daily." \
-#   --project ${PROJECT_ID} \
-#   --oidc-service-account-email YOUR_COMPUTE_SERVICE_ACCOUNT_EMAIL \
-#   --location us-central1 
+# Substitutions for Cloud Build (can be set in trigger or via --substitutions flag)
+# _REACT_APP_FIREBASE_API_KEY
+# _REACT_APP_FIREBASE_AUTH_DOMAIN
+# _REACT_APP_FIREBASE_STORAGE_BUCKET
+# _REACT_APP_FIREBASE_MESSAGING_SENDER_ID
+# _REACT_APP_FIREBASE_APP_ID
+# _REACT_APP_YOUTUBE_CLIENT_ID
+# _CLOUD_RUN_HASH (if Cloud Run URL is not stable/custom-mapped)
+# YOUR_SERVICE_ACCOUNT_EMAIL_FOR_CHAT_SERVICE
 ```
 To run this Cloud Build configuration:
 ```bash
-gcloud builds submit --config cloudbuild.yaml . --project YOUR_PROJECT_ID
+gcloud builds submit --config cloudbuild.yaml . --project YOUR_PROJECT_ID --substitutions=\
+_REACT_APP_FIREBASE_API_KEY="your-key",\
+_REACT_APP_FIREBASE_AUTH_DOMAIN="your-auth-domain",\
+# ... and so on for all _VARIABLES
 ```
-(Replace placeholders like `YOUR_PROJECT_ID`, `YOUR_REGION`, `YOUR_DEDICATED_SERVICE_ACCOUNT_EMAIL_FOR_GEMINI_CHAT`, and `YOUR_COMPUTE_SERVICE_ACCOUNT_EMAIL` where appropriate).
+(Replace placeholders like `YOUR_PROJECT_ID`, `YOUR_REGION`, `YOUR_SERVICE_ACCOUNT_EMAIL_FOR_CHAT_SERVICE`, etc., where appropriate).
+<environment_details>
+# VSCode Visible Files
+README.md
+
+# VSCode Open Tabs
+README.md
+
+# Current Time
+6/7/2025, 3:44:18 AM (America/Chicago, UTC-5:00)
+
+# Context Window Usage
+608,895 / 1,048.576K tokens used (58%)
+
+# Current Mode
+ACT MODE
+</environment_details>

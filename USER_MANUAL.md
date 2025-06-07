@@ -23,7 +23,7 @@ Welcome to ReelWorthy! This guide will help you understand how to use ReelWorthy
     *   [The Chat Interface](#the-chat-interface)
     *   [How the AI Works](#how-the-ai-works)
     *   [Example Queries](#example-queries)
-    *   [Understanding AI Responses](#understanding-ai-responses)
+    *   [Understanding AI Responses & The "Thinking" Tab](#understanding-ai-responses--the-thinking-tab)
 7.  [Settings](#settings)
     *   [AI Model Selection](#ai-model-selection)
     *   [Default Playlist](#default-playlist)
@@ -45,6 +45,7 @@ ReelWorthy is a smart web application designed to help you make the most of your
 *   **Connect Your YouTube Account:** Securely link your YouTube account to access your playlists.
 *   **View & Manage Playlists:** See all your YouTube playlists in one place.
 *   **AI-Powered Chat:** Get video suggestions and discuss the content of your playlists with an intelligent AI.
+*   **Live "Thinking" Process:** See the AI's internal thought process in real-time as it works on your query.
 *   **Subscription Feed Integration:** Optionally include recent videos from your YouTube subscriptions in AI suggestions.
 *   **Personalized Experience:** The AI tailors suggestions based on the content of your selected playlist and preferences.
 
@@ -59,7 +60,6 @@ To use ReelWorthy, you'll typically access it through a web browser by navigatin
 ### Logging In
 
 1.  **Login Prompt:** When you first visit ReelWorthy, you'll be prompted to log in.
-    <!-- Placeholder for a generic login screen image if RW01/02/03 show this -->
 2.  **Google Sign-In:** ReelWorthy uses your Google Account for a secure and easy login experience. Click the "Sign in with Google" (or similar) button.
 3.  **Authorization:**
     *   For new users, your email address might need to be on an approved list to use the application. If you encounter issues, please contact the application administrator.
@@ -72,9 +72,6 @@ To use ReelWorthy, you'll typically access it through a web browser by navigatin
 To get the most out of ReelWorthy, you need to connect your YouTube account. This allows the application to access your playlists and provide relevant AI-powered insights.
 
 1.  **Connection Prompt:** If your YouTube account isn't linked after logging in, you'll see a prompt like "Connect YouTube Account."
-    <!-- Placeholder: Screenshot of the "Connect YouTube Account" prompt -->
-    Image: Connect YouTube Prompt
-
 2.  **Initiate OAuth Flow:** Click the "Connect YouTube Account" button.
 3.  **Google Consent Screen:** You'll be redirected to Google's standard account permission screen.
     *   ReelWorthy will request `youtube.readonly` permission. This means the app can **only view** your YouTube playlists and related data. It **cannot** make any changes, delete videos, or modify your YouTube account in any way.
@@ -90,10 +87,8 @@ ReelWorthy has a simple and intuitive interface.
 ### Main Screens
 
 *   **Playlists Screen:** Displays all your YouTube playlists. This is often the first screen you see after logging in and connecting your YouTube account.
-*   **Chat Screen:** Where you interact with the AI to get video suggestions based on a selected playlist.
-    *   **Settings Screen:** Manage application preferences, such as AI model selection and subscription feed integration.
-    <!-- The Settings icon is a Gear Icon as described by BottomNavigationBar.js. A full screenshot of the settings screen might be one of RW01/02/03 if not used elsewhere, or this can just refer to the icon. -->
-    Image: Settings Icon (Gear Icon, as part of the navigation)
+*   **Chat Screen:** Where you interact with the AI to get video suggestions based on a selected playlist. This screen includes a "Results" tab and a "Thinking" tab.
+*   **Settings Screen:** Manage application preferences, such as AI model selection and subscription feed integration.
 
 ### Bottom Navigation Bar
 
@@ -101,9 +96,6 @@ At the bottom of the screen, you'll find a navigation bar to easily switch betwe
 *   <img src="docs/img/playlists_icon.png?raw=true" alt="Playlists Icon" width="24" height="24"> **Playlists:** Takes you to the Playlists Screen.
 *   <img src="docs/img/chat_icon.png?raw=true" alt="Chat Icon" width="24" height="24"> **Chat:** Takes you to the Chat Screen (usually active after selecting a playlist).
 *   <img src="docs/img/settings_icon.png?raw=true" alt="Settings Icon" width="24" height="24"> **Settings:** Takes you to the Settings Screen.
-
-<!-- Placeholder: General screenshot of the app interface showing the bottom navigation bar -->
-Image: Application Interface with Navigation
 
 ---
 
@@ -136,12 +128,15 @@ This is where ReelWorthy shines! You can have a conversation with an AI to get v
 
 *   **Input Field:** At the bottom of the Chat Screen, there's a text box where you can type your questions or requests for the AI.
 *   **Send Button:** After typing your query, tap the send button.
+*   **Output Tabs:** The chat response area has two tabs:
+    *   **Results:** Displays the final video suggestions from the AI.
+    *   **Thinking:** Shows the AI's internal thought process and data reception status while it's working on your query.
 
 ### How the AI Works
 
 *   **Playlist Context:** The AI's primary knowledge comes from the videos within the playlist you currently have selected.
 *   **Subscription Feed (Optional):** If you enable "Include Subscription Feed" in Settings, the AI will also consider recent (non-Shorts) videos from your YouTube channel subscriptions. This can broaden the range of suggestions.
-*   **JSON Output:** The AI is designed to provide suggestions in a structured format, which the app then displays clearly.
+*   **JSON Output:** The AI is designed to provide suggestions in a structured JSON format, which the app then displays clearly in the "Results" tab.
 
 ### Example Queries
 
@@ -152,13 +147,18 @@ You can ask things like:
 *   "Suggest some relaxing music videos from this playlist."
 *   "Find videos longer than 20 minutes on topic X."
 
-### Understanding AI Responses
+### Understanding AI Responses & The "Thinking" Tab
 
-1.  **"Thinking..."**: While the AI processes your query, you might see a "thinking" or streaming indicator (e.g., <img src="docs/img/chat_thinking_screenshot.png" alt="AI Thinking Indicator" width="400px">).
-2.  **Suggested Videos:** The AI will respond with a list of suggested videos. Each suggestion usually includes:
-    *   Video Title (and possibly thumbnail)
-    *   A brief reason why the AI suggested that video based on your query.
-3.  **Interacting with Suggestions:** You can typically click on a suggested video to open it on YouTube.
+1.  **Submitting a Query:** When you send a query, the app automatically switches to the "Thinking" tab.
+2.  **"Thinking" Tab Display:**
+    *   **Internal Thoughts:** You will see the AI's internal monologue or step-by-step reasoning as it processes your query and analyzes the video data. This streams in real-time. (See example: <img src="docs/img/chat_thinking_screenshot.png" alt="AI Thinking Indicator" width="400px">)
+    *   **Receiving Final Data:** After the "Internal Thoughts" (or sometimes concurrently), if the AI is preparing its final list of suggestions, you'll see a "Receiving Final Data:" indicator followed by a series of "#" characters. Each "#" represents a chunk of the final response data being received from the server. This provides feedback that the AI is still working on compiling the results. This section disappears once the final results are ready.
+3.  **"Results" Tab:**
+    *   Once the AI has finished processing and the stream of data is complete, the app will automatically switch to the "Results" tab.
+    *   Here, you'll find the list of suggested videos. Each suggestion usually includes:
+        *   Video Title (and possibly thumbnail)
+        *   A brief reason why the AI suggested that video based on your query.
+    *   You can typically click on a suggested video to open it on YouTube.
 
 <img src="docs/img/chat_results_screenshot.png" alt="Chat Results" width="400px">
 
