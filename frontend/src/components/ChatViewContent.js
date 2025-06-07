@@ -12,10 +12,10 @@ import {VideoList} from './VideoList';
  * suggested videos and the AI's thinking process, and the content
  * for the active tab.
  * @param {object} props - The component's props.
- * @param {(query: string) => void} props.onQuerySubmit - Callback function to submit a new query.
+ * @param {function(string): void} props.onQuerySubmit - Callback function to submit a new query.
  * @param {boolean} props.isStreaming - Indicates if the AI is currently streaming a response.
  * @param {string} props.activeOutputTab - The currently active tab ('suggestions' or 'Thinking').
- * @param {(tabName: string) => void} props.onSetOutputTab - Callback function to set the active output tab.
+ * @param {function(string): void} props.onSetOutputTab - Callback function to set the active output tab.
  * @param {Array<{id: string, title: string, channelTitle: string, publishedAt: string, description: string, thumbnailUrl: string}>} props.suggestedVideos - An array of video objects suggested by the AI.
  * @param {string} props.lastQuery - The most recent query submitted by the user.
  * @param {string} props.thinkingOutput - The text representing the AI's internal thoughts.
@@ -67,6 +67,11 @@ function ChatViewContent(props) {
     };
   }, [isStreaming, thinkingOutput, dataReceptionIndicator]); // Updated dependencies
 
+  /**
+   * Handles the submission of the chat query form.
+   * It calls the `onQuerySubmit` prop with the query value and clears the input field.
+   * @param {React.FormEvent<HTMLFormElement>} event - The form submission event.
+   */
   const handleSubmit = (event) => {
     event.preventDefault();
     const query = event.target.elements.query.value;

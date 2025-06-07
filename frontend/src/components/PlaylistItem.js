@@ -13,7 +13,7 @@ import React from 'react';
  * @param {string} props.playlist.title - The playlist title.
  * @param {number} props.playlist.itemCount - The number of videos in the playlist.
  * @param {string} [props.playlist.thumbnailUrl] - Optional URL for the playlist thumbnail.
- * @param {(playlistId: string) => void} props.onSelectPlaylist - Callback function invoked when the playlist is selected.
+ * @param {function(string): void} props.onSelectPlaylist - Callback function invoked when the playlist is selected.
  * @returns {JSX.Element} The rendered playlist item.
  */
 function PlaylistItem({playlist, onSelectPlaylist}) { // Corrected object-curly-spacing for props

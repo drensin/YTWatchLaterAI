@@ -15,28 +15,19 @@ const SettingsIcon = () => (
   </svg>
 );
 
-/**
- * Placeholder component for a back arrow icon.
- * @returns {JSX.Element} An SVG element representing a back arrow icon.
- */
-const BackArrowIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24px" height="24px" fill="currentColor" viewBox="0 0 256 256">
-    <path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm36-88a8,8,0,0,1-8,8H107.31l18.35,18.34a8,8,0,0,1-11.32,11.32l-32-32a8,8,0,0,1,0-11.32l32-32a8,8,0,0,1,11.32,11.32L107.31,120H156A8,8,0,0,1,164,128Z"></path>
-  </svg>
-);
-
+// Removed BackArrowIcon as it's not currently used.
 
 /**
  * Renders a generic screen header.
  * @param {object} props - The component's props.
  * @param {string} props.title - The title of the screen.
- * @param {React.ReactNode} [props.leftIcon] - Optional icon/button for the left side.
- * @param {() => void} [props.onLeftIconClick] - Optional click handler for the left icon.
+ * @param {React.ReactNode} [props.leftIcon] - Optional icon/button for the left side (currently not implemented in favor of logo).
+ * @param {function(): void} [props.onLeftIconClick] - Optional click handler for the left icon (currently not implemented).
  * @param {React.ReactNode} [props.rightIcon] - Optional icon/button for the right side.
- * @param {() => void} [props.onRightIconClick] - Optional click handler for the right icon.
+ * @param {function(): void} [props.onRightIconClick] - Optional click handler for the right icon.
  * @returns {JSX.Element} The rendered screen header.
  */
-function ScreenHeader({title, leftIcon, onLeftIconClick, rightIcon, onRightIconClick}) {
+function ScreenHeader({title, rightIcon, onRightIconClick}) { // Removed leftIcon, onLeftIconClick from destructuring
   // Determines the icon to display on the right. Uses provided `rightIcon` if available,
   // otherwise defaults to SettingsIcon if `onRightIconClick` is provided.
   const finalRightIcon = rightIcon || (onRightIconClick ? <SettingsIcon /> : null);

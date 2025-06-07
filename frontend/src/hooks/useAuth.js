@@ -20,10 +20,17 @@ const CLOUD_FUNCTIONS_BASE_URL = {
  * Handles Firebase login/logout, checks application-level authorization,
  * and determines initial YouTube linkage and available AI models based on a backend check.
  *
- * @param {(config: {visible: boolean, message: string, type: string}) => void} setAppPopup - Callback function from the main app to display status popups.
- * @returns {{
- *   currentUser: import('firebase/auth').User | null,
- *   isLoggedIn: boolean,
+ * @param {function(PopupConfig): void} setAppPopup - Callback function from the main app to display status popups.
+ * @returns {AuthHookReturn} An object containing the authentication state and handler functions.
+ *
+ * @typedef {object} PopupConfig
+ * @property {boolean} visible - Whether the popup is visible.
+ * @property {string} message - The message to display in the popup.
+ * @property {string} type - The type of popup (e.g., 'info', 'error', 'success').
+ *
+ * @typedef {object} AuthHookReturn
+ * @property {import('firebase/auth').User | null} currentUser - The current Firebase user object.
+ * @property {boolean} isLoggedIn - Whether the user is currently logged in.
  *   isAuthorizedUser: boolean,
  *   isYouTubeLinkedByAuthCheck: boolean,
  *   isSubscriptionFeedReady: boolean, // New state
@@ -31,9 +38,9 @@ const CLOUD_FUNCTIONS_BASE_URL = {
  *   authChecked: boolean,
  *   appAuthorizationError: string | null,
  *   isLoadingAuth: boolean,
- *   handleFirebaseLogin: () => Promise<void>,
- *   handleFirebaseLogout: () => Promise<void>
- * }} An object containing the authentication state and handler functions.
+ *   handleFirebaseLogin: function(): Promise<void>,
+ *   handleFirebaseLogout: function(): Promise<void>
+ * }
  */
 function useAuth(setAppPopup) {
   /** @state The current Firebase user object, or null if not logged in. @type {import('firebase/auth').User|null} */

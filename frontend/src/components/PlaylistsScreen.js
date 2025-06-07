@@ -11,7 +11,7 @@ import {PlaylistItem} from './PlaylistItem';
  * The header is now handled by App.js.
  * @param {object} props - The component's props.
  * @param {Array<{id: string, title: string, itemCount: number, thumbnailUrl?: string}>} props.userPlaylists - Array of user's playlist objects.
- * @param {(playlistId: string) => void} props.onSelectPlaylist - Callback function invoked when a playlist is selected.
+ * @param {function(string): void} props.onSelectPlaylist - Callback function invoked when a playlist is selected.
  * @returns {JSX.Element} The rendered Playlists screen content.
  */
 function PlaylistsScreen({userPlaylists, onSelectPlaylist}) {

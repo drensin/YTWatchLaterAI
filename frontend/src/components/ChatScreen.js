@@ -12,10 +12,10 @@ import {ChatViewContent} from './ChatViewContent';
  * @param {object} props - The component's props, passed down from App.js.
  * @param {string} props.selectedPlaylistId - The ID of the currently selected YouTube playlist.
  * @param {Array<object>} props.userPlaylists - The list of the user's YouTube playlists.
- * @param {(query: string) => void} props.onQuerySubmit - Handler for submitting a chat query.
+ * @param {function(string): void} props.onQuerySubmit - Handler for submitting a chat query.
  * @param {boolean} props.isStreaming - Whether the chat response is streaming.
  * @param {string} props.activeOutputTab - The active tab in the output section ('suggestions' or 'Thinking').
- * @param {(tabName: string) => void} props.onSetOutputTab - Handler to set the active output tab.
+ * @param {function(string): void} props.onSetOutputTab - Handler to set the active output tab.
  * @param {Array<{id: string, title: string, channelTitle: string, publishedAt: string, description: string, thumbnailUrl: string}>} props.suggestedVideos - Array of suggested video objects.
  * @param {string} props.lastQuery - The last submitted query.
  * @param {string} props.thinkingOutput - The AI's thinking process output (internal thoughts).

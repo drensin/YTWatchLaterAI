@@ -12,7 +12,7 @@ import './LoginScreen.css'; // Import the new CSS file
 /**
  * Renders the Login screen, which is composed of a header, main content area, and a footer.
  * @param {object} props - The component's props.
- * @param {() => void} props.onLogin - Callback function to initiate the login process, passed to LoginContent.
+ * @param {function(): void} props.onLogin - Callback function to initiate the login process, passed to LoginContent.
  * @returns {JSX.Element} The rendered Login screen.
  */
 function LoginScreen({onLogin}) {

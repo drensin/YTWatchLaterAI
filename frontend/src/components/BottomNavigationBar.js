@@ -41,7 +41,7 @@ const SettingsNavIcon = () => (
  * Renders the bottom navigation bar.
  * @param {object} props - The component's props.
  * @param {string} props.currentScreen - The identifier of the currently active screen.
- * @param {(screenName: string) => void} props.onNavigate - Callback function invoked when a navigation item is clicked.
+ * @param {function(string): void} props.onNavigate - Callback function invoked when a navigation item is clicked.
  * @returns {JSX.Element} The rendered bottom navigation bar.
  */
 function BottomNavigationBar({currentScreen, onNavigate}) {

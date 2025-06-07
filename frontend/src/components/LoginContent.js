@@ -9,7 +9,7 @@ import React from 'react';
  * Renders the main content for the Login screen, including a welcome message,
  * introductory text, and a "Sign in with Google" button.
  * @param {object} props - The component's props.
- * @param {() => void} props.onLogin - Callback function to initiate the login process.
+ * @param {function(): void} props.onLogin - Callback function to initiate the login process.
  * @returns {JSX.Element} The rendered content.
  */
 function LoginContent({onLogin}) {

@@ -10,11 +10,11 @@ import React, {useState, useEffect, useCallback} from 'react';
  * @param {object} props - The component's props.
  * @param {string} props.selectedModelId - The ID of the currently selected AI model.
  * @param {Array<string>} props.availableModels - Array of available AI model IDs.
- * @param {(newModelId: string) => void} props.onModelSelection - Callback function when a new model is selected.
- * @param {() => void} props.onLogout - Callback function to handle user logout.
+ * @param {function(string): void} props.onModelSelection - Callback function when a new model is selected.
+ * @param {function(): void} props.onLogout - Callback function to handle user logout.
  * @param {Array<{id: string, title: string}>} props.userPlaylists - Array of user's playlist objects (for future use).
  * @param {boolean} props.includeSubscriptionFeed - Current state of the 'include subscription feed' preference.
- * @param {(newValue: boolean) => void} props.onIncludeSubscriptionFeedChange - Callback when 'include subscription feed' preference changes.
+ * @param {function(boolean): void} props.onIncludeSubscriptionFeedChange - Callback when 'include subscription feed' preference changes.
  * @returns {JSX.Element} The rendered Settings screen.
  */
 function SettingsScreen({

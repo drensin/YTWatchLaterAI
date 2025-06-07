@@ -9,8 +9,17 @@ import React, {useState} from 'react';
 /**
  * Renders a list of videos.
  * @param {object} props - The component's props.
- * @param {Array<{id?: string, videoId?: string, title: string, thumbnailUrl?: string, duration?: string, description?: string, reason?: string}>} props.videos - Array of video objects to display.
+ * @param {Array<VideoItemShape>} props.videos - Array of video objects to display.
  * @returns {JSX.Element} The rendered video list.
+ *
+ * @typedef {object} VideoItemShape
+ * @property {string} [id] - Optional ID, fallback if videoId is not present.
+ * @property {string} [videoId] - The YouTube video ID.
+ * @property {string} title - The title of the video.
+ * @property {string} [thumbnailUrl] - Optional URL for the video thumbnail.
+ * @property {string} [duration] - Optional formatted duration string (e.g., "HH:MM:SS").
+ * @property {string} [description] - Optional video description.
+ * @property {string} [reason] - Optional reason why the video was suggested by AI.
  */
 function VideoList({videos}) {
   /**
@@ -36,7 +45,7 @@ function VideoList({videos}) {
   /**
    * Renders the description for a video, with a "More..."/"Less..." button
    * if the description exceeds a certain length.
-   * @param {{id?: string, videoId?: string, title: string, thumbnailUrl?: string, duration?: string, description?: string, reason?: string}} video - The video object.
+   * @param {VideoItemShape} video - The video object.
    * @param {string} videoId - The ID of the video (used as key for expansion state).
    * @returns {JSX.Element} The rendered video description.
    */

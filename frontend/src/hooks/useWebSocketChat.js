@@ -31,6 +31,21 @@ const MAX_RECONNECT_DELAY_MS = 30000;
  * @property {(query: string) => Promise<void>} handleQuerySubmit - Function to submit a new query to the chat.
  */
 
+/**
+ * Custom hook to manage WebSocket connection, message handling, and chat state for AI interactions.
+ * It handles connecting to a WebSocket service, sending queries, receiving streamed responses
+ * (including 'thinking' process and data reception indicators), and managing UI state related to the chat.
+ * Includes logic for ping/pong keep-alive and automatic reconnection attempts.
+ *
+ * @param {string} selectedPlaylistId - The ID of the currently selected YouTube playlist.
+ * @param {boolean} isPlaylistDataReady - Flag indicating if the data for the selected playlist is ready for chat.
+ * @param {function(object): void} setAppPopup - Callback to show app-level popups.
+ * @param {function(string | null): void} setAppError - Callback to set app-level error messages.
+ * @param {string} selectedModelId - The ID of the user-selected Gemini model to be used for chat.
+ * @param {string | null | undefined} userId - The Firebase UID of the current user.
+ * @param {boolean} currentIncludeSubscriptionFeed - The current preference for including subscription feed videos.
+ * @returns {WebSocketChatHookReturn} An object containing chat state and handler functions.
+ */
 function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, setAppError, selectedModelId, userId, currentIncludeSubscriptionFeed) {
   const [includeSubscriptionFeedPreference, setIncludeSubscriptionFeedPreference] = useState(currentIncludeSubscriptionFeed);
 
@@ -165,6 +180,11 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
       }
     };
 
+    /**
+     * Handles WebSocket close or error events, attempting reconnection if appropriate.
+     * Clears timers and attempts to reconnect if conditions are met (playlist selected, max attempts not reached).
+     * @param {Event} event - The WebSocket close or error event.
+     */
     const handleWSCloseOrError = (event) => {
       console.log('WebSocket closed or error:', event.type);
       clearWebSocketTimers();
@@ -207,6 +227,7 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
     setAppPopup,
     setAppError,
     setActiveOutputTab,
+    isStreaming, // Added isStreaming as a dependency
   ]);
 
   const prevSelectedPlaylistIdRef = useRef(selectedPlaylistId);
