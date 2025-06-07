@@ -7,19 +7,17 @@
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
-const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require('@google/generative-ai');
+const { GoogleGenerativeAI } = require('@google/generative-ai'); // Changed from VertexAI
 const { Datastore } = require('@google-cloud/datastore');
 
 // --- Configuration ---
 const PORT = process.env.PORT || 8080;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-if (!GEMINI_API_KEY) {
-    console.error("GEMINI_API_KEY environment variable is not set.");
-    process.exit(1);
-}
+// API Key for @google/generative-ai.
+// IMPORTANT: In production, this MUST be from a secure environment variable (e.g., set by Secret Manager).
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY; 
 
 // --- Initialize Clients ---
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY); // Changed client
 const datastore = new Datastore();
 
 const app = express();
@@ -30,13 +28,9 @@ const wss = new WebSocket.Server({
     zlibDeflateOptions: {
       level: 6 // Compression level (0-9)
     },
-    // clientNoContextTakeover: true, // Default is true
-    // serverNoContextTakeover: true  // Default is true
   }
 });
 
-// In-memory store for active Gemini chat sessions
-// ws -> { chat: GeminiChatSession, playlistId: string, modelId: string, videosForPlaylist: Array }
 const activeSessions = new Map();
 
 // --- WebSocket Server Logic ---
@@ -57,15 +51,10 @@ wss.on('connection', (ws) => {
         const currentSession = activeSessions.get(ws);
 
         if (message.type === 'INIT_CHAT') {
-            /**
-             * Handles the 'INIT_CHAT' message from a client.
-             * Initializes a new Gemini chat session for the specified playlist.
-             * Fetches video data for the playlist from Datastore to provide context.
-             * Expected message.payload: { playlistId: string, modelId?: string, includeSubscriptionFeed?: boolean, userId?: string }
-             * Sends 'CHAT_INITIALIZED' on success or 'ERROR' on failure.
-             */
-            const { playlistId, modelId: clientModelId, includeSubscriptionFeed, userId } = message.payload; // Added includeSubscriptionFeed and userId
-            const effectiveModelId = clientModelId || "gemini-2.5-flash-preview-05-20";
+            const { playlistId, modelId: clientModelId, includeSubscriptionFeed, userId } = message.payload;
+            // Use a model compatible with @google/generative-ai, e.g., gemini-pro or a specific preview version.
+            // The test script used 'gemini-2.5-pro-preview-05-06', let's ensure consistency or use a generally available one.
+            const effectiveModelId = clientModelId || 'gemini-2.5-pro-latest'; // Or 'gemini-2.5-pro-preview-05-06' if available & preferred
 
             if (!playlistId) {
                 ws.send(JSON.stringify({ type: 'ERROR', error: 'playlistId is required for INIT_CHAT' }));
@@ -76,29 +65,11 @@ wss.on('connection', (ws) => {
                 console.log(`[INIT_CHAT] Fetching videos for playlist: ${playlistId}`);
                 const videosQuery = datastore.createQuery('Videos')
                     .filter('associatedPlaylistIds', '=', playlistId);
-                const [playlistVideos] = await datastore.runQuery(videosQuery); // Renamed for clarity
+                const [playlistVideos] = await datastore.runQuery(videosQuery);
                 
-                let combinedVideos = playlistVideos || []; // Initialize with playlist videos
+                let combinedVideos = playlistVideos || [];
                 console.log(`[INIT_CHAT] Fetched ${combinedVideos.length} videos for playlist ${playlistId}.`);
 
-                // Logic for fetching and merging subscription feed will be added in the next step
-
-                // Placeholder for where videoListForContext will be created using combinedVideos
-                // For now, let's assume combinedVideos is what we use, and it might be just playlistVideos
-                // The actual mapping will be done after potential merge
-                // const videoListForContext = combinedVideos.map(video => ({
-                // ID: video.videoId, Title: video.title, Description: video.description || 'N/A',
-                // DurationSeconds: video.durationSeconds, Views: video.viewCount ? parseInt(video.viewCount, 10) : null,
-                
-                // This part will be moved after potential merge
-                // const videoContextString = `Video List (JSON format):\n${JSON.stringify(videoListForContext, null, 2)}`;
-                
-                // The following mapping will be done after combinedVideos is finalized
-                // const videoListForContext = videosForPlaylist.map(video => ({
-                // ID: video.videoId, Title: video.title, Description: video.description || 'N/A',
-                // DurationSeconds: video.durationSeconds, Views: video.viewCount ? parseInt(video.viewCount, 10) : null,
-
-                // --- Start of new logic to fetch and merge subscription feed ---
                 if (includeSubscriptionFeed && userId) {
                     console.log(`[INIT_CHAT] includeSubscriptionFeed is true for userId: ${userId}. Fetching feed cache.`);
                     try {
@@ -106,11 +77,9 @@ wss.on('connection', (ws) => {
                         const [feedCacheEntity] = await datastore.get(feedCacheKey);
                         if (feedCacheEntity && Array.isArray(feedCacheEntity.videos) && feedCacheEntity.videos.length > 0) {
                             console.log(`[INIT_CHAT] Fetched ${feedCacheEntity.videos.length} videos from subscription feed cache for userId: ${userId}.`);
-                            
                             const feedVideosMap = new Map(feedCacheEntity.videos.map(v => [v.videoId, v]));
-                            const playlistVideosMap = new Map(combinedVideos.map(v => [v.videoId, v])); // combinedVideos is initially playlistVideos
-                            
-                            const mergedVideosMap = new Map([...playlistVideosMap, ...feedVideosMap]); // Feed videos overwrite playlist videos if same videoId, adjust if needed
+                            const playlistVideosMap = new Map(combinedVideos.map(v => [v.videoId, v]));
+                            const mergedVideosMap = new Map([...playlistVideosMap, ...feedVideosMap]);
                             combinedVideos = Array.from(mergedVideosMap.values());
                             console.log(`[INIT_CHAT] Combined and de-duplicated videos. Total: ${combinedVideos.length}`);
                         } else {
@@ -118,21 +87,17 @@ wss.on('connection', (ws) => {
                         }
                     } catch (cacheError) {
                         console.error(`[INIT_CHAT] Error fetching UserSubscriptionFeedCache for userId ${userId}:`, cacheError);
-                        // Proceed with playlist videos only (combinedVideos already holds them)
                     }
-                } else if (includeSubscriptionFeed && !userId) {
-                    console.warn('[INIT_CHAT] includeSubscriptionFeed is true, but no userId was provided in the payload. Client needs to send userId.');
                 }
-                // --- End of new logic ---
 
                 if (combinedVideos.length === 0) {
                     ws.send(JSON.stringify({ type: 'ERROR', error: `No videos found for playlist ${playlistId} (and subscription feed if applicable).` }));
-                    activeSessions.delete(ws); // Clean up session if no context
+                    activeSessions.delete(ws);
                     return;
                 }
                 console.log(`[INIT_CHAT] Total videos for context after potential merge: ${combinedVideos.length}.`);
 
-                const videoListForContext = combinedVideos.map(video => ({ // Now map the final combinedVideos
+                const videoListForContext = combinedVideos.map(video => ({
                     ID: video.videoId, Title: video.title, Description: video.description || 'N/A',
                     DurationSeconds: video.durationSeconds, Views: video.viewCount ? parseInt(video.viewCount, 10) : null,
                     Likes: video.likeCount ? parseInt(video.likeCount, 10) : null, Topics: Array.isArray(video.topicCategories) ? video.topicCategories : [],
@@ -140,26 +105,26 @@ wss.on('connection', (ws) => {
                 }));
                 const videoContextString = `Video List (JSON format):\n${JSON.stringify(videoListForContext, null, 2)}`;
                 
-                const safetySettings = [
-                    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-                    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                ];
-                const generationConfig = { temperature: 0, responseMimeType: 'application/json' };
+                const generativeModel = genAI.getGenerativeModel({ model: effectiveModelId });
                 
-                const modelInstance = genAI.getGenerativeModel({ model: effectiveModelId, safetySettings: safetySettings });
-                const chat = modelInstance.startChat({
-                    history: [ // System prompt and initial context
-                        { role: "user", parts: [{ text: "You are an AI assistant. I will provide a 'Video List' containing videos from a specific playlist and potentially from the user's recent subscriptions. Your task is to recommend videos from this combined list that best match the 'User Query'. Your response MUST be a valid JSON object with a single key: 'suggestedVideos'. The value of 'suggestedVideos' MUST be an array. Each object in the array MUST have two keys: 'videoId' (the YouTube video ID) and 'reason' (your concise explanation for suggesting it). If NO videos match the query from the provided list, 'suggestedVideos' MUST be an empty array. Output ONLY the JSON object." }] },
-                        { role: "model", parts: [{ text: "Understood. I will use the provided video list (from playlist and/or subscriptions) and user query to make recommendations in the specified JSON format." }] },
-                        { role: "user", parts: [{ text: videoContextString }] } // The combined video context
-                    ], // End of history
-                    generationConfig: generationConfig
-                });
+                const initialHistory = [
+                    { role: 'user', parts: [{ text: "You are an AI assistant. I will provide a 'Video List' containing videos from a specific playlist and potentially from the user's recent subscriptions. Your task is to recommend videos from this combined list that best match the 'User Query'. Your response MUST be a valid JSON object with a single key: 'suggestedVideos'. The value of 'suggestedVideos' MUST be an array. Each object in the array MUST have two keys: 'videoId' (the YouTube video ID) and 'reason' (your concise explanation for suggesting it). If NO videos match the query from the provided list, 'suggestedVideos' MUST be an empty array. Output ONLY the JSON object." }] },
+                    { role: 'model', parts: [{ text: "Understood. I will use the provided video list (from playlist and/or subscriptions) and user query to make recommendations in the specified JSON format." }] },
+                    { role: 'user', parts: [{ text: videoContextString }] }
+                ];
 
-                // Store the combined videos and userId in the session
-                activeSessions.set(ws, { chat, playlistId, modelId: effectiveModelId, videosForContext: combinedVideos, userId: userId });
+                // const chat = generativeModel.startChat({ history: initialHistory }); // Not strictly needed if we use model.generateContentStream and manage history manually for it
+
+                // Store the initialContextHistory, the model instance, and other relevant data
+                activeSessions.set(ws, { 
+                    // chat, // Removing stateful chat object as each query will be standalone with initial context
+                    playlistId, 
+                    modelId: effectiveModelId, 
+                    videosForContext: combinedVideos, 
+                    userId: userId, 
+                    genModel: generativeModel, // Keep the model instance
+                    initialContextHistory: initialHistory // Store the static initial history/context
+                });
                 ws.send(JSON.stringify({ type: 'CHAT_INITIALIZED', payload: { playlistId, modelId: effectiveModelId } }));
                 console.log(`[INIT_CHAT] Chat initialized for playlist: ${playlistId} with model ${effectiveModelId}. UserID: ${userId}, IncludeFeed: ${includeSubscriptionFeed}`);
 
@@ -170,21 +135,13 @@ wss.on('connection', (ws) => {
             }
 
         } else if (message.type === 'USER_QUERY') {
-            /**
-             * Handles a 'USER_QUERY' message from a client.
-             * Uses the existing chat session to send the query to Gemini.
-             * Streams 'STREAM_CHUNK' messages back to the client for the response,
-             * followed by a 'STREAM_END' message with the full answer and suggested videos.
-             * Expected message.payload: { query: string }
-             * Sends 'ERROR' if the chat is not initialized or other issues occur.
-             */
-            if (!currentSession || !currentSession.chat) {
-                ws.send(JSON.stringify({ type: 'ERROR', error: 'Chat not initialized. Send INIT_CHAT first.' }));
+            if (!currentSession || !currentSession.genModel || !currentSession.initialContextHistory) { 
+                ws.send(JSON.stringify({ type: 'ERROR', error: 'Chat not initialized properly (missing model or initial context history). Send INIT_CHAT first.' }));
                 return;
             }
             const { query } = message.payload;
-            // Use videosForContext which contains the combined list
-            const { videosForContext, chat: userChatSession } = currentSession; 
+            // videosForContext is still useful for enriching the final response
+            const { videosForContext, genModel, initialContextHistory } = currentSession; // Use initialContextHistory
 
             if (!query) {
                 ws.send(JSON.stringify({ type: 'ERROR', error: 'Query is required for USER_QUERY' }));
@@ -192,35 +149,98 @@ wss.on('connection', (ws) => {
             }
 
             try {
-                console.log(`[USER_QUERY][${new Date().toISOString()}] Sending query to Gemini for playlist ${currentSession.playlistId}: "${query}"`);
+                // Construct payload for model.generateContentStream, using the static initialContextHistory
+                const requestPayload = {
+                    contents: [...initialContextHistory, { role: 'user', parts: [{ text: query }] }], // Use static initial context + current query
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        thinkingConfig: {
+                            includeThoughts: true,
+                            thinkingBudget: 1024, 
+                        },
+                        temperature: 0, // Retain original temperature
+                    },
+                    safetySettings: [
+                        {
+                            category: 'HARM_CATEGORY_HARASSMENT',
+                            threshold: 'BLOCK_NONE',
+                        },
+                        {
+                            category: 'HARM_CATEGORY_HATE_SPEECH',
+                            threshold: 'BLOCK_NONE',
+                        },
+                        {
+                            category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+                            threshold: 'BLOCK_NONE',
+                        },
+                        {
+                            category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+                            threshold: 'BLOCK_NONE',
+                        },
+                    ]
+                };
+
+                console.log(`[USER_QUERY][${new Date().toISOString()}] Sending query to Gemini (using @google/generative-ai) for playlist ${currentSession.playlistId}.`);
+                console.log(`[USER_QUERY][${new Date().toISOString()}] Request payload for model.generateContentStream:`, JSON.stringify(requestPayload, null, 2));
                 
-                const streamResult = await userChatSession.sendMessageStream(query);
+                const streamResult = await genModel.generateContentStream(requestPayload);
                 let accumulatedText = "";
-                let firstByteReceived = false;
+                let thoughtHeaderPrinted = false;
+                let answerHeaderPrinted = false;
+
+                console.log(`[USER_QUERY][${new Date().toISOString()}] Called model.generateContentStream, awaiting stream data...`);
 
                 for await (const chunk of streamResult.stream) {
-                    if (!firstByteReceived) {
-                        console.log(`[USER_QUERY_RESPONSE_START][${new Date().toISOString()}] First byte received from Gemini for playlist ${currentSession.playlistId}, query: "${query}"`);
-                        firstByteReceived = true;
-                    }
+                    console.log(`[USER_QUERY][STREAM_ITEM_RAW][${new Date().toISOString()}]`, JSON.stringify(chunk, null, 2));
 
-                    if (ws.readyState !== WebSocket.OPEN) {
-                        console.log(`[USER_QUERY][${new Date().toISOString()}] WebSocket closed by client during stream. Aborting.`);
-                        return; 
+                    if (chunk.candidates && chunk.candidates[0] && chunk.candidates[0].content && chunk.candidates[0].content.parts) {
+                        for (const part of chunk.candidates[0].content.parts) {
+                            if (part.text === null || part.text === undefined) continue;
+
+                            if (part.thought) {
+                                if (!thoughtHeaderPrinted) {
+                                    thoughtHeaderPrinted = true;
+                                }
+                                ws.send(JSON.stringify({ type: 'THINKING_CHUNK', payload: { textChunk: part.text } }));
+                                console.log(`[USER_QUERY][THOUGHT_CHUNK_SENT][${new Date().toISOString()}] Text: ${part.text.substring(0,100)}...`);
+                            } else {
+                                if (!answerHeaderPrinted && part.text.trim() !== "") {
+                                    answerHeaderPrinted = true;
+                                }
+                                accumulatedText += part.text;
+                                ws.send(JSON.stringify({ type: 'STREAM_CHUNK', payload: { textChunk: part.text } }));
+                                console.log(`[USER_QUERY][CONTENT_CHUNK_SENT][${new Date().toISOString()}] Length: ${part.text.length}`);
+                            }
+                        }
                     }
-                    const chunkText = chunk.text();
-                    accumulatedText += chunkText;
-                    ws.send(JSON.stringify({ type: 'STREAM_CHUNK', payload: { textChunk: chunkText } }));
                 }
+                
+                // Update server-side chat history after successful stream
+                // Note: userChatSession.history is an accessor that rebuilds from internal _history.
+                // To append, we typically send new messages.
+                // For now, we'll rely on including the full history in each model.generateContentStream call.
+                // If true stateful chat history update is needed with userChatSession,
+                // we'd use userChatSession.sendMessageStream and ensure its history updates.
+                // Since we used model.generateContentStream, the 'userChatSession' object's history
+                // wasn't directly updated by that call. We'd need to manually update it if we want to keep it.
+                // For simplicity and to match the test script's direct model call, we'll reconstruct history on each USER_QUERY.
+                // This means the 'chat' object stored in activeSessions is mostly for holding the initial history setup.
+                // A more robust chat history management would be needed if we strictly use chat.sendMessageStream.
+                
+                // DO NOT append to history, as each query is independent with the initial context.
+                // currentSession.initialContextHistory.push({ role: 'user', parts: [{ text: query }] }); // REMOVED
+                // currentSession.initialContextHistory.push({ role: 'model', parts: [{ text: accumulatedText }] }); // REMOVED
 
-                let numSuggestedItems = 0;
-                try {
-                    const parsedResponse = JSON.parse(accumulatedText);
-                    if (parsedResponse && Array.isArray(parsedResponse.suggestedVideos)) {
-                        numSuggestedItems = parsedResponse.suggestedVideos.length;
-                    }
-                } catch (e) { /* Ignore parsing error for logging num items */ }
-                console.log(`[USER_QUERY_RESPONSE_END][${new Date().toISOString()}] Full response received from Gemini for playlist ${currentSession.playlistId}, query: "${query}". Number of suggested items: ${numSuggestedItems}`);
+
+                const aggregatedResponse = await streamResult.response;
+                if (aggregatedResponse && aggregatedResponse.usageMetadata) {
+                    console.log(`[USER_QUERY][USAGE_METADATA][${new Date().toISOString()}]`, JSON.stringify(aggregatedResponse.usageMetadata, null, 2));
+                } else {
+                     // Try to get usage metadata from the last chunk if aggregatedResponse doesn't have it
+                    // This logic for lastChunk might be complex if stream is already consumed.
+                    // Prefer relying on aggregatedResponse.usageMetadata.
+                    console.log(`[USER_QUERY][USAGE_METADATA][${new Date().toISOString()}] Aggregated response or usageMetadata not available or stream already consumed for last chunk.`);
+                }
                 
                 console.log(`[USER_QUERY][${new Date().toISOString()}] Stream finished. Accumulated text length: ${accumulatedText.length}`);
 
@@ -272,25 +292,21 @@ wss.on('connection', (ws) => {
                 if (allSuggestedVideos.length > 0) {
                     suggestionsFromGemini = allSuggestedVideos;
                     answerText = "Based on your query, I found these videos:";
-                } else if (sanitizedText.trim().length > 0) {
-                    answerText = `The AI returned data but no matching videos were found or the format was unexpected.`;
+                } else if (sanitizedText.trim().length > 0 && !thoughtHeaderPrinted) { // Only use AI text if no thoughts were primary output
+                    answerText = sanitizedText.trim(); // Use the direct AI response if no JSON
+                } else if (sanitizedText.trim().length > 0 && thoughtHeaderPrinted && allSuggestedVideos.length === 0) {
+                     answerText = `The AI provided thoughts but no matching videos were found or the format was unexpected.`;
                 }
                 
-                /**
-                 * Formats total seconds into HH:MM:SS or MM:SS string.
-                 * @param {number|null|undefined} totalSeconds The total seconds.
-                 * @return {string} The formatted time string (e.g., "01:23:45" or "23:45"). Returns "00:00" if input is invalid.
-                 */
                 function formatSecondsToHHMMSS(totalSeconds) {
                     if (totalSeconds === null || totalSeconds === undefined || isNaN(totalSeconds)) return "00:00";
                     const h = Math.floor(totalSeconds / 3600);
                     const m = Math.floor((totalSeconds % 3600) / 60);
-                    const s = Math.floor(totalSeconds % 60); // Ensure seconds are integers
+                    const s = Math.floor(totalSeconds % 60);
                     return `${h > 0 ? String(h).padStart(2, '0') + ':' : ''}${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
                 }
                 
                 const suggestedVideosFull = suggestionsFromGemini.map(suggestion => {
-                    // Enrich suggestions using videosForContext
                     const foundVideo = videosForContext.find(v => v.videoId === suggestion.videoId); 
                     return foundVideo ? { ...foundVideo, duration: formatSecondsToHHMMSS(foundVideo.durationSeconds), reason: suggestion.reason } : null;
                 }).filter(v => v !== null);

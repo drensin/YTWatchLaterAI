@@ -18,6 +18,7 @@ backend/*/node_modules/
 
 # New Cloud Run service specific
 gemini-chat-service/node_modules/
+gemini-chat-service/testVertexThinking.js # For hardcoded API key during testing
 
 state.md
 frontend/.firebase/hosting.YnVpbGQ.cache

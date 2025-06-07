@@ -18,7 +18,8 @@ import {ChatViewContent} from './ChatViewContent';
  * @param {(tabName: string) => void} props.onSetOutputTab - Handler to set the active output tab.
  * @param {Array<{id: string, title: string, channelTitle: string, publishedAt: string, description: string, thumbnailUrl: string}>} props.suggestedVideos - Array of suggested video objects.
  * @param {string} props.lastQuery - The last submitted query.
- * @param {string} props.thinkingOutput - The AI's thinking process output.
+ * @param {string} props.thinkingOutput - The AI's thinking process output (internal thoughts).
+ * @param {string} props.responseBuildUp - The accumulating main response text from the AI.
  * @param {React.RefObject<HTMLDivElement>} props.thinkingOutputContainerRef - Ref for the thinking output container.
  * @returns {JSX.Element} The rendered Chat screen.
  */

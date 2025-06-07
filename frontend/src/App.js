@@ -273,6 +273,8 @@ function App() {
     suggestedVideos,
     lastQuery,
     thinkingOutput,
+    responseBuildUp, // Added
+    // internalThinkingOutput, // Removed
     activeOutputTab,
     setActiveOutputTab,
     isStreaming,
@@ -427,7 +429,7 @@ function App() {
     if (activeOutputTab === 'Thinking' && thinkingOutputContainerRef.current) {
       thinkingOutputContainerRef.current.scrollTop = thinkingOutputContainerRef.current.scrollHeight;
     }
-  }, [thinkingOutput, activeOutputTab]);
+  }, [thinkingOutput, responseBuildUp, activeOutputTab]); // Added responseBuildUp
 
   /**
    * Renders the content for the current active screen.
@@ -485,6 +487,8 @@ function App() {
             suggestedVideos={suggestedVideos}
             lastQuery={lastQuery}
             thinkingOutput={thinkingOutput}
+            responseBuildUp={responseBuildUp} // Added
+            // internalThinkingOutput={internalThinkingOutput} // Removed
             thinkingOutputContainerRef={thinkingOutputContainerRef}
           />
         );
