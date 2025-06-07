@@ -19,7 +19,7 @@ import {ChatViewContent} from './ChatViewContent';
  * @param {Array<{id: string, title: string, channelTitle: string, publishedAt: string, description: string, thumbnailUrl: string}>} props.suggestedVideos - Array of suggested video objects.
  * @param {string} props.lastQuery - The last submitted query.
  * @param {string} props.thinkingOutput - The AI's thinking process output (internal thoughts).
- * @param {string} props.responseBuildUp - The accumulating main response text from the AI.
+ * @param {string} props.dataReceptionIndicator - String of '#' indicating data chunks received.
  * @param {React.RefObject<HTMLDivElement>} props.thinkingOutputContainerRef - Ref for the thinking output container.
  * @returns {JSX.Element} The rendered Chat screen.
  */
@@ -28,13 +28,25 @@ function ChatScreen(props) {
   // but onNavigate, playlistTitle, handleSettingsClick, handleBackClick are removed
   // as the header is now managed by App.js.
   // All props are effectively for ChatViewContent now.
+  // Explicitly destructure all props needed by ChatViewContent
   const {
     selectedPlaylistId,
     userPlaylists,
-    /* other props for ChatViewContent */
-    ...chatViewProps
+    onQuerySubmit,
+    isStreaming,
+    activeOutputTab,
+    onSetOutputTab,
+    suggestedVideos,
+    lastQuery,
+    thinkingOutput,
+    dataReceptionIndicator, // Changed from responsesReceivedCount
+    thinkingOutputContainerRef,
+    // Note: responsesReceivedCount was removed from App.js props, replaced by dataReceptionIndicator.
+    // If any other props were intended to be passed via ...chatViewProps, they should be added here.
   } = props;
 
+  console.log('[ChatScreen] All props received:', props);
+  // console.log('[ChatScreen] chatViewProps being spread:', chatViewProps); // No longer using chatViewProps
 
   return (
     <div className="chat-screen"> {/* This root div might need adjustment or removal */}
@@ -43,7 +55,15 @@ function ChatScreen(props) {
         <ChatViewContent
           selectedPlaylistId={selectedPlaylistId}
           userPlaylists={userPlaylists}
-          {...chatViewProps}
+          onQuerySubmit={onQuerySubmit}
+          isStreaming={isStreaming}
+          activeOutputTab={activeOutputTab}
+          onSetOutputTab={onSetOutputTab}
+          suggestedVideos={suggestedVideos}
+          lastQuery={lastQuery}
+          thinkingOutput={thinkingOutput}
+          dataReceptionIndicator={dataReceptionIndicator} // Changed prop
+          thinkingOutputContainerRef={thinkingOutputContainerRef}
         />
       </div>
     </div>

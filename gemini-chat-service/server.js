@@ -208,8 +208,8 @@ wss.on('connection', (ws) => {
                                     answerHeaderPrinted = true;
                                 }
                                 accumulatedText += part.text;
-                                ws.send(JSON.stringify({ type: 'STREAM_CHUNK', payload: { textChunk: part.text } }));
-                                console.log(`[USER_QUERY][CONTENT_CHUNK_SENT][${new Date().toISOString()}] Length: ${part.text.length}`);
+                                ws.send(JSON.stringify({ type: 'CONTENT_CHUNK_RECEIVED' })); // Send indicator for each content chunk
+                                console.log(`[USER_QUERY][CONTENT_CHUNK_RECEIVED_SENT][${new Date().toISOString()}]`);
                             }
                         }
                     }

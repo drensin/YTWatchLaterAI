@@ -24,7 +24,7 @@ const MAX_RECONNECT_DELAY_MS = 30000;
  * @property {Array<SuggestedVideo>} suggestedVideos - Suggested videos from the chat.
  * @property {string} lastQuery - The last query submitted by the user.
  * @property {string} thinkingOutput - The raw output from the AI as it 'thinks'.
- * @property {string} responseBuildUp - The accumulating main response text.
+ * @property {string} dataReceptionIndicator - String of '#' indicating data chunks received.
  * @property {string} activeOutputTab - The currently active output tab ('Results' or 'Thinking').
  * @property {(tabName: string) => void} setActiveOutputTab - Setter for `activeOutputTab`.
  * @property {boolean} isStreaming - True if the AI is currently streaming a response.
@@ -44,8 +44,8 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
 
   const [suggestedVideos, setSuggestedVideos] = useState([]);
   const [lastQuery, setLastQuery] = useState('');
-  const [thinkingOutput, setThinkingOutput] = useState(''); // For "Internal Thoughts"
-  const [responseBuildUp, setResponseBuildUp] = useState(''); // For "Response Build-up"
+  const [thinkingOutput, setThinkingOutput] = useState('');
+  const [dataReceptionIndicator, setDataReceptionIndicator] = useState(''); // New state for "###"
   const [activeOutputTab, setActiveOutputTab] = useState('Results');
   const [isStreaming, setIsStreaming] = useState(false);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
@@ -82,8 +82,8 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
     console.log(`Attempting WebSocket connection for playlist: ${playlistIdToConnect}`);
     ws.current = new WebSocket(WEBSOCKET_SERVICE_URL);
     setIsStreaming(false);
-    setThinkingOutput(''); // Clear on new connection
-    setResponseBuildUp(''); // Clear on new connection
+    setThinkingOutput('');
+    setDataReceptionIndicator(''); // Clear on new connection
 
     ws.current.onopen = () => {
       console.log('WebSocket connected. Initializing chat...');
@@ -129,18 +129,20 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
           if (!isStreaming) setIsStreaming(true);
           setActiveOutputTab('Thinking');
           break;
-        case 'STREAM_CHUNK':
+        case 'CONTENT_CHUNK_RECEIVED': // New case
+          setDataReceptionIndicator((prev) => prev + '#');
+          if (!isStreaming) setIsStreaming(true); // Ensure streaming is true
+          setActiveOutputTab('Thinking'); // Keep thinking tab active
+          break;
+        case 'STREAM_CHUNK': // This case might become redundant if server only sends CONTENT_CHUNK_RECEIVED
           if (message.payload && message.payload.textChunk) {
-            setResponseBuildUp((prev) => prev + message.payload.textChunk);
+            // console.log('Received STREAM_CHUNK (should be CONTENT_CHUNK_RECEIVED for main data):', message.payload.textChunk);
           }
           if (!isStreaming) setIsStreaming(true);
-          // Optionally keep 'Thinking' tab active or switch based on preference
-          // setActiveOutputTab('Thinking');
           break;
         case 'STREAM_END':
           setSuggestedVideos(message.payload.suggestedVideos || []);
-          // Response build-up is complete, it will be part of the final display or cleared
-          // setResponseBuildUp(''); // Clear if it's only for transient build-up display
+          setDataReceptionIndicator(''); // Clear indicator
           if (setAppPopup) setAppPopup({visible: true, message: 'Suggestions received!', type: 'success'});
           setTimeout(() => {
             if (setAppPopup) setAppPopup((p) => ({...p, visible: false}));
@@ -149,6 +151,7 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
           setIsStreaming(false);
           break;
         case 'ERROR':
+          setDataReceptionIndicator(''); // Clear indicator
           if (setAppError) setAppError(`Chat Error: ${message.error}`);
           if (setAppPopup) setAppPopup({visible: true, message: `Chat Error: ${message.error}`, type: 'error'});
           setTimeout(() => {
@@ -165,6 +168,7 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
     const handleWSCloseOrError = (event) => {
       console.log('WebSocket closed or error:', event.type);
       clearWebSocketTimers();
+      setDataReceptionIndicator(''); // Clear indicator on close/error too
 
       if (selectedPlaylistId && ws.current && !ws.current.onclose) {
         return;
@@ -220,7 +224,7 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
 
       if (needsToClearData) {
         setThinkingOutput('');
-        setResponseBuildUp('');
+        setDataReceptionIndicator(''); // Clear indicator
         setSuggestedVideos([]);
         setLastQuery('');
         setActiveOutputTab('Results');
@@ -256,7 +260,7 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
     if (setAppError) setAppError(null);
     setSuggestedVideos([]);
     setThinkingOutput('');
-    setResponseBuildUp('');
+    setDataReceptionIndicator(''); // Reset indicator
 
     setActiveOutputTab('Thinking');
     setIsStreaming(true);
@@ -272,6 +276,7 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
       }, 5000);
       setActiveOutputTab('Results');
       setIsStreaming(false);
+      setDataReceptionIndicator(''); // Clear on error too
     }
   }, [
     selectedPlaylistId,
@@ -284,7 +289,7 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
     suggestedVideos,
     lastQuery,
     thinkingOutput,
-    responseBuildUp,
+    dataReceptionIndicator, // Return new indicator
     activeOutputTab,
     setActiveOutputTab,
     isStreaming,

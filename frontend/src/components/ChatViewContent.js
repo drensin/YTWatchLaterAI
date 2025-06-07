@@ -19,11 +19,13 @@ import {VideoList} from './VideoList';
  * @param {Array<{id: string, title: string, channelTitle: string, publishedAt: string, description: string, thumbnailUrl: string}>} props.suggestedVideos - An array of video objects suggested by the AI.
  * @param {string} props.lastQuery - The most recent query submitted by the user.
  * @param {string} props.thinkingOutput - The text representing the AI's internal thoughts.
- * @param {string} props.responseBuildUp - The accumulating main response text from the AI.
+ * @param {string} props.dataReceptionIndicator - String of '#' indicating data chunks received.
  * @param {React.RefObject<HTMLDivElement>} props.thinkingOutputContainerRef - Ref for the scrollable container of the thinking output.
  * @returns {JSX.Element} The rendered chat view content.
  */
 function ChatViewContent(props) {
+  console.log('[ChatViewContent] Entire props object at entry:', props);
+  console.log('[ChatViewContent] Direct access props.responsesReceivedCount:', props.responsesReceivedCount); // DEBUG LOG
   const {
     onQuerySubmit,
     isStreaming,
@@ -31,17 +33,20 @@ function ChatViewContent(props) {
     onSetOutputTab,
     suggestedVideos,
     lastQuery,
-    thinkingOutput, // This is for "Internal Thoughts"
-    responseBuildUp, // This is for "Response Build-up"
+    thinkingOutput,
+    dataReceptionIndicator, // Changed from responsesReceivedCount
     thinkingOutputContainerRef,
   } = props;
+
+  // console.log('[ChatViewContent] props.responsesReceivedCount:', responsesReceivedCount); // DEBUG LOG - Replaced by direct access log above
 
   const [waitingDots, setWaitingDots] = useState('');
   const waitingIntervalRef = useRef(null);
   const waitingMessage = 'Query sent. Waiting for AI response';
 
   useEffect(() => {
-    if (isStreaming && !thinkingOutput && !responseBuildUp) {
+    // Show waiting dots if streaming, no thoughts yet, and no data reception has started
+    if (isStreaming && !thinkingOutput && dataReceptionIndicator === '') {
       if (!waitingIntervalRef.current) {
         setWaitingDots('');
         waitingIntervalRef.current = setInterval(() => {
@@ -60,7 +65,7 @@ function ChatViewContent(props) {
         clearInterval(waitingIntervalRef.current);
       }
     };
-  }, [isStreaming, thinkingOutput, responseBuildUp]);
+  }, [isStreaming, thinkingOutput, dataReceptionIndicator]); // Updated dependencies
 
   const handleSubmit = (event) => {
     event.preventDefault();
@@ -71,31 +76,8 @@ function ChatViewContent(props) {
     }
   };
 
-  let internalThoughtsDisplay = thinkingOutput;
-  let responseBuildUpDisplay = responseBuildUp;
-
-  if (isStreaming) {
-    if (!thinkingOutput && !responseBuildUp) {
-      // If actively streaming but no output of any kind yet, show waiting.
-      internalThoughtsDisplay = `${waitingMessage}${waitingDots}`;
-      responseBuildUpDisplay = ''; // Keep response build-up empty until it starts
-    } else {
-      if (!thinkingOutput) {
-        // internalThoughtsDisplay = 'No specific thoughts received yet, or thoughts are complete.';
-      }
-      if (!responseBuildUp && thinkingOutput) { // If thoughts are coming but no main response yet
-        // responseBuildUpDisplay = "Waiting for main response content...";
-      }
-    }
-  } else { // Not streaming
-    if (!thinkingOutput && activeOutputTab === 'Thinking') {
-      internalThoughtsDisplay = 'No internal thoughts to display for the last query.';
-    }
-    if (!responseBuildUp && activeOutputTab === 'Thinking' && !suggestedVideos.length && !thinkingOutput) {
-      responseBuildUpDisplay = 'No response content to display.';
-    }
-  }
-
+  // Removed intermediate display variables internalThoughtsDisplay and responseBuildUpDisplay
+  // Logic will be handled directly in JSX or with simpler conditions if needed.
 
   return (
     <div className="chat-view-content">
@@ -143,11 +125,18 @@ function ChatViewContent(props) {
             <pre className="thinking-output">
               <strong>Internal Thoughts:</strong>
               <br />
-              {internalThoughtsDisplay || (isStreaming ? 'Receiving thoughts...' : 'None')}
-              <br /><br />
-              <strong>Response Build-up:</strong>
+              {thinkingOutput || (isStreaming && dataReceptionIndicator === '' && !suggestedVideos.length ? `${waitingMessage}${waitingDots}` : 'None')}
               <br />
-              {responseBuildUpDisplay || (isStreaming && !suggestedVideos.length && thinkingOutput /* only show if thoughts are also streaming or done */ ? 'Receiving response...' : (suggestedVideos.length ? '' : 'None'))}
+
+              {/* Conditionally render the "Receiving Final Data" section */}
+              {dataReceptionIndicator && dataReceptionIndicator.length > 0 && (
+                <>
+                  <br /> {/* Add a line break if there were thoughts and now data is coming */}
+                  <strong>Receiving Final Data:</strong>
+                  <br />
+                  {dataReceptionIndicator}
+                </>
+              )}
             </pre>
           </div>
         )}
