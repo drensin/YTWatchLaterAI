@@ -7,7 +7,7 @@ import {getAuth} from 'firebase/auth';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: 'AIzaSyA6tkhrfL42sIJ1zVISqDMPMA6g6n_GMII',
+  apiKey: 'AIzaSyCZFNosMQwC96PHjdfgLLa9ru4zctDFJtI',
   authDomain: 'watchlaterai-460918.firebaseapp.com',
   projectId: 'watchlaterai-460918',
   storageBucket: 'watchlaterai-460918.firebasestorage.app', // Using the value you provided
