@@ -711,6 +711,7 @@ main > div:first-child {
 }
 
 .chat-form { 
+  margin-top: 0.5rem; /* Add top margin */
   margin-bottom: 1rem; 
   padding: 0 1rem; /* Horizontal padding for the form */
   flex-shrink: 0; /* Prevent form from shrinking */
