@@ -760,3 +760,24 @@ main > div:first-child {
     /* width: 100%; /* Already set by .chat-view-content .video-list etc. */
     /* box-sizing: border-box; /* Already set */
 }
+
+/* Styles for selected playlist item */
+.playlist-item--selected {
+  background-color: #e0f7fa; /* A light cyan/blue for selection */
+  border-left: 4px solid #007bff; /* A distinct left border for emphasis */
+  padding-left: calc(1rem - 4px); /* Adjust padding to account for border */
+}
+
+.playlist-item--selected .playlist-item-title {
+  font-weight: 700; /* Make title bold for selected item */
+}
+
+/* Optional: Styles for a checkmark indicator if used */
+/*
+.selected-indicator-icon {
+  margin-left: auto; 
+  color: #007bff;
+  font-size: 1.2rem;
+  padding-right: 0.5rem; 
+}
+*/

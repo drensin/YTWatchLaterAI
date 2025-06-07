@@ -45,7 +45,7 @@ function ChatScreen(props) {
     // If any other props were intended to be passed via ...chatViewProps, they should be added here.
   } = props;
 
-  console.log('[ChatScreen] All props received:', props);
+  // console.log('[ChatScreen] All props received:', props);
   // console.log('[ChatScreen] chatViewProps being spread:', chatViewProps); // No longer using chatViewProps
 
   return (

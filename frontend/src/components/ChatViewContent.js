@@ -24,8 +24,8 @@ import {VideoList} from './VideoList';
  * @returns {JSX.Element} The rendered chat view content.
  */
 function ChatViewContent(props) {
-  console.log('[ChatViewContent] Entire props object at entry:', props);
-  console.log('[ChatViewContent] Direct access props.responsesReceivedCount:', props.responsesReceivedCount); // DEBUG LOG
+  // console.log('[ChatViewContent] Entire props object at entry:', props);
+  // console.log('[ChatViewContent] Direct access props.responsesReceivedCount:', props.responsesReceivedCount); // DEBUG LOG
   const {
     onQuerySubmit,
     isStreaming,

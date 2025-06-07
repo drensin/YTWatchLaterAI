@@ -14,19 +14,35 @@ import React from 'react';
  * @param {number} props.playlist.itemCount - The number of videos in the playlist.
  * @param {string} [props.playlist.thumbnailUrl] - Optional URL for the playlist thumbnail.
  * @param {function(string): void} props.onSelectPlaylist - Callback function invoked when the playlist is selected.
+ * @param {boolean} props.isSelected - Whether this playlist item is currently selected.
  * @returns {JSX.Element} The rendered playlist item.
  */
-function PlaylistItem({playlist, onSelectPlaylist}) { // Corrected object-curly-spacing for props
-  const {id, title, itemCount, thumbnailUrl} = playlist; // This line seems to already comply
+function PlaylistItem({playlist, onSelectPlaylist, isSelected}) {
+  const {id, title, itemCount, thumbnailUrl} = playlist;
+
+  // console.log(`[PlaylistItem] Title: ${title}, isSelected: ${isSelected}`); // DEBUG LOG
+
+  const handleKeyPress = (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      onSelectPlaylist(id);
+    }
+  };
 
   return (
-    <div className="playlist-item">
+    <div
+      className={`playlist-item ${isSelected ? 'playlist-item--selected' : ''}`}
+      onClick={() => onSelectPlaylist(id)}
+      onKeyPress={handleKeyPress}
+      role="button"
+      tabIndex={0}
+      style={{cursor: 'pointer'}}
+      aria-pressed={isSelected} // Indicates selection state for assistive technologies
+    >
       <div className="playlist-item-thumbnail-container">
         {thumbnailUrl ? (
           <img src={thumbnailUrl} alt={`${title} thumbnail`} className="playlist-item-thumbnail" />
         ) : (
           <div className="playlist-item-thumbnail-placeholder">
-            {/* Placeholder icon or initials can go here */}
             <span>🎵</span>
           </div>
         )}
@@ -35,10 +51,12 @@ function PlaylistItem({playlist, onSelectPlaylist}) { // Corrected object-curly-
         <h3 className="playlist-item-title">{title}</h3>
         <p className="playlist-item-count">{itemCount} videos</p>
       </div>
+      {/* Optional: Visual indicator for selection */}
+      {/* {isSelected && <span className="selected-indicator-icon">✓</span>} */}
+      {/* The "View" button is removed from playlist-item-action */}
       <div className="playlist-item-action">
-        <button onClick={() => onSelectPlaylist(id)} className="playlist-item-view-button">
-          View
-        </button>
+        {/* Content of this div can be adjusted if other actions are needed, or removed if not. */}
+        {/* For now, it's empty as the whole item is clickable. */}
       </div>
     </div>
   );

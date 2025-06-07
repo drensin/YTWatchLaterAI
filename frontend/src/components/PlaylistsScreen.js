@@ -12,15 +12,18 @@ import {PlaylistItem} from './PlaylistItem';
  * @param {object} props - The component's props.
  * @param {Array<{id: string, title: string, itemCount: number, thumbnailUrl?: string}>} props.userPlaylists - Array of user's playlist objects.
  * @param {function(string): void} props.onSelectPlaylist - Callback function invoked when a playlist is selected.
+ * @param {string} props.selectedPlaylistId - The ID of the currently selected playlist.
  * @returns {JSX.Element} The rendered Playlists screen content.
  */
-function PlaylistsScreen({userPlaylists, onSelectPlaylist}) {
+function PlaylistsScreen({userPlaylists, onSelectPlaylist, selectedPlaylistId}) {
   // onNavigate prop is no longer needed here as header actions are in App.js
   // const handleSettingsClick = () => {
   //   if (onNavigate) {
   //     onNavigate('settings');
   //   }
   // };
+
+  // console.log('[PlaylistsScreen] selectedPlaylistId:', selectedPlaylistId); // DEBUG LOG
 
   return (
     <div className="playlists-screen"> {/* This root div might need adjustment or removal if screen-content-wrapper handles all styling */}
@@ -32,6 +35,7 @@ function PlaylistsScreen({userPlaylists, onSelectPlaylist}) {
               key={playlist.id}
               playlist={playlist}
               onSelectPlaylist={onSelectPlaylist}
+              isSelected={playlist.id === selectedPlaylistId}
             />
           ))
         ) : (

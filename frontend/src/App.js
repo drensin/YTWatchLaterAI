@@ -125,7 +125,7 @@ function App() {
     const fetchSuccess = await fetchPlaylistItems(playlistId);
     if (fetchSuccess) {
       setIsPlaylistDataReadyForChat(true);
-      navigateTo('chat');
+      navigateTo('chat'); // Restore navigation
     }
   }, [fetchPlaylistItems, setSelectedPlaylistId, navigateTo, setIsPlaylistDataReadyForChat, setError, setYouTubeErrorAppLevel]);
 
@@ -279,7 +279,12 @@ function App() {
 
     switch (currentScreen) {
       case 'playlists':
-        return <PlaylistsScreen userPlaylists={userPlaylists} onSelectPlaylist={handleSelectPlaylistFromList} />;
+        // console.log('[App.js] Rendering PlaylistsScreen with selectedPlaylistId:', selectedPlaylistId); // DEBUG LOG
+        return <PlaylistsScreen
+          userPlaylists={userPlaylists}
+          onSelectPlaylist={handleSelectPlaylistFromList}
+          selectedPlaylistId={selectedPlaylistId}
+        />;
       case 'chat':
         if (!selectedPlaylistId) {
           return (
@@ -290,7 +295,7 @@ function App() {
             </div>
           );
         }
-        console.log('[App.js] Rendering ChatScreen with dataReceptionIndicator:', dataReceptionIndicator); // Correctly placed log, updated variable name
+        // console.log('[App.js] Rendering ChatScreen with dataReceptionIndicator:', dataReceptionIndicator); // Correctly placed log, updated variable name
         return (
           <ChatScreen
             userPlaylists={userPlaylists}
@@ -325,7 +330,11 @@ function App() {
         if (currentScreen !== 'login') {
           console.warn(`Unknown screen: ${currentScreen}, defaulting to playlists.`);
         }
-        return <PlaylistsScreen userPlaylists={userPlaylists} onSelectPlaylist={handleSelectPlaylistFromList} />;
+        return <PlaylistsScreen
+          userPlaylists={userPlaylists}
+          onSelectPlaylist={handleSelectPlaylistFromList}
+          selectedPlaylistId={selectedPlaylistId} // Ensure prop is passed here too
+        />;
     }
   };
 
@@ -347,6 +356,8 @@ function App() {
 
     return <ScreenHeader title={title} onLeftIconClick={onLeftIconClick} onRightIconClick={onRightIconClick} />;
   };
+
+  // console.log('[App Function End] selectedPlaylistId:', selectedPlaylistId, 'currentScreen:', currentScreen); // DEBUG LOG
 
   return (
     <div className="App">
