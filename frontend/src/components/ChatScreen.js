@@ -16,7 +16,7 @@ import {ChatViewContent} from './ChatViewContent';
  * @param {boolean} props.isStreaming - Whether the chat response is streaming.
  * @param {string} props.activeOutputTab - The active tab in the output section ('suggestions' or 'Thinking').
  * @param {function(string): void} props.onSetOutputTab - Handler to set the active output tab.
- * @param {Array<{id: string, title: string, channelTitle: string, publishedAt: string, description: string, thumbnailUrl: string}>} props.suggestedVideos - Array of suggested video objects.
+ * @param {Array<{videoId: string, title: string, channelTitle: string, publishedAt: string, description: string, thumbnailUrl: string, duration: string, reason: string}>} props.suggestedVideos - Array of suggested video objects.
  * @param {string} props.lastQuery - The last submitted query.
  * @param {string} props.thinkingOutput - The AI's thinking process output (internal thoughts).
  * @param {string} props.dataReceptionIndicator - String of '#' indicating data chunks received.
@@ -39,18 +39,12 @@ function ChatScreen(props) {
     suggestedVideos,
     lastQuery,
     thinkingOutput,
-    dataReceptionIndicator, // Changed from responsesReceivedCount
+    dataReceptionIndicator,
     thinkingOutputContainerRef,
-    // Note: responsesReceivedCount was removed from App.js props, replaced by dataReceptionIndicator.
-    // If any other props were intended to be passed via ...chatViewProps, they should be added here.
   } = props;
 
-  // console.log('[ChatScreen] All props received:', props);
-  // console.log('[ChatScreen] chatViewProps being spread:', chatViewProps); // No longer using chatViewProps
-
   return (
-    <div className="chat-screen"> {/* This root div might need adjustment or removal */}
-      {/* <ScreenHeader title={playlistTitle} ... /> REMOVED */}
+    <div className="chat-screen">
       <div className="chat-screen-content">
         <ChatViewContent
           selectedPlaylistId={selectedPlaylistId}
@@ -62,7 +56,7 @@ function ChatScreen(props) {
           suggestedVideos={suggestedVideos}
           lastQuery={lastQuery}
           thinkingOutput={thinkingOutput}
-          dataReceptionIndicator={dataReceptionIndicator} // Changed prop
+          dataReceptionIndicator={dataReceptionIndicator}
           thinkingOutputContainerRef={thinkingOutputContainerRef}
         />
       </div>

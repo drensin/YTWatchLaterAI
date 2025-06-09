@@ -15,9 +15,9 @@ import React from 'react';
  */
 function ConnectYouTubeView({onConnectYouTube, error, appAuthorizationError}) {
   return (
-    <div style={{padding: '20px', textAlign: 'center'}}>
+    <div className="connect-youtube-view">
       <p>{error || appAuthorizationError || 'Your YouTube account is not connected or the connection has expired.'}</p>
-      <button onClick={onConnectYouTube} style={{padding: '10px 20px', fontSize: '1em'}}>
+      <button onClick={onConnectYouTube} className="connect-youtube-button">
         🔗 Connect YouTube Account
       </button>
     </div>

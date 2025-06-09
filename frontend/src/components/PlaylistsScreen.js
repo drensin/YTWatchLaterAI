@@ -16,18 +16,8 @@ import {PlaylistItem} from './PlaylistItem';
  * @returns {JSX.Element} The rendered Playlists screen content.
  */
 function PlaylistsScreen({userPlaylists, onSelectPlaylist, selectedPlaylistId}) {
-  // onNavigate prop is no longer needed here as header actions are in App.js
-  // const handleSettingsClick = () => {
-  //   if (onNavigate) {
-  //     onNavigate('settings');
-  //   }
-  // };
-
-  // console.log('[PlaylistsScreen] selectedPlaylistId:', selectedPlaylistId); // DEBUG LOG
-
   return (
-    <div className="playlists-screen"> {/* This root div might need adjustment or removal if screen-content-wrapper handles all styling */}
-      {/* <ScreenHeader title="Playlists" onRightIconClick={handleSettingsClick} /> REMOVED */}
+    <div className="playlists-screen">
       <div className="playlists-list-container">
         {userPlaylists && userPlaylists.length > 0 ? (
           userPlaylists.map((playlist) => (

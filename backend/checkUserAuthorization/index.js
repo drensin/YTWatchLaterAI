@@ -1,45 +1,47 @@
+/**
+ * @fileoverview Handles user authorization for the ReelWorthy application.
+ * Verifies Firebase ID tokens, checks against an email allow-list in Datastore,
+ * determines if the user's YouTube account is linked, checks the status of
+ * their subscription feed cache, and fetches available Gemini AI models.
+ */
 const express = require('express');
-const compressionMiddleware = require('compression');
+const compression = require('compression'); // Renamed
 const {Datastore} = require('@google-cloud/datastore');
 const admin = require('firebase-admin');
-const { GoogleGenerativeAI } = require('@google/generative-ai'); // This might not be used if GEMINI_API_KEY is for direct HTTPS
+// Removed GoogleGenerativeAI import
 
 // Create an Express app
 const app = express();
 
 // Apply compression middleware
-app.use(compressionMiddleware());
+app.use(compression()); // Renamed
 
 // Initialize Firebase Admin SDK
-try {
-  admin.initializeApp();
-} catch (e) {
-  console.error('Firebase Admin SDK initialization error:', e.message);
-  // If already initialized, this error can be ignored in some environments (like local testing after first init)
-  if (e.message.includes('already initialized')) {
-    console.log('Firebase Admin SDK was already initialized.');
-  } else {
-    // For other errors, re-throw or handle as critical
-    throw e;
+if (admin.apps.length === 0) {
+  try {
+    admin.initializeApp();
+    console.log('Firebase Admin SDK initialized successfully.');
+  } catch (e) {
+    console.error('Critical Firebase Admin SDK initialization error:', e.message);
+    // Depending on function requirements, you might want to ensure the app doesn't run without Firebase Admin
+    throw new Error(`Firebase Admin SDK failed to initialize: ${e.message}`);
   }
+} else {
+  console.log('Firebase Admin SDK was already initialized.');
 }
 
 // Initialize Datastore
 const datastore = new Datastore();
 const AUTHORIZED_EMAIL_KIND = 'AuthorizedEmail';
+const TOKEN_KIND = 'Tokens';
+const USER_SUBSCRIPTION_FEED_CACHE_KIND = 'UserSubscriptionFeedCache';
+const THIRTEEN_HOURS_IN_MS = 13 * 60 * 60 * 1000;
 
 const https = require('https'); // For direct HTTPS call
 
-// Initialize GoogleGenerativeAI - genAI instance might not be used for listModels if direct HTTPS is primary
 // GEMINI_API_KEY should be set as an environment variable for this function
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-// let genAI; // genAI instance might not be needed if listModels is the only usage from it here
-// if (GEMINI_API_KEY) {
-//   genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-//   console.log('GoogleGenerativeAI instance created. Type:', typeof genAI, 'Keys:', genAI ? Object.keys(genAI).join(', ') : 'genAI is null/undefined');
-// } else {
-//   console.warn('GEMINI_API_KEY is not set for genAI. Model list will attempt HTTPS if key is present at all.');
-// }
+// Removed commented-out genAI initialization block
 
 /**
  * HTTP Cloud Function to check user authorization and retrieve available Gemini models.
@@ -87,7 +89,7 @@ const handleCheckUserAuthorization = async (req, res) => {
 
     if (allowListEntity) {
       // Email is in the allow-list, now check for YouTube tokens
-      const tokenKey = datastore.key(['Tokens', decodedToken.uid]);
+      const tokenKey = datastore.key([TOKEN_KIND, decodedToken.uid]);
       const [tokenEntity] = await datastore.get(tokenKey);
 
       const youtubeLinked = !!(tokenEntity && tokenEntity.refresh_token);
@@ -96,11 +98,11 @@ const handleCheckUserAuthorization = async (req, res) => {
       let isSubscriptionFeedReady = false;
       if (youtubeLinked) { // Only check if YouTube is linked
         try {
-          const feedCacheKey = datastore.key(['UserSubscriptionFeedCache', decodedToken.uid]);
+          const feedCacheKey = datastore.key([USER_SUBSCRIPTION_FEED_CACHE_KIND, decodedToken.uid]);
           const [feedCacheEntity] = await datastore.get(feedCacheKey);
           if (feedCacheEntity && feedCacheEntity.lastUpdated) {
             // Define "recent" - e.g., updated in the last 13 hours for a twice-daily update
-            const thirteenHoursAgo = new Date(Date.now() - 13 * 60 * 60 * 1000);
+            const thirteenHoursAgo = new Date(Date.now() - THIRTEEN_HOURS_IN_MS);
             if (new Date(feedCacheEntity.lastUpdated) > thirteenHoursAgo) {
               isSubscriptionFeedReady = true;
             }

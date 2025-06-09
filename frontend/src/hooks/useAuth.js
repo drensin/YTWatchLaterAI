@@ -6,13 +6,10 @@ import {useState, useEffect, useCallback} from 'react';
 import {auth} from '../firebase'; // Adjust path if firebase.js is elsewhere
 import {GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut} from 'firebase/auth';
 
-// Assuming CLOUD_FUNCTIONS_BASE_URL is accessible or passed in,
-// or define it here if it's static and specific to this hook's needs.
-// For simplicity, let's assume it's defined globally or imported if needed.
-// If it's from App.js, it would need to be passed or imported from a shared config.
+// URLs for cloud functions, sourced from environment variables with fallbacks.
 const CLOUD_FUNCTIONS_BASE_URL = {
   checkUserAuthorization: process.env.REACT_APP_CHECK_USER_AUTHORIZATION_URL || 'https://us-central1-watchlaterai-460918.cloudfunctions.net/checkUserAuthorization',
-  requestSubscriptionFeedUpdate: process.env.REACT_APP_REQUEST_SUBSCRIPTION_FEED_UPDATE_URL || 'https://us-central1-watchlaterai-460918.cloudfunctions.net/requestSubscriptionFeedUpdate', // Add new function URL
+  requestSubscriptionFeedUpdate: process.env.REACT_APP_REQUEST_SUBSCRIPTION_FEED_UPDATE_URL || 'https://us-central1-watchlaterai-460918.cloudfunctions.net/requestSubscriptionFeedUpdate',
 };
 
 /**
@@ -31,16 +28,15 @@ const CLOUD_FUNCTIONS_BASE_URL = {
  * @typedef {object} AuthHookReturn
  * @property {import('firebase/auth').User | null} currentUser - The current Firebase user object.
  * @property {boolean} isLoggedIn - Whether the user is currently logged in.
- *   isAuthorizedUser: boolean,
- *   isYouTubeLinkedByAuthCheck: boolean,
- *   isSubscriptionFeedReady: boolean, // New state
- *   availableModels: string[],
- *   authChecked: boolean,
- *   appAuthorizationError: string | null,
- *   isLoadingAuth: boolean,
- *   handleFirebaseLogin: function(): Promise<void>,
- *   handleFirebaseLogout: function(): Promise<void>
- * }
+ * @property {boolean} isAuthorizedUser - Whether the user is authorized to use the application.
+ * @property {boolean} isYouTubeLinkedByAuthCheck - True if YouTube was linked based on the initial backend check.
+ * @property {boolean} isSubscriptionFeedReady - True if the user's subscription feed is ready.
+ * @property {string[]} availableModels - List of available AI model IDs.
+ * @property {boolean} authChecked - True once the initial Firebase auth state check has completed.
+ * @property {string | null} appAuthorizationError - Error message related to application authorization.
+ * @property {boolean} isLoadingAuth - True if any auth/authZ check is in progress.
+ * @property {function(): Promise<void>} handleFirebaseLogin - Function to initiate Firebase login.
+ * @property {function(): Promise<void>} handleFirebaseLogout - Function to initiate Firebase logout.
  */
 function useAuth(setAppPopup) {
   /** @state The current Firebase user object, or null if not logged in. @type {import('firebase/auth').User|null} */

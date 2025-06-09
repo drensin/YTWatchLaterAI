@@ -166,7 +166,7 @@ ReelWorthy employs a decoupled architecture with a React frontend and a Google C
     *   **`TriggerSubscriptionFeedUpdates` job:** Periodically invokes `scheduleAllUserFeedUpdates`.
 6.  **Google Cloud Run (`gemini-chat-service` - Node.js, WebSocket):**
     *   Hosts the WebSocket server for AI chat.
-    *   Uses the `@google/generative-ai` SDK to interact with Gemini models.
+    *   Uses the `@google/generative-ai` SDK to interact directly with Gemini API models.
     *   On `INIT_CHAT`: Fetches playlist videos (and optionally subscription feed videos from `UserSubscriptionFeedCache`) from Datastore, prepares context, and initializes the model.
     *   On `USER_QUERY`: Sends query and context to Gemini, requesting JSON output and "thinking" process.
     *   Streams `THINKING_CHUNK` messages for AI's thought process.
@@ -190,21 +190,21 @@ ReelWorthy employs a decoupled architecture with a React frontend and a Google C
 The frontend is a React application structured with components and custom hooks for modularity.
 
 *   **`App.js`**:
-    *   Root component, orchestrates state (auth, screen, playlist, AI chat data, `includeSubscriptionFeed`, `dataReceptionIndicator`).
-    *   Integrates `useAuth`, `useYouTube`, `useWebSocketChat` hooks.
-    *   Handles navigation and renders main layout.
-    *   Passes `dataReceptionIndicator` for UI feedback during streaming.
+    *   The main root component. Orchestrates global application state including user authentication, screen navigation, selected playlist, AI model selection, and the `includeSubscriptionFeed` preference.  
+    *   Integrates the core custom hooks (`useAuth`, `useYouTube`, `useWebSocketChat`) to manage their respective functionalities.  
+    *   Handles conditional rendering of different screens/views based on application state.  
+    *   Renders the main layout, including the `ScreenHeader` and `BottomNavigationBar` components.  
+    *   Manages and passes down props like `dataReceptionIndicator` for UI feedback during AI chat streaming.
 
 *   **`hooks/`**:
-    *   **`useAuth.js`**: Manages Firebase auth, calls `checkUserAuthorization` CF, triggers `requestSubscriptionFeedUpdate` if needed.
-    *   **`useYouTube.js`**: Manages YouTube OAuth and data fetching, triggers `requestSubscriptionFeedUpdate` on new connection.
+    *   **`useAuth.js`**: Manages Firebase authentication state. On user login, it calls the `checkUserAuthorization` Cloud Function to verify application access, retrieve initial YouTube linkage status, check if the subscription feed is ready, and fetch available AI models. Triggers `requestSubscriptionFeedUpdate` if the feed is not ready for a linked YouTube account.
+    *   **`useYouTube.js`**: Handles the YouTube OAuth 2.0 flow for account connection. Manages fetching user playlists (`listUserPlaylists` CF) and videos for a selected playlist (`getWatchLaterPlaylist` CF). After a successful YouTube OAuth connection, it directly triggers a request to update the user's subscription feed via the `requestSubscriptionFeedUpdate` Cloud Function. Provides state for `userPlaylists`, `selectedPlaylistId`, `videos`, `isYouTubeLinked`, and related loading/error states.
     *   **`useWebSocketChat.js`**:
-        *   Manages WebSocket connection to `gemini-chat-service`.
-        *   Sends `INIT_CHAT` with `includeSubscriptionFeed` preference.
-        *   Handles `THINKING_CHUNK` (updates `thinkingOutput` state).
-        *   Handles `CONTENT_CHUNK_RECEIVED` (updates `dataReceptionIndicator` state by appending "#").
-        *   Handles `STREAM_END` (sets `suggestedVideos`, clears `dataReceptionIndicator`).
-        *   Returns `thinkingOutput` and `dataReceptionIndicator` for UI display.
+        *   Manages the WebSocket connection to the `gemini-chat-service`.  
+        *   Sends `INIT_CHAT` message with `selectedPlaylistId`, `selectedModelId`, `userId`, and the `includeSubscriptionFeed` preference to the backend.  
+        *   Handles incoming WebSocket messages: `THINKING_CHUNK` (updates `thinkingOutput` state), `CONTENT_CHUNK_RECEIVED` (updates `dataReceptionIndicator` state, e.g., by appending "#"), and `STREAM_END` (sets `suggestedVideos` and clears `dataReceptionIndicator`).  
+        *   Manages chat UI states like `isStreaming`, `activeOutputTab`, and provides `handleQuerySubmit`.  
+        *   Includes logic for ping/pong keep-alive and automatic reconnection.
 
 *   **`components/`**:
     *   `ChatViewContent.js`: Displays chat input, "Internal Thoughts" (`thinkingOutput`), "Receiving Final Data" (`dataReceptionIndicator` as "###..."), and suggested videos. Conditionally shows "Receiving Final Data" section only when `dataReceptionIndicator` is populated.

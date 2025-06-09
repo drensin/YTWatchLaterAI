@@ -1,3 +1,10 @@
+/**
+ * @fileoverview HTTP Cloud Function designed to be triggered by Cloud Scheduler.
+ * It queries Datastore for all users who have linked their YouTube accounts
+ * (identified by the presence of an entity in the 'Tokens' Kind). For each
+ * such user, it publishes a message to the 'user-feed-update-requests'
+ * Pub/Sub topic to initiate an update of their subscription feed.
+ */
 const { Datastore } = require('@google-cloud/datastore');
 const { PubSub } = require('@google-cloud/pubsub');
 

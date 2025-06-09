@@ -18,13 +18,16 @@ const app = express();
 app.use(compressionMiddleware());
 
 // Initialize Firebase Admin SDK
-try {
-  admin.initializeApp();
-} catch (e) {
-  if (!e.message.includes('already initialized')) {
-    console.error('Firebase Admin SDK initialization error:', e);
-    throw e;
+if (admin.apps.length === 0) {
+  try {
+    admin.initializeApp();
+    console.log('Firebase Admin SDK initialized successfully for getWatchLaterPlaylist.');
+  } catch (e) {
+    console.error('Critical Firebase Admin SDK initialization error in getWatchLaterPlaylist:', e.message);
+    throw new Error(`Firebase Admin SDK failed to initialize: ${e.message}`);
   }
+} else {
+  // console.log('Firebase Admin SDK was already initialized.'); // Optional: can be noisy
 }
 
 const datastore = new Datastore();

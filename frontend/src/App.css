@@ -1,10 +1,3 @@
-html, body, #root {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden; /* Prevent body scrollbars */
-}
-
 .App {
   text-align: center;
   display: flex;
@@ -154,14 +147,9 @@ ul {
   }
 
   .video-item-header { /* If stacking on mobile */
-    /* flex-direction: column; */
-    /* align-items: flex-start; */
   }
 
   .watch-icon-enlarged { /* If stacking on mobile */
-    /* margin-left: 0; */ /* Reset margin if stacked */
-    /* margin-right: 0; */
-    /* align-self: flex-start; /* Or center, depending on desired mobile layout */
   }
 
   .video-list-item div.video-details-content p,
@@ -171,7 +159,7 @@ ul {
   }
 
   .video-list-item p.video-reason {
-    white-space: normal !important;
+    white-space: normal;
     word-break: break-word;
   }
 }
@@ -465,6 +453,7 @@ ul {
   padding: 1rem;
   margin-bottom: 1rem;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  cursor: pointer;
 }
 
 .playlist-item-thumbnail-container {
@@ -695,4 +684,81 @@ ul {
 
 .video-details-content {
   width: 100%;
+}
+
+/* --- ConnectYouTubeView Styles --- */
+.connect-youtube-view {
+  padding: 20px;
+  text-align: center;
+}
+
+.connect-youtube-button {
+  padding: 10px 20px; /* Specific padding for this button */
+  /* font-size: 1em; is inherited from global button style */
+  /* Other base button styles like background-color, border, cursor, border-radius
+     are expected to be inherited from the global 'button' selector in App.css.
+     If this button needs a distinct look (e.g., different background),
+     those properties should be added here. For now, it will use the default button theme. */
+}
+
+/* --- SettingsScreen Styles --- */
+.settings-screen-container {
+  padding: 20px;
+  text-align: center;
+}
+
+.settings-section {
+  margin-bottom: 20px; /* Default bottom margin for sections */
+}
+
+.settings-section.model-selection-section {
+  /* Specific tweaks for model selection if needed, inherits .settings-section margin-bottom */
+}
+
+.settings-section.default-playlist-section,
+.settings-section.subscription-feed-section,
+.settings-section.logout-section {
+  margin-top: 30px;
+  border-top: 1px solid #ccc;
+  padding-top: 20px;
+}
+
+.settings-label {
+  margin-right: 10px;
+  display: inline-block; /* Ensures margin is applied correctly */
+}
+
+.settings-select {
+  padding: 5px;
+  width: 280px;
+  /* Add other common select styles if needed, e.g., border, border-radius */
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.settings-checkbox-container {
+  margin-bottom: 10px;
+  text-align: left; /* Align checkbox labels to the left for readability */
+  max-width: 400px; /* Constrain width for better readability of long labels */
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.settings-checkbox {
+  margin-right: 10px;
+  vertical-align: middle;
+}
+
+.logout-button {
+  padding: 10px 20px;
+  background-color: #f44336; /* Red for logout/destructive action */
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1em; /* Match global button style or define as needed */
+}
+
+.logout-button:hover {
+  background-color: #d32f2f; /* Darker red on hover */
 }

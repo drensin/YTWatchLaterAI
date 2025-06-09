@@ -31,23 +31,11 @@ function ScreenHeader({title, rightIcon, onRightIconClick}) { // Removed leftIco
   // Determines the icon to display on the right. Uses provided `rightIcon` if available,
   // otherwise defaults to SettingsIcon if `onRightIconClick` is provided.
   const finalRightIcon = rightIcon || (onRightIconClick ? <SettingsIcon /> : null);
-  // Determines the icon to display on the left. Uses provided `leftIcon` if available,
-  // otherwise defaults to BackArrowIcon if `onLeftIconClick` is provided.
-  // The logo will now be the primary content for screen-header-action-left,
-  // so finalLeftIcon (like back arrow) might need to be re-evaluated or placed differently if still needed.
-  // For now, let's assume the logo replaces other left icons unless specified.
-  // If a back button is needed WITH the logo, the design might need more thought (e.g. logo then back button).
-  // const finalLeftIcon = leftIcon || (onLeftIconClick ? <BackArrowIcon /> : null);
 
   return (
     <header className="screen-header">
       <div className="screen-header-action-left">
         <img src="/ReelWorthyLogo.png" alt="ReelWorthy Logo" className="screen-header-app-logo" />
-        {/* {finalLeftIcon && (
-          <button onClick={onLeftIconClick} className="screen-header-icon-button" aria-label="Header left action">
-            {finalLeftIcon}
-          </button>
-        )} */}
       </div>
       <h1 className="screen-header-title">{title}</h1>
       <div className="screen-header-action-right">

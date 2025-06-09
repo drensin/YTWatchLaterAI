@@ -18,7 +18,6 @@
   align-items: center;
   box-sizing: border-box; 
   /* No explicit height, let content and padding define it */
-  /* border-bottom: 1px solid #e0e0e0; /* Optional: if a separator is desired */
 }
 
 .login-header-logo {

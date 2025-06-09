@@ -16,6 +16,20 @@ const PORT = process.env.PORT || 8080;
 // IMPORTANT: In production, this MUST be from a secure environment variable (e.g., set by Secret Manager).
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY; 
 
+// --- WebSocket Message Types ---
+const MSG_TYPE_INIT_CHAT = 'INIT_CHAT';
+const MSG_TYPE_ERROR = 'ERROR';
+const MSG_TYPE_CHAT_INITIALIZED = 'CHAT_INITIALIZED';
+const MSG_TYPE_USER_QUERY = 'USER_QUERY';
+const MSG_TYPE_THINKING_CHUNK = 'THINKING_CHUNK';
+const MSG_TYPE_CONTENT_CHUNK_RECEIVED = 'CONTENT_CHUNK_RECEIVED';
+const MSG_TYPE_STREAM_END = 'STREAM_END';
+const MSG_TYPE_PING = 'PING';
+const MSG_TYPE_PONG = 'PONG';
+
+// --- AI Model Configuration ---
+const DEFAULT_MODEL_ID = 'gemini-2.5-pro-latest';
+
 // --- Initialize Clients ---
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY); // Changed client
 const datastore = new Datastore();
@@ -44,20 +58,20 @@ wss.on('connection', (ws) => {
             console.log('[WebSocket] Received message:', message);
         } catch (error) {
             console.error('[WebSocket] Failed to parse message:', messageString, error);
-            ws.send(JSON.stringify({ type: 'ERROR', error: 'Invalid message format' }));
+            ws.send(JSON.stringify({ type: MSG_TYPE_ERROR, error: 'Invalid message format' }));
             return;
         }
 
         const currentSession = activeSessions.get(ws);
 
-        if (message.type === 'INIT_CHAT') {
+        if (message.type === MSG_TYPE_INIT_CHAT) {
             const { playlistId, modelId: clientModelId, includeSubscriptionFeed, userId } = message.payload;
             // Use a model compatible with @google/generative-ai, e.g., gemini-pro or a specific preview version.
             // The test script used 'gemini-2.5-pro-preview-05-06', let's ensure consistency or use a generally available one.
-            const effectiveModelId = clientModelId || 'gemini-2.5-pro-latest'; // Or 'gemini-2.5-pro-preview-05-06' if available & preferred
+            const effectiveModelId = clientModelId || DEFAULT_MODEL_ID; // Or 'gemini-2.5-pro-preview-05-06' if available & preferred
 
             if (!playlistId) {
-                ws.send(JSON.stringify({ type: 'ERROR', error: 'playlistId is required for INIT_CHAT' }));
+                ws.send(JSON.stringify({ type: MSG_TYPE_ERROR, error: 'playlistId is required for INIT_CHAT' }));
                 return;
             }
 
@@ -91,7 +105,7 @@ wss.on('connection', (ws) => {
                 }
 
                 if (combinedVideos.length === 0) {
-                    ws.send(JSON.stringify({ type: 'ERROR', error: `No videos found for playlist ${playlistId} (and subscription feed if applicable).` }));
+                    ws.send(JSON.stringify({ type: MSG_TYPE_ERROR, error: `No videos found for playlist ${playlistId} (and subscription feed if applicable).` }));
                     activeSessions.delete(ws);
                     return;
                 }
@@ -125,18 +139,18 @@ wss.on('connection', (ws) => {
                     genModel: generativeModel, // Keep the model instance
                     initialContextHistory: initialHistory // Store the static initial history/context
                 });
-                ws.send(JSON.stringify({ type: 'CHAT_INITIALIZED', payload: { playlistId, modelId: effectiveModelId } }));
+                ws.send(JSON.stringify({ type: MSG_TYPE_CHAT_INITIALIZED, payload: { playlistId, modelId: effectiveModelId } }));
                 console.log(`[INIT_CHAT] Chat initialized for playlist: ${playlistId} with model ${effectiveModelId}. UserID: ${userId}, IncludeFeed: ${includeSubscriptionFeed}`);
 
             } catch (error) {
                 console.error('[INIT_CHAT] Error initializing chat:', error);
-                ws.send(JSON.stringify({ type: 'ERROR', error: 'Failed to initialize chat session: ' + error.message }));
+                ws.send(JSON.stringify({ type: MSG_TYPE_ERROR, error: 'Failed to initialize chat session: ' + error.message }));
                 activeSessions.delete(ws);
             }
 
-        } else if (message.type === 'USER_QUERY') {
+        } else if (message.type === MSG_TYPE_USER_QUERY) {
             if (!currentSession || !currentSession.genModel || !currentSession.initialContextHistory) { 
-                ws.send(JSON.stringify({ type: 'ERROR', error: 'Chat not initialized properly (missing model or initial context history). Send INIT_CHAT first.' }));
+                ws.send(JSON.stringify({ type: MSG_TYPE_ERROR, error: 'Chat not initialized properly (missing model or initial context history). Send INIT_CHAT first.' }));
                 return;
             }
             const { query } = message.payload;
@@ -144,7 +158,7 @@ wss.on('connection', (ws) => {
             const { videosForContext, genModel, initialContextHistory } = currentSession; // Use initialContextHistory
 
             if (!query) {
-                ws.send(JSON.stringify({ type: 'ERROR', error: 'Query is required for USER_QUERY' }));
+                ws.send(JSON.stringify({ type: MSG_TYPE_ERROR, error: 'Query is required for USER_QUERY' }));
                 return;
             }
 
@@ -201,14 +215,14 @@ wss.on('connection', (ws) => {
                                 if (!thoughtHeaderPrinted) {
                                     thoughtHeaderPrinted = true;
                                 }
-                                ws.send(JSON.stringify({ type: 'THINKING_CHUNK', payload: { textChunk: part.text } }));
+                                ws.send(JSON.stringify({ type: MSG_TYPE_THINKING_CHUNK, payload: { textChunk: part.text } }));
                                 console.log(`[USER_QUERY][THOUGHT_CHUNK_SENT][${new Date().toISOString()}] Text: ${part.text.substring(0,100)}...`);
                             } else {
                                 if (!answerHeaderPrinted && part.text.trim() !== "") {
                                     answerHeaderPrinted = true;
                                 }
                                 accumulatedText += part.text;
-                                ws.send(JSON.stringify({ type: 'CONTENT_CHUNK_RECEIVED' })); // Send indicator for each content chunk
+                                ws.send(JSON.stringify({ type: MSG_TYPE_CONTENT_CHUNK_RECEIVED })); // Send indicator for each content chunk
                                 console.log(`[USER_QUERY][CONTENT_CHUNK_RECEIVED_SENT][${new Date().toISOString()}]`);
                             }
                         }
@@ -312,19 +326,19 @@ wss.on('connection', (ws) => {
                 }).filter(v => v !== null);
 
                 ws.send(JSON.stringify({ 
-                    type: 'STREAM_END', 
+                    type: MSG_TYPE_STREAM_END, 
                     payload: { answer: answerText, suggestedVideos: suggestedVideosFull } 
                 }));
 
             } catch (error) {
                 console.error('[USER_QUERY] Error processing stream or sending message to Gemini:', error);
-                ws.send(JSON.stringify({ type: 'ERROR', error: 'Failed to get response from AI: ' + error.message }));
+                ws.send(JSON.stringify({ type: MSG_TYPE_ERROR, error: 'Failed to get response from AI: ' + error.message }));
             }
-        } else if (message.type === 'PING') {
-            ws.send(JSON.stringify({ type: 'PONG' }));
+        } else if (message.type === MSG_TYPE_PING) {
+            ws.send(JSON.stringify({ type: MSG_TYPE_PONG }));
             console.log('[WebSocket] Sent PONG to client.');
         } else {
-            ws.send(JSON.stringify({ type: 'ERROR', error: `Unknown message type: ${message.type}` }));
+            ws.send(JSON.stringify({ type: MSG_TYPE_ERROR, error: `Unknown message type: ${message.type}` }));
         }
     });
 

@@ -1,10 +1,17 @@
+/**
+ * @fileoverview Cloud Function that acts as the OAuth 2.0 callback handler
+ * for YouTube authentication. It receives an authorization code from Google,
+ * exchanges it for access and refresh tokens using client credentials fetched
+ * from Secret Manager, stores these tokens in Datastore associated with a
+ * Firebase UID (passed via the 'state' parameter), and finally redirects
+ * the user back to the frontend application.
+ */
 const express = require('express');
 const compressionMiddleware = require('compression');
-const {google} = require('googleapis');
 const {OAuth2Client} = require('google-auth-library');
 const {Datastore} = require('@google-cloud/datastore');
 const {SecretManagerServiceClient} = require('@google-cloud/secret-manager');
-// const admin = require('firebase-admin'); // Not strictly needed here if not verifying an ID token passed in state
+// Firebase Admin SDK import removed as it's unused.
 
 // Create an Express app
 const app = express();
@@ -12,28 +19,20 @@ const app = express();
 // Apply compression middleware
 app.use(compressionMiddleware());
 
-// Initialize Firebase Admin SDK (optional here, but good for consistency if other Firebase services are used)
-// try {
-//   admin.initializeApp();
-// } catch (e) {
-//   if (!e.message.includes('already initialized')) {
-//     console.error('Firebase Admin SDK initialization error:', e);
-//   }
-// }
+// Firebase Admin SDK initialization removed as it's unused in this function.
 
 const datastore = new Datastore();
 const secretManager = new SecretManagerServiceClient();
 const TOKEN_KIND = 'Tokens';
 
-// Environment variable for the frontend URL (can be used as a fallback)
-const DEFAULT_FRONTEND_URL = process.env.FRONTEND_URL || 'https://drensin.github.io/YTWatchLaterAI/'; // Default if not set
+// Environment variable for the frontend URL, with a fallback to the production Firebase URL.
+// Assumes process.env.FRONTEND_URL will be set correctly in deployed environments.
+const DEFAULT_FRONTEND_URL = process.env.FRONTEND_URL || 'https://watchlaterai-460918.web.app';
 
 // Whitelist of allowed frontend origins for the final redirect
 const ALLOWED_FRONTEND_ORIGINS = [
-  'http://localhost:3000',
-  'https://drensin.github.io', // Previous GitHub Pages URL
-  // TODO: Add your production Firebase Hosting URL here, e.g., 'https://your-project-id.web.app'
-  'https://watchlaterai-460918.web.app' // Assuming this might be your Firebase hosting URL
+  'http://localhost:3000', // For local development
+  'https://watchlaterai-460918.web.app' // Production Firebase Hosting URL
 ];
 
 async function getClientSecrets() {
@@ -91,14 +90,17 @@ const handleYouTubeAuthHandler = async (req, res) => {
 
   if (oauthError) {
     console.error('OAuth error from Google:', oauthError);
-    return res.redirect(`${FRONTEND_URL}?youtube_auth_status=error&error_message=${encodeURIComponent(oauthError)}&state=${encodedState || ''}`);
+    // Use targetRedirectUrl which is determined after state parsing, or DEFAULT_FRONTEND_URL if state is bad early on
+    return res.redirect(`${DEFAULT_FRONTEND_URL}?youtube_auth_status=error&error_message=${encodeURIComponent(oauthError)}&state=${encodedState || ''}`);
   }
 
   if (!code) {
-    return res.redirect(`${FRONTEND_URL}?youtube_auth_status=error&error_message=Missing_authorization_code&state=${encodedState || ''}`);
+    // Use targetRedirectUrl or DEFAULT_FRONTEND_URL
+    return res.redirect(`${DEFAULT_FRONTEND_URL}?youtube_auth_status=error&error_message=Missing_authorization_code&state=${encodedState || ''}`);
   }
   if (!encodedState) {
-    return res.redirect(`${FRONTEND_URL}?youtube_auth_status=error&error_message=Missing_state_parameter`);
+    // Use targetRedirectUrl or DEFAULT_FRONTEND_URL
+    return res.redirect(`${DEFAULT_FRONTEND_URL}?youtube_auth_status=error&error_message=Missing_state_parameter`);
   }
 
   let firebaseUid;

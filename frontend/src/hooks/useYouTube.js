@@ -4,8 +4,7 @@
  */
 import {useState, useEffect, useCallback} from 'react';
 
-// This will be imported from a shared config or App.js if not defined here.
-// For now, defining it here for clarity of the hook's dependencies.
+// URLs for YouTube related cloud functions, sourced from environment variables with fallbacks.
 const CLOUD_FUNCTIONS_BASE_URL = {
   getWatchLaterPlaylist: process.env.REACT_APP_GET_PLAYLIST_ITEMS_URL || 'https://us-central1-watchlaterai-460918.cloudfunctions.net/getWatchLaterPlaylist',
   listUserPlaylists: process.env.REACT_APP_LIST_USER_PLAYLISTS_URL || 'https://us-central1-watchlaterai-460918.cloudfunctions.net/listUserPlaylists',
@@ -91,38 +90,49 @@ function useYouTube(currentUser, isLoggedIn, isAuthorizedUser, setAppPopup, init
     try {
       const idToken = await currentUser.getIdToken();
       const response = await fetch(CLOUD_FUNCTIONS_BASE_URL.listUserPlaylists, {headers: {'Authorization': `Bearer ${idToken}`}});
-      let data = {};
-      try {
-        if (!response.ok) {
-          const rawText = await response.text();
-          try {
-            data = JSON.parse(rawText);
-          } catch (parseError) {
-            data = {error: `Server returned non-OK status ${response.status} with non-JSON body: ${rawText.substring(0, 100)}`, code: 'SERVER_ERROR_NON_JSON'};
-          }
-        } else {
-          data = await response.json();
-        }
-      } catch (e) {
-        setYoutubeSpecificError('Failed to get playlist data (network or processing error).');
-        setIsYouTubeLinked(false); setUserPlaylists([]); return false;
-      }
 
       if (!response.ok) {
-        setIsYouTubeLinked(false);
-        if (data && (data.code === 'YOUTUBE_AUTH_REQUIRED' || data.code === 'YOUTUBE_REAUTH_REQUIRED')) {
-          setYoutubeSpecificError(data.error || 'YouTube authorization issue. Please connect/re-connect.');
-        } else {
-          setYoutubeSpecificError(data.error || data.message || response.statusText || `Failed to fetch playlists (${response.status}).`);
+        let errorPayload = {
+          error: `Failed to fetch playlists (${response.status} ${response.statusText})`,
+          code: 'HTTP_ERROR',
+        };
+        try {
+          // Try to get a JSON error body from the server
+          const errorJson = await response.json();
+          errorPayload = {...errorPayload, ...errorJson}; // Merge, server's error is more specific
+        } catch (e) {
+          // If response body wasn't JSON, try to get it as text
+          try {
+            const errorText = await response.text();
+            if (errorText) {
+              errorPayload.error = `Server error (${response.status}): ${errorText.substring(0, 150)}`;
+            }
+          } catch (textErr) {
+            // If reading as text also fails, stick with the initial HTTP status error
+          }
         }
-        setUserPlaylists([]); return false;
-      } else {
-        setUserPlaylists(data.playlists || []);
-        setIsYouTubeLinked(true);
-        setYoutubeSpecificError(null); return true;
+
+        setIsYouTubeLinked(false);
+
+        if (errorPayload.code === 'YOUTUBE_AUTH_REQUIRED' || errorPayload.code === 'YOUTUBE_REAUTH_REQUIRED') {
+          setYoutubeSpecificError(errorPayload.error || 'YouTube authorization issue. Please connect/re-connect.');
+        } else {
+          setYoutubeSpecificError(errorPayload.error);
+        }
+        setUserPlaylists([]);
+        return false; // Indicate failure
       }
-    } catch (err) {
-      setUserPlaylists([]); setIsYouTubeLinked(false);
+
+      // If response.ok is true:
+      const successData = await response.json(); // Expect JSON for successful response
+      setUserPlaylists(successData.playlists || []);
+      setIsYouTubeLinked(true);
+      setYoutubeSpecificError(null);
+      // Optional: if (setAppPopup) setAppPopup({visible: true, message: 'Playlists loaded!', type: 'success'});
+      return true; // Indicate success
+    } catch (err) { // Catch for initial fetch error, or .json() error on OK response if malformed
+      setUserPlaylists([]);
+      setIsYouTubeLinked(false);
       setYoutubeSpecificError(err.message || 'An unexpected error occurred while fetching playlists.');
       if (setAppPopup) setAppPopup({visible: true, message: `Error fetching playlists: ${err.message}`, type: 'error'});
       return false;

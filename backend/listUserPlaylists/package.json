@@ -1,8 +1,15 @@
 {
   "name": "list-user-playlists",
   "version": "1.0.0",
+  "private": true,
   "description": "Cloud Function to list user's YouTube playlists.",
   "main": "index.js",
+  "author": "Dave Rensin",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/drensin/YTWatchLaterAI"
+  },
   "scripts": {
     "start": "node index.js"
   },

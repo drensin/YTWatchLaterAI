@@ -1,8 +1,15 @@
 {
   "name": "get-watch-later-playlist",
   "version": "1.0.0",
-  "description": "Cloud Function to fetch YouTube Watch Later playlist.",
+  "private": true,
+  "description": "Cloud Function to fetch items from a YouTube playlist and synchronize with Datastore.",
   "main": "index.js",
+  "author": "Dave Rensin",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/drensin/YTWatchLaterAI"
+  },
   "dependencies": {
     "@google-cloud/datastore": "^10.0.1",
     "@google-cloud/secret-manager": "^6.0.1",

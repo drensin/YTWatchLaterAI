@@ -22,6 +22,22 @@ import {PlaylistsScreen} from './components/PlaylistsScreen';
 import {ChatScreen} from './components/ChatScreen';
 import {SettingsScreen} from './components/SettingsScreen';
 
+// --- Constants ---
+// Screen Names
+const SCREEN_LOGIN = 'login';
+const SCREEN_PLAYLISTS = 'playlists';
+const SCREEN_CHAT = 'chat';
+const SCREEN_SETTINGS = 'settings';
+
+// Output Tab Names
+const TAB_THINKING = 'Thinking';
+const TAB_SUGGESTIONS = 'suggestions';
+
+// localStorage Keys
+const LS_KEY_INCLUDE_FEED = 'reelworthy_settings_includeSubscriptionFeed';
+const LS_KEY_PREFERRED_MODEL = 'preferredGeminiModel';
+const LS_KEY_USE_DEFAULT_PLAYLIST = 'reelworthy_useDefaultPlaylistEnabled';
+const LS_KEY_DEFAULT_PLAYLIST_ID = 'reelworthy_defaultPlaylistId';
 
 /**
  * The main application component for ReelWorthy.
@@ -32,12 +48,12 @@ function App() {
   const [popup, setPopup] = useState({visible: false, message: '', type: ''});
   const [error, setError] = useState(null);
   const [isPlaylistDataReadyForChat, setIsPlaylistDataReadyForChat] = useState(false);
-  const [currentScreen, setCurrentScreen] = useState('playlists');
+  const [currentScreen, setCurrentScreen] = useState(SCREEN_PLAYLISTS);
   const [availableModels, setAvailableModels] = useState([]);
   const [selectedModelId, setSelectedModelId] = useState('');
   const [initialAutoNavAttempted, setInitialAutoNavAttempted] = useState(false);
   const [includeSubscriptionFeed, setIncludeSubscriptionFeed] = useState(() => {
-    return localStorage.getItem('reelworthy_settings_includeSubscriptionFeed') === 'true';
+    return localStorage.getItem(LS_KEY_INCLUDE_FEED) === 'true';
   });
 
   const navigateTo = useCallback((screen) => {
@@ -57,6 +73,10 @@ function App() {
     handleFirebaseLogout,
   } = useAuth(setPopup);
 
+  /**
+   * Filters fetched AI models to exclude TTS and vision models, updating availableModels state.
+   * Runs when `fetchedModels` (from `useAuth`) changes.
+   */
   useEffect(() => {
     if (fetchedModels && fetchedModels.length > 0) {
       const filteredModels = fetchedModels.filter((modelName) => {
@@ -72,17 +92,21 @@ function App() {
     }
   }, [fetchedModels]);
 
+  /**
+   * Sets the selected AI model based on stored preference or defaults when available models change.
+   * Runs when `availableModels` state changes.
+   */
   useEffect(() => {
     if (availableModels.length > 0) {
-      const storedPreference = localStorage.getItem('preferredGeminiModel');
+      const storedPreference = localStorage.getItem(LS_KEY_PREFERRED_MODEL);
       if (storedPreference && availableModels.includes(storedPreference)) {
         setSelectedModelId(storedPreference);
       } else {
         const flashModel = availableModels.find((modelName) => modelName.toLowerCase().includes('flash'));
-        const defaultToSet = flashModel || availableModels[0] || 'models/gemini-1.5-flash-latest'; // Changed let to const
+        const defaultToSet = flashModel || availableModels[0] || 'models/gemini-1.5-flash-latest';
         if (defaultToSet) {
           setSelectedModelId(defaultToSet);
-          localStorage.setItem('preferredGeminiModel', defaultToSet);
+          localStorage.setItem(LS_KEY_PREFERRED_MODEL, defaultToSet);
         }
       }
     }
@@ -90,7 +114,7 @@ function App() {
 
   const handleModelSelection = (newModelId) => {
     setSelectedModelId(newModelId);
-    localStorage.setItem('preferredGeminiModel', newModelId);
+    localStorage.setItem(LS_KEY_PREFERRED_MODEL, newModelId);
     if (setPopup) {
       const modelDisplayName = newModelId.split('/').pop();
       setPopup({visible: true, message: `AI Model set to: ${modelDisplayName}`, type: 'info'});
@@ -125,7 +149,7 @@ function App() {
     const fetchSuccess = await fetchPlaylistItems(playlistId);
     if (fetchSuccess) {
       setIsPlaylistDataReadyForChat(true);
-      navigateTo('chat'); // Restore navigation
+      navigateTo(SCREEN_CHAT);
     }
   }, [fetchPlaylistItems, setSelectedPlaylistId, navigateTo, setIsPlaylistDataReadyForChat, setError, setYouTubeErrorAppLevel]);
 
@@ -169,7 +193,7 @@ function App() {
     suggestedVideos,
     lastQuery,
     thinkingOutput,
-    dataReceptionIndicator, // Changed from responsesReceivedCount
+    dataReceptionIndicator,
     activeOutputTab,
     setActiveOutputTab,
     isStreaming,
@@ -185,22 +209,32 @@ function App() {
   );
 
   const handleQuerySubmit = (query) => {
-    setActiveOutputTab('Thinking');
+    setActiveOutputTab(TAB_THINKING);
     originalHandleQuerySubmit(query);
   };
 
   const showOverlay = isLoadingAuth || isLoadingYouTube;
   const prevIsStreaming = useRef(isStreaming);
 
+  /**
+   * Switches to the 'suggestions' tab when AI response streaming ends and videos are available.
+   * Runs when `isStreaming`, `suggestedVideos`, or `setActiveOutputTab` changes.
+   */
   useEffect(() => {
     if (prevIsStreaming.current && !isStreaming) {
       if (suggestedVideos && suggestedVideos.length > 0) {
-        setActiveOutputTab('suggestions');
+        setActiveOutputTab(TAB_SUGGESTIONS);
       }
     }
     prevIsStreaming.current = isStreaming;
   }, [isStreaming, suggestedVideos, setActiveOutputTab]);
 
+  /**
+   * Manages playlist fetching and navigation based on auth and YouTube link status.
+   * Fetches playlists if user is logged in, authorized, YouTube linked, and playlists are empty.
+   * Navigates to login screen and resets YouTube data if user is not logged in or authorized.
+   * Runs when relevant auth, YouTube, or playlist states change.
+   */
   useEffect(() => {
     if (isLoggedIn && isAuthorizedUser && isYouTubeLinked && userPlaylists.length === 0 && !isLoadingYouTube && !youtubeSpecificError && !appAuthorizationError) {
       fetchUserPlaylists();
@@ -208,7 +242,7 @@ function App() {
       setYouTubeUserPlaylists([]);
       setSelectedPlaylistId('');
       setYouTubeVideos([]);
-      setCurrentScreen('login');
+      setCurrentScreen(SCREEN_LOGIN);
     }
   }, [
     isLoggedIn, isAuthorizedUser, isYouTubeLinked, userPlaylists.length,
@@ -216,17 +250,28 @@ function App() {
     setYouTubeUserPlaylists, setSelectedPlaylistId, setYouTubeVideos, setCurrentScreen,
   ]);
 
+  /**
+   * Ensures user is on the login screen if initial auth checks complete and user is not fully authenticated/linked.
+   * Runs when `authChecked` or other auth/link statuses change.
+   * Note: `currentScreen` is in dependencies; care is taken to avoid loops.
+   */
   useEffect(() => {
     if (authChecked) {
       if (!isLoggedIn || !isAuthorizedUser || !isYouTubeLinked) {
-        setCurrentScreen('login');
+        setCurrentScreen(SCREEN_LOGIN);
       }
     }
   }, [authChecked, isLoggedIn, isAuthorizedUser, isYouTubeLinked, currentScreen]);
 
+  /**
+   * Handles automatic navigation to a default playlist or the chat screen on app load.
+   * Checks localStorage for default playlist settings and navigates accordingly if conditions
+   * (user authenticated, YouTube linked, playlists loaded) are met.
+   * Runs when auth, YouTube, playlist, or screen states change.
+   */
   useEffect(() => {
-    const useDefaultEnabled = localStorage.getItem('reelworthy_useDefaultPlaylistEnabled') === 'true';
-    const storedDefaultPlaylistId = localStorage.getItem('reelworthy_defaultPlaylistId');
+    const useDefaultEnabled = localStorage.getItem(LS_KEY_USE_DEFAULT_PLAYLIST) === 'true';
+    const storedDefaultPlaylistId = localStorage.getItem(LS_KEY_DEFAULT_PLAYLIST_ID);
 
     if (!authChecked || !isLoggedIn || !isAuthorizedUser || !isYouTubeLinked || initialAutoNavAttempted) {
       return;
@@ -239,9 +284,9 @@ function App() {
       if (userPlaylists.length > 0) {
         const defaultPlaylistExists = userPlaylists.some((p) => p.id === storedDefaultPlaylistId);
         if (defaultPlaylistExists) {
-          if (currentScreen !== 'chat') {
+          if (currentScreen !== SCREEN_CHAT) {
             if (selectedPlaylistId === storedDefaultPlaylistId && isPlaylistDataReadyForChat) {
-              navigateTo('chat');
+              navigateTo(SCREEN_CHAT);
             } else if (selectedPlaylistId !== storedDefaultPlaylistId || !isPlaylistDataReadyForChat) {
               console.log(`Auto-loading default playlist: ${storedDefaultPlaylistId}`);
               handleSelectPlaylistFromList(storedDefaultPlaylistId);
@@ -249,13 +294,13 @@ function App() {
           }
         } else {
           console.warn('Default playlist from localStorage not found. Clearing default settings.');
-          localStorage.removeItem('reelworthy_defaultPlaylistId');
-          localStorage.removeItem('reelworthy_useDefaultPlaylistEnabled');
-          if (currentScreen === 'login') navigateTo('playlists');
+          localStorage.removeItem(LS_KEY_DEFAULT_PLAYLIST_ID);
+          localStorage.removeItem(LS_KEY_USE_DEFAULT_PLAYLIST);
+          if (currentScreen === SCREEN_LOGIN) navigateTo(SCREEN_PLAYLISTS);
         }
       }
-    } else if (currentScreen === 'login') {
-      navigateTo('playlists');
+    } else if (currentScreen === SCREEN_LOGIN) {
+      navigateTo(SCREEN_PLAYLISTS);
     }
     setInitialAutoNavAttempted(true);
   }, [
@@ -265,11 +310,15 @@ function App() {
     initialAutoNavAttempted,
   ]);
 
+  /**
+   * Auto-scrolls the 'Thinking' output container to the bottom when its content changes and the tab is active.
+   * Runs when `thinkingOutput`, `dataReceptionIndicator`, or `activeOutputTab` changes.
+   */
   useEffect(() => {
-    if (activeOutputTab === 'Thinking' && thinkingOutputContainerRef.current) {
+    if (activeOutputTab === TAB_THINKING && thinkingOutputContainerRef.current) {
       thinkingOutputContainerRef.current.scrollTop = thinkingOutputContainerRef.current.scrollHeight;
     }
-  }, [thinkingOutput, dataReceptionIndicator, activeOutputTab]); // Changed dependency
+  }, [thinkingOutput, dataReceptionIndicator, activeOutputTab]);
 
   const renderScreenContent = () => {
     if (!authChecked) return null;
@@ -278,24 +327,22 @@ function App() {
     if (!isYouTubeLinked) return <ConnectYouTubeView onConnectYouTube={handleConnectYouTube} error={youtubeSpecificError} />;
 
     switch (currentScreen) {
-      case 'playlists':
-        // console.log('[App.js] Rendering PlaylistsScreen with selectedPlaylistId:', selectedPlaylistId); // DEBUG LOG
+      case SCREEN_PLAYLISTS:
         return <PlaylistsScreen
           userPlaylists={userPlaylists}
           onSelectPlaylist={handleSelectPlaylistFromList}
           selectedPlaylistId={selectedPlaylistId}
         />;
-      case 'chat':
+      case SCREEN_CHAT:
         if (!selectedPlaylistId) {
           return (
             <div style={{padding: '20px', textAlign: 'center'}}>
               <h2>Chat</h2>
               <p>Please select a playlist from the 'Playlists' screen first.</p>
-              <button onClick={() => navigateTo('playlists')}>Go to Playlists</button>
+              <button onClick={() => navigateTo(SCREEN_PLAYLISTS)}>Go to Playlists</button>
             </div>
           );
         }
-        // console.log('[App.js] Rendering ChatScreen with dataReceptionIndicator:', dataReceptionIndicator); // Correctly placed log, updated variable name
         return (
           <ChatScreen
             userPlaylists={userPlaylists}
@@ -310,11 +357,11 @@ function App() {
             suggestedVideos={suggestedVideos}
             lastQuery={lastQuery}
             thinkingOutput={thinkingOutput}
-            dataReceptionIndicator={dataReceptionIndicator} // Changed prop
+            dataReceptionIndicator={dataReceptionIndicator}
             thinkingOutputContainerRef={thinkingOutputContainerRef}
           />
         );
-      case 'settings':
+      case SCREEN_SETTINGS:
         return (
           <SettingsScreen
             selectedModelId={selectedModelId}
@@ -327,37 +374,35 @@ function App() {
           />
         );
       default:
-        if (currentScreen !== 'login') {
+        if (currentScreen !== SCREEN_LOGIN) {
           console.warn(`Unknown screen: ${currentScreen}, defaulting to playlists.`);
         }
         return <PlaylistsScreen
           userPlaylists={userPlaylists}
           onSelectPlaylist={handleSelectPlaylistFromList}
-          selectedPlaylistId={selectedPlaylistId} // Ensure prop is passed here too
+          selectedPlaylistId={selectedPlaylistId}
         />;
     }
   };
 
   const renderCurrentScreenHeader = () => {
-    if (!isLoggedIn || !isAuthorizedUser || !isYouTubeLinked || currentScreen === 'login') return null;
-    if (isLoggedIn && !isAuthorizedUser) return null;
-    if (isLoggedIn && isAuthorizedUser && !isYouTubeLinked) return null;
+    if (!isLoggedIn || !isAuthorizedUser || !isYouTubeLinked || currentScreen === SCREEN_LOGIN) return null;
+    if (isLoggedIn && !isAuthorizedUser) return null; // This condition is covered by the one above if !isAuthorizedUser implies !isYouTubeLinked
+    if (isLoggedIn && isAuthorizedUser && !isYouTubeLinked) return null; // This condition is also covered by the first line
 
     let title = '';
     const onLeftIconClick = null;
     const onRightIconClick = null;
 
-    if (currentScreen === 'playlists') title = 'Playlists';
-    else if (currentScreen === 'chat') {
+    if (currentScreen === SCREEN_PLAYLISTS) title = 'Playlists';
+    else if (currentScreen === SCREEN_CHAT) {
       const selected = userPlaylists.find((p) => p.id === selectedPlaylistId);
       title = selected ? `Playlist: ${selected.title}` : 'Chat';
-    } else if (currentScreen === 'settings') title = 'Settings';
+    } else if (currentScreen === SCREEN_SETTINGS) title = 'Settings';
     else return null;
 
     return <ScreenHeader title={title} onLeftIconClick={onLeftIconClick} onRightIconClick={onRightIconClick} />;
   };
-
-  // console.log('[App Function End] selectedPlaylistId:', selectedPlaylistId, 'currentScreen:', currentScreen); // DEBUG LOG
 
   return (
     <div className="App">

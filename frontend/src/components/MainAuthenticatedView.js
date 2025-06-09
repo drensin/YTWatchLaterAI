@@ -8,6 +8,10 @@ import React from 'react';
 import {ChatInterface} from './ChatInterface';
 import {VideoList} from './VideoList';
 
+// Constants for Tab Names
+const TAB_RESULTS = 'Results';
+const TAB_THINKING = 'Thinking';
+
 /**
  * Renders the main view for an authenticated and YouTube-linked user.
  * Includes playlist selection, chat interface, and video results.
@@ -19,9 +23,9 @@ import {VideoList} from './VideoList';
  * @param {() => void} props.onRefreshPlaylist - Handler to refresh playlist items.
  * @param {(query: string) => void} props.onQuerySubmit - Handler for submitting a chat query.
  * @param {boolean} props.isStreaming - True if AI is currently streaming a response.
- * @param {string} props.activeOutputTab - The active tab ('Results' or 'Thinking').
+ * @param {string} props.activeOutputTab - The active tab (e.g., TAB_RESULTS or TAB_THINKING).
  * @param {(tabName: string) => void} props.onSetOutputTab - Handler to change the active output tab.
- * @param {Array<{id: string, title: string, channelTitle: string, publishedAt: string, description: string, thumbnailUrl: string}>} props.suggestedVideos - Suggested videos from chat.
+ * @param {Array<{videoId: string, title: string, channelTitle: string, publishedAt: string, description: string, thumbnailUrl: string, duration: string, reason: string}>} props.suggestedVideos - Suggested videos from chat.
  * @param {string} props.lastQuery - The last query submitted by the user.
  * @param {string} props.thinkingOutput - Raw AI thinking output.
  * @param {React.RefObject<HTMLDivElement>} props.thinkingOutputContainerRef - Ref for the thinking output container.
@@ -77,21 +81,21 @@ function MainAuthenticatedView(props) {
           <ChatInterface onQuerySubmit={onQuerySubmit} disabled={isStreaming} />
           <div className='tabs'>
             <button
-              onClick={() => onSetOutputTab('Results')}
-              className={activeOutputTab === 'Results' ? 'active' : ''}
+              onClick={() => onSetOutputTab(TAB_RESULTS)}
+              className={activeOutputTab === TAB_RESULTS ? 'active' : ''}
               disabled={isStreaming}
             >
               Results
             </button>
             <button
-              onClick={() => onSetOutputTab('Thinking')}
-              className={activeOutputTab === 'Thinking' ? 'active' : ''}
-              disabled={isStreaming && activeOutputTab !== 'Thinking'}
+              onClick={() => onSetOutputTab(TAB_THINKING)}
+              className={activeOutputTab === TAB_THINKING ? 'active' : ''}
+              disabled={isStreaming && activeOutputTab !== TAB_THINKING}
             >
               Thinking
             </button>
           </div>
-          {activeOutputTab === 'Results' && (
+          {activeOutputTab === TAB_RESULTS && (
             <>
               <h2>
                 {suggestedVideos.length > 0 ?
@@ -102,7 +106,7 @@ function MainAuthenticatedView(props) {
               <VideoList videos={suggestedVideos} />
             </>
           )}
-          {activeOutputTab === 'Thinking' && (
+          {activeOutputTab === TAB_THINKING && (
             <>
               <h2>Gemini is Thinking...</h2>
               {lastQuery && <p className='last-query-display'>For query: <em>"{lastQuery}"</em></p>}

@@ -20,8 +20,11 @@ import React from 'react';
 function PlaylistItem({playlist, onSelectPlaylist, isSelected}) {
   const {id, title, itemCount, thumbnailUrl} = playlist;
 
-  // console.log(`[PlaylistItem] Title: ${title}, isSelected: ${isSelected}`); // DEBUG LOG
-
+  /**
+   * Handles key press events on the playlist item for accessibility.
+   * Triggers playlist selection if the 'Enter' or 'Space' key is pressed.
+   * @param {React.KeyboardEvent<HTMLDivElement>} event - The React keyboard event.
+   */
   const handleKeyPress = (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
       onSelectPlaylist(id);
@@ -35,7 +38,6 @@ function PlaylistItem({playlist, onSelectPlaylist, isSelected}) {
       onKeyPress={handleKeyPress}
       role="button"
       tabIndex={0}
-      style={{cursor: 'pointer'}}
       aria-pressed={isSelected} // Indicates selection state for assistive technologies
     >
       <div className="playlist-item-thumbnail-container">
@@ -50,13 +52,6 @@ function PlaylistItem({playlist, onSelectPlaylist, isSelected}) {
       <div className="playlist-item-info">
         <h3 className="playlist-item-title">{title}</h3>
         <p className="playlist-item-count">{itemCount} videos</p>
-      </div>
-      {/* Optional: Visual indicator for selection */}
-      {/* {isSelected && <span className="selected-indicator-icon">✓</span>} */}
-      {/* The "View" button is removed from playlist-item-action */}
-      <div className="playlist-item-action">
-        {/* Content of this div can be adjusted if other actions are needed, or removed if not. */}
-        {/* For now, it's empty as the whole item is clickable. */}
       </div>
     </div>
   );

@@ -21,6 +21,9 @@ import React, {useState} from 'react';
  * @property {string} [description] - Optional video description.
  * @property {string} [reason] - Optional reason why the video was suggested by AI.
  */
+
+const DESCRIPTION_MAX_LENGTH = 150;
+
 function VideoList({videos}) {
   /**
    * @state Manages the expanded/collapsed state of video descriptions, keyed by video ID.
@@ -53,18 +56,26 @@ function VideoList({videos}) {
     const description = video.description || 'No description';
     const isExpanded = expandedDescriptions[videoId];
     // Maximum length for the truncated description.
-    const maxLength = 150; // This can be adjusted or made responsive if needed
-    if (description.length <= maxLength) {
+    // const maxLength = 150; // This can be adjusted or made responsive if needed
+    if (description.length <= DESCRIPTION_MAX_LENGTH) {
       return <p className="video-description"><strong>Description:</strong> {description}</p>;
     }
     return (
       <p className="video-description">
-        <strong>Description:</strong> {isExpanded ? description : `${description.substring(0, maxLength)}...`}
+        <strong>Description:</strong> {isExpanded ? description : `${description.substring(0, DESCRIPTION_MAX_LENGTH)}...`}
         <button onClick={() => toggleDescription(videoId)} className="more-less-button">
           {isExpanded ? 'Less...' : 'More...'}
         </button>
       </p>
     );
+  };
+
+  /**
+   * Opens the specified YouTube video in a new browser tab.
+   * @param {string} vidId - The YouTube video ID to open.
+   */
+  const handleOpenVideo = (vidId) => {
+    window.open(`https://www.youtube.com/watch?v=${vidId}`, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -75,13 +86,12 @@ function VideoList({videos}) {
           <li key={videoId} className="video-list-item">
             <div
               className="video-item-header"
-              onClick={() => window.open(`https://www.youtube.com/watch?v=${videoId}`, '_blank', 'noopener,noreferrer')}
-              style={{cursor: 'pointer'}}
+              onClick={() => handleOpenVideo(videoId)}
               role="button"
               tabIndex={0}
               onKeyPress={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
-                  window.open(`https://www.youtube.com/watch?v=${videoId}`, '_blank', 'noopener,noreferrer');
+                  handleOpenVideo(videoId);
                 }
               }}
             >
@@ -106,7 +116,7 @@ function VideoList({videos}) {
               <h4>{video.title}</h4>
               {video.duration && <p><strong>Duration:</strong> {video.duration}</p>}
               {renderDescription(video, videoId)}
-              {video.reason && <p className="video-reason" style={{color: 'green', fontStyle: 'italic'}}><strong>Reason:</strong> {video.reason}</p>}
+              {video.reason && <p className="video-reason"><strong>Reason:</strong> {video.reason}</p>}
             </div>
           </li>
         );

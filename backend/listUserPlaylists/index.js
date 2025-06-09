@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Cloud Function to list a user's YouTube playlists.
+ * It authenticates the user via a Firebase ID token, retrieves their
+ * YouTube OAuth tokens from Datastore, handles token refresh if necessary,
+ * and then calls the YouTube Data API to fetch the user's playlists.
+ */
 const express = require('express');
 const compressionMiddleware = require('compression');
 const {Datastore} = require('@google-cloud/datastore');
@@ -12,14 +18,16 @@ const app = express();
 app.use(compressionMiddleware());
 
 // Initialize Firebase Admin SDK
-try {
-  admin.initializeApp();
-} catch (e) {
-  if (!e.message.includes('already initialized')) {
-    console.error('Firebase Admin SDK initialization error:', e);
-    throw e; // Critical error if not 'already initialized'
+if (admin.apps.length === 0) {
+  try {
+    admin.initializeApp();
+    console.log('Firebase Admin SDK initialized successfully for listUserPlaylists.');
+  } catch (e) {
+    console.error('Critical Firebase Admin SDK initialization error in listUserPlaylists:', e.message);
+    throw new Error(`Firebase Admin SDK failed to initialize: ${e.message}`);
   }
-  // console.log('Firebase Admin SDK was already initialized.');
+} else {
+  // console.log('Firebase Admin SDK was already initialized.'); // Optional
 }
 
 const datastore = new Datastore();
@@ -47,8 +55,11 @@ async function getTokens(firebaseUid) {
 /**
  * HTTP Cloud Function to list user's YouTube playlists.
  * Requires a Firebase ID token for authentication.
+ * Fetches playlists using stored OAuth tokens and handles token refresh.
+ * Responds with a JSON object containing an array of playlist objects,
+ * each with id, title, description, publishedAt, thumbnailUrl, and itemCount.
  *
- * @param {Object} req Cloud Function request context.
+ * @param {Object} req Cloud Function request context, expecting Firebase ID token in Authorization header.
  * @param {Object} res Cloud Function response context.
  */
 const handleListUserPlaylists = async (req, res) => {

@@ -1,16 +1,21 @@
 {
   "name": "handle-youtube-auth",
   "version": "1.0.0",
+  "private": true,
   "description": "Cloud Function for YouTube OAuth 2.0 handling, linking to Firebase UID.",
   "main": "index.js",
+  "author": "Dave Rensin",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/drensin/YTWatchLaterAI"
+  },
   "dependencies": {
     "@google-cloud/datastore": "^10.0.1",
     "@google-cloud/secret-manager": "^6.0.1",
-    "googleapis": "^100.0.0",
-    "cors": "^2.8.5",
-    "firebase-admin": "^12.0.0",
     "express": "^4.18.0",
-    "compression": "^1.7.4"
+    "compression": "^1.7.4",
+    "google-auth-library": "^9.0.0"
   },
   "engines": {
     "node": "20"

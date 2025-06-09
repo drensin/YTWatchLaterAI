@@ -47,12 +47,6 @@ const MAX_RECONNECT_DELAY_MS = 30000;
  * @returns {WebSocketChatHookReturn} An object containing chat state and handler functions.
  */
 function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, setAppError, selectedModelId, userId, currentIncludeSubscriptionFeed) {
-  const [includeSubscriptionFeedPreference, setIncludeSubscriptionFeedPreference] = useState(currentIncludeSubscriptionFeed);
-
-  useEffect(() => {
-    setIncludeSubscriptionFeedPreference(currentIncludeSubscriptionFeed);
-  }, [currentIncludeSubscriptionFeed]);
-
   const ws = useRef(null);
   const pingIntervalRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
@@ -94,24 +88,21 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
       return;
     }
     closeWebSocket();
-    console.log(`Attempting WebSocket connection for playlist: ${playlistIdToConnect}`);
     ws.current = new WebSocket(WEBSOCKET_SERVICE_URL);
     setIsStreaming(false);
     setThinkingOutput('');
     setDataReceptionIndicator(''); // Clear on new connection
 
     ws.current.onopen = () => {
-      console.log('WebSocket connected. Initializing chat...');
       setReconnectAttempt(0);
       clearWebSocketTimers();
 
-      console.log(`Chat Init: includeSubscriptionFeed preference: ${includeSubscriptionFeedPreference}`);
       ws.current.send(JSON.stringify({
         type: 'INIT_CHAT',
         payload: {
           playlistId: playlistIdToConnect,
           modelId: selectedModelId,
-          includeSubscriptionFeed: includeSubscriptionFeedPreference,
+          includeSubscriptionFeed: currentIncludeSubscriptionFeed,
           userId: userId,
         },
       }));
@@ -148,12 +139,6 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
           setDataReceptionIndicator((prev) => prev + '#');
           if (!isStreaming) setIsStreaming(true); // Ensure streaming is true
           setActiveOutputTab('Thinking'); // Keep thinking tab active
-          break;
-        case 'STREAM_CHUNK': // This case might become redundant if server only sends CONTENT_CHUNK_RECEIVED
-          if (message.payload && message.payload.textChunk) {
-            // console.log('Received STREAM_CHUNK (should be CONTENT_CHUNK_RECEIVED for main data):', message.payload.textChunk);
-          }
-          if (!isStreaming) setIsStreaming(true);
           break;
         case 'STREAM_END':
           setSuggestedVideos(message.payload.suggestedVideos || []);
@@ -220,7 +205,7 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
     selectedPlaylistId,
     selectedModelId,
     userId,
-    includeSubscriptionFeedPreference,
+    currentIncludeSubscriptionFeed,
     reconnectAttempt,
     closeWebSocket,
     clearWebSocketTimers,
@@ -236,11 +221,10 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
     if (selectedPlaylistId && isPlaylistDataReady) {
       let needsToClearData = false;
       if (selectedPlaylistId !== prevSelectedPlaylistIdRef.current) {
-        console.log('New playlist selected in useEffect, clearing states.');
         needsToClearData = true;
         prevSelectedPlaylistIdRef.current = selectedPlaylistId;
       } else if (!ws.current) {
-        console.log('Initial connection for playlist, not clearing data (it should be empty or will be set).');
+        // Initial connection for this playlist, data should be empty or will be set by server.
       }
 
       if (needsToClearData) {

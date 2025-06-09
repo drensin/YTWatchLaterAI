@@ -1,15 +1,23 @@
+/**
+ * @fileoverview HTTP Cloud Function to handle requests for updating a user's
+ * YouTube subscription feed. It authenticates the user via a Firebase ID token
+ * and then publishes a message containing the user's ID to a Pub/Sub topic,
+ * which in turn triggers the actual feed fetching process.
+ */
 const { PubSub } = require('@google-cloud/pubsub');
 const admin = require('firebase-admin');
 
 // Initialize Firebase Admin SDK
-try {
-  admin.initializeApp();
-} catch (e) {
-  // This can happen if initializeApp() is called multiple times
-  // (e.g. in a local testing environment or due to Cloud Functions warm starts)
-  if (e.code !== 'app/duplicate-app') {
-    console.error('Firebase admin initialization error', e);
+if (admin.apps.length === 0) {
+  try {
+    admin.initializeApp();
+    console.log('Firebase Admin SDK initialized successfully for requestSubscriptionFeedUpdate.');
+  } catch (e) {
+    console.error('Critical Firebase Admin SDK initialization error in requestSubscriptionFeedUpdate:', e.message);
+    throw new Error(`Firebase Admin SDK failed to initialize: ${e.message}`);
   }
+} else {
+  // console.log('Firebase Admin SDK was already initialized.'); // Optional
 }
 
 const pubsub = new PubSub();

@@ -16,7 +16,7 @@ import {VideoList} from './VideoList';
  * @param {boolean} props.isStreaming - Indicates if the AI is currently streaming a response.
  * @param {string} props.activeOutputTab - The currently active tab ('suggestions' or 'Thinking').
  * @param {function(string): void} props.onSetOutputTab - Callback function to set the active output tab.
- * @param {Array<{id: string, title: string, channelTitle: string, publishedAt: string, description: string, thumbnailUrl: string}>} props.suggestedVideos - An array of video objects suggested by the AI.
+ * @param {Array<{videoId: string, title: string, channelTitle: string, publishedAt: string, description: string, thumbnailUrl: string, duration: string, reason: string}>} props.suggestedVideos - An array of video objects suggested by the AI.
  * @param {string} props.lastQuery - The most recent query submitted by the user.
  * @param {string} props.thinkingOutput - The text representing the AI's internal thoughts.
  * @param {string} props.dataReceptionIndicator - String of '#' indicating data chunks received.
@@ -24,8 +24,6 @@ import {VideoList} from './VideoList';
  * @returns {JSX.Element} The rendered chat view content.
  */
 function ChatViewContent(props) {
-  // console.log('[ChatViewContent] Entire props object at entry:', props);
-  // console.log('[ChatViewContent] Direct access props.responsesReceivedCount:', props.responsesReceivedCount); // DEBUG LOG
   const {
     onQuerySubmit,
     isStreaming,
@@ -34,15 +32,14 @@ function ChatViewContent(props) {
     suggestedVideos,
     lastQuery,
     thinkingOutput,
-    dataReceptionIndicator, // Changed from responsesReceivedCount
+    dataReceptionIndicator,
     thinkingOutputContainerRef,
   } = props;
-
-  // console.log('[ChatViewContent] props.responsesReceivedCount:', responsesReceivedCount); // DEBUG LOG - Replaced by direct access log above
 
   const [waitingDots, setWaitingDots] = useState('');
   const waitingIntervalRef = useRef(null);
   const waitingMessage = 'Query sent. Waiting for AI response';
+  const WAITING_DOTS_INTERVAL = 700;
 
   useEffect(() => {
     // Show waiting dots if streaming, no thoughts yet, and no data reception has started
@@ -51,7 +48,7 @@ function ChatViewContent(props) {
         setWaitingDots('');
         waitingIntervalRef.current = setInterval(() => {
           setWaitingDots((prevDots) => (prevDots.length >= 3 ? '.' : prevDots + '.'));
-        }, 700); // Adjusted interval for faster dot animation
+        }, WAITING_DOTS_INTERVAL);
       }
     } else {
       if (waitingIntervalRef.current) {
@@ -65,7 +62,7 @@ function ChatViewContent(props) {
         clearInterval(waitingIntervalRef.current);
       }
     };
-  }, [isStreaming, thinkingOutput, dataReceptionIndicator]); // Updated dependencies
+  }, [isStreaming, thinkingOutput, dataReceptionIndicator]);
 
   /**
    * Handles the submission of the chat query form.
@@ -80,9 +77,6 @@ function ChatViewContent(props) {
       event.target.elements.query.value = '';
     }
   };
-
-  // Removed intermediate display variables internalThoughtsDisplay and responseBuildUpDisplay
-  // Logic will be handled directly in JSX or with simpler conditions if needed.
 
   return (
     <div className="chat-view-content">

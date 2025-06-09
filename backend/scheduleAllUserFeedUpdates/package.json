@@ -2,13 +2,19 @@
   "name": "schedule-all-user-feed-updates",
   "version": "0.0.1",
   "private": true,
+  "description": "Cloud Function triggered by Scheduler to publish feed update requests for all users.",
+  "main": "index.js",
+  "author": "Dave Rensin",
   "license": "Apache-2.0",
-  "author": "Google LLC",
-  "engines": {
-    "node": ">=18.0.0"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/drensin/YTWatchLaterAI"
   },
   "scripts": {
     "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   },
   "dependencies": {
     "@google-cloud/datastore": "^8.0.0",

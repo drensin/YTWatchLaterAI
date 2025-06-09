@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Cloud Function triggered by Pub/Sub to fetch and cache recent,
+ * non-short videos from a user's YouTube channel subscriptions.
+ * It handles OAuth token refresh, interacts with the YouTube Data API
+ * to get subscription and video details, and stores the processed video
+ * list in Datastore under the UserSubscriptionFeedCache kind.
+ */
 const { Datastore } = require('@google-cloud/datastore');
 const { google } = require('googleapis');
 const { OAuth2Client } = require('google-auth-library');
@@ -12,6 +19,8 @@ const YOUTUBE_CLIENT_SECRET = process.env.YOUTUBE_CLIENT_SECRET;
 // Constants
 const MAX_VIDEOS_TO_CACHE = 100;
 const VIDEOS_PER_SUBSCRIPTION_CHANNEL = 10; // How many recent videos to fetch per channel
+const BATCH_SIZE = 50; // For YouTube Data API videos.list calls
+const DURATION_THRESHOLD_SECONDS = 61; // Videos with duration > this are kept (i.e., not Shorts)
 
 /**
  * Parses an ISO 8601 duration string (e.g., "PT1H30M5S") into total seconds.
@@ -35,10 +44,16 @@ function parseISO8601Duration(isoDuration) {
 }
 
 /**
- * Fetches and caches the 100 most recent videos from a user's YouTube subscriptions.
+ * Fetches and caches up to MAX_VIDEOS_TO_CACHE most recent, non-short videos
+ * from a user's YouTube subscriptions. It processes VIDEOS_PER_SUBSCRIPTION_CHANNEL
+ * videos from each subscribed channel, aggregates them, sorts by publication date,
+ * fetches full details, filters out videos with duration less than or equal to
+ * DURATION_THRESHOLD_SECONDS, and stores the result in Datastore.
+ * Triggered by a Pub/Sub message containing the userId.
  *
- * @param {object} pubSubEvent The event payload.
- * @param {object} context The event metadata.
+ * @param {{data: string}} pubSubEvent The event payload, where `data` is a base64-encoded JSON string
+ *   expected to contain `{ userId: string }`.
+ * @param {object} context The event metadata (not directly used by this function's core logic).
  */
 exports.fetchUserSubscriptionFeed = async (pubSubEvent, context) => {
   let userId;
@@ -144,14 +159,11 @@ exports.fetchUserSubscriptionFeed = async (pubSubEvent, context) => {
           id: channelId,
         });
 
-        if (!channelDetails.data.items || channelDetails.data.items.length === 0 ||
-            !channelDetails.data.items[0].contentDetails ||
-            !channelDetails.data.items[0].contentDetails.relatedPlaylists ||
-            !channelDetails.data.items[0].contentDetails.relatedPlaylists.uploads) {
+        const uploadsPlaylistId = channelDetails?.data?.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+        if (!uploadsPlaylistId) {
           console.warn(`Could not find uploads playlist for channelId: ${channelId}`);
           continue;
         }
-        const uploadsPlaylistId = channelDetails.data.items[0].contentDetails.relatedPlaylists.uploads;
 
         // Get recent videos from the uploads playlist
         const playlistItemsResponse = await youtube.playlistItems.list({
@@ -191,7 +203,7 @@ exports.fetchUserSubscriptionFeed = async (pubSubEvent, context) => {
     const videoDetailsMap = new Map(); // Map videoId to full video details
 
     // YouTube Data API allows up to 50 IDs per videos.list call
-    const BATCH_SIZE = 50;
+    // BATCH_SIZE is now a module-level constant
     for (let i = 0; i < videoIdsToFetch.length; i += BATCH_SIZE) {
       const batchIds = videoIdsToFetch.slice(i, i + BATCH_SIZE);
       try {
@@ -227,8 +239,8 @@ exports.fetchUserSubscriptionFeed = async (pubSubEvent, context) => {
       return { ...video, durationSeconds: 0 }; // Default to 0 if details not found
     });
 
-    // Filter out Shorts (videos <= 61 seconds)
-    const DURATION_THRESHOLD_SECONDS = 61;
+    // Filter out Shorts (videos <= DURATION_THRESHOLD_SECONDS seconds)
+    // DURATION_THRESHOLD_SECONDS is now a module-level constant
     const nonShortEnrichedVideos = enrichedTopVideos.filter(video => {
       return video.durationSeconds > DURATION_THRESHOLD_SECONDS;
     });

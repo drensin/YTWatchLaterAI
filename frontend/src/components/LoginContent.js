@@ -16,15 +16,12 @@ function LoginContent({onLogin}) {
   return (
     <div className="login-content">
       <h2 className="login-welcome-title">Welcome to ReelWorthy</h2>
-      {/* Replaces: text-[#111418] tracking-light text-[28px] font-bold ... */}
       <p className="login-intro-text">
         Manage, explore, and get intelligent recommendations from your YouTube playlists, with a particular emphasis on the Watch Later list.
       </p>
-      {/* Replaces: text-[#111418] text-base font-normal ... */}
-      <div className="login-button-container"> {/* Replaces: flex px-4 py-3 justify-center */}
+      <div className="login-button-container">
         <button onClick={onLogin} className="login-google-button">
-          {/* Replaces: flex min-w-[84px] max-w-[480px] cursor-pointer ... */}
-          <span>Sign in with Google</span> {/* Replaces: truncate */}
+          <span>Sign in with Google</span>
         </button>
       </div>
     </div>
