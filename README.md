@@ -322,16 +322,16 @@ The application utilizes Google Cloud Datastore for persistent storage. Below is
 3.  Configure OAuth Consent Screen & Client ID.
 
 ### Firebase Project Setup
-(As before: link to GCP, enable Google Sign-in, setup Hosting, get Firebase config).
+This involves linking your Firebase project to your Google Cloud Project, enabling Google Sign-In as an authentication provider, setting up Firebase Hosting for the frontend, and obtaining your Firebase project configuration details. For comprehensive steps, please consult the [Firebase Project Setup section in DEPLOYMENT_INSTRUCTIONS.md](DEPLOYMENT_INSTRUCTIONS.md#3-firebase-project-setup).
 
 ### Secrets Configuration
-(As before: `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `GEMINI_API_KEY` in Secret Manager).
+You will need to configure `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, and `GEMINI_API_KEY` in Google Cloud Secret Manager. Detailed instructions for creating and managing these secrets are available in the [Secret Manager Setup section in DEPLOYMENT_INSTRUCTIONS.md](DEPLOYMENT_INSTRUCTIONS.md#4-secret-manager-setup).
 
 ### Frontend Setup
-(As before, with emphasis on using environment variables for backend URLs).
+Frontend setup primarily involves configuring environment variables, especially for backend service URLs. This typically includes creating a `.env` file with the necessary Firebase configuration and API endpoints. For a complete guide, see the [Code Configuration & Placeholders section in DEPLOYMENT_INSTRUCTIONS.md](DEPLOYMENT_INSTRUCTIONS.md#6-code-configuration--placeholders).
 
 ### Backend Configuration Notes
-(As before).
+Backend configuration involves several aspects, including setting up redirect URIs for OAuth, configuring allowed origins for CORS, and deploying the various Cloud Functions and the Gemini chat service. All detailed steps for backend setup and deployment are covered in [DEPLOYMENT_INSTRUCTIONS.md](DEPLOYMENT_INSTRUCTIONS.md#6-code-configuration--placeholders).
 
 ## Deployment
 For comprehensive, step-by-step deployment commands and configurations for all services, please refer to **`DEPLOYMENT_INSTRUCTIONS.md`**.
