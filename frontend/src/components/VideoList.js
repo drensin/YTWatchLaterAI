@@ -68,29 +68,45 @@ function VideoList({videos}) {
   };
 
   return (
-    <ul className="video-list"> {/* Changed from List to ul, removed virtualization-specific props */}
+    <ul className="video-list">
       {videos.map((video) => {
-        // Use video.videoId if available (from YouTube API for playlist items),
-        // otherwise fallback to video.id (potentially for suggested videos if structure differs).
         const videoId = video.videoId || video.id;
         return (
-          <li key={videoId} className="video-list-item"> {/* Using li for semantic list items */}
-            {video.thumbnailUrl && (
-              <img
-                src={video.thumbnailUrl}
-                alt={`Thumbnail for ${video.title}`}
-                loading="lazy" // Keep lazy loading
-                className="video-thumbnail"
-              />
-            )}
-            <div className="video-details">
+          <li key={videoId} className="video-list-item">
+            <div
+              className="video-item-header"
+              onClick={() => window.open(`https://www.youtube.com/watch?v=${videoId}`, '_blank', 'noopener,noreferrer')}
+              style={{cursor: 'pointer'}}
+              role="button"
+              tabIndex={0}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  window.open(`https://www.youtube.com/watch?v=${videoId}`, '_blank', 'noopener,noreferrer');
+                }
+              }}
+            >
+              {video.thumbnailUrl && (
+                <img
+                  src={video.thumbnailUrl}
+                  alt={`Thumbnail for ${video.title}`}
+                  loading="lazy"
+                  className="video-thumbnail"
+                />
+              )}
+              <span className="watch-icon-enlarged">
+                <img
+                  src={process.env.PUBLIC_URL + '/icons/youtube_button.webp'}
+                  alt="Watch on YouTube"
+                  className="youtube-logo-icon"
+                />
+              </span>
+              {/* "Watch" text span is removed */}
+            </div>
+            <div className="video-details-content">
               <h4>{video.title}</h4>
               {video.duration && <p><strong>Duration:</strong> {video.duration}</p>}
               {renderDescription(video, videoId)}
               {video.reason && <p className="video-reason" style={{color: 'green', fontStyle: 'italic'}}><strong>Reason:</strong> {video.reason}</p>}
-              <a href={`https://www.youtube.com/watch?v=${video.videoId}`} target="_blank" rel="noopener noreferrer" className="watch-link" title="Watch on YouTube">
-                ▶ Watch
-              </a>
             </div>
           </li>
         );

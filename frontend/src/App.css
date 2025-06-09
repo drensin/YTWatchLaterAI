@@ -13,32 +13,6 @@ html, body, #root {
   overflow: hidden; /* Prevent .App itself from scrolling */
 }
 
-/* Remove .App-header as it's replaced by screen-specific headers */
-/*
-.App-header {
-  background-color: #282c34;
-  display: flex;
-  flex-direction: row; 
-  align-items: center; 
-  justify-content: space-between; 
-  font-size: calc(10px + 2vmin);
-  color: white;
-  padding: 10px 20px; 
-}
-
-.app-header-title { 
-  font-size: 1.6em; 
-  font-weight: bold;
-  margin: 0; 
-  color: white; 
-  flex-shrink: 0; 
-}
-
-.header-login-control {
-  flex-shrink: 0; 
-}
-*/
-
 /* Styles for the new text-based Login/Logout button (used in App.js for now) */
 .auth-button {
   background-color: #fff; /* White background */
@@ -62,26 +36,26 @@ html, body, #root {
 
 main {
   padding: 0; /* Screens will handle their own padding */
-  flex-grow: 1; 
+  flex-grow: 1;
   width: 100%;
   box-sizing: border-box;
-  display: flex; 
-  flex-direction: column; 
+  display: flex;
+  flex-direction: column;
 }
 
 form {
   margin-bottom: 20px;
-  display: flex; 
-  align-items: center; 
+  display: flex;
+  align-items: center;
 }
 
 input[type="text"] {
   padding: 10px;
   border: 1px solid #ccc;
   border-radius: 4px;
-  flex-grow: 1; 
+  flex-grow: 1;
   box-sizing: border-box;
-  height: 40px; 
+  height: 40px;
 }
 
 button {
@@ -91,7 +65,7 @@ button {
   border-radius: 4px;
   cursor: pointer;
   font-size: 1em;
-  height: 40px; 
+  height: 40px;
   box-sizing: border-box;
 }
 
@@ -107,12 +81,12 @@ button:disabled {
 .refresh-button, .send-button {
   background: none;
   border: none;
-  color: #282c34; 
-  padding: 0 8px; 
+  color: #282c34;
+  padding: 0 8px;
   margin-left: 8px;
-  font-size: 1.5em; 
-  line-height: 1; 
-  height: 40px; 
+  font-size: 1.5em;
+  line-height: 1;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -120,7 +94,7 @@ button:disabled {
 
 .refresh-button:hover, .send-button:hover {
   background: none;
-  color: #61dafb; 
+  color: #61dafb;
 }
 
 .refresh-button:disabled, .send-button:disabled {
@@ -138,139 +112,102 @@ ul {
   padding: 0;
 }
 
-.video-list-item {
-  background-color: #f9f9f9;
-  border: 1px solid #eee;
-  padding: 15px; 
-  margin-bottom: 15px; 
-  border-radius: 4px;
-  text-align: left;
-  display: flex; 
-  flex-direction: row; 
-  align-items: flex-start; 
-}
-
-.video-list-item img.video-thumbnail, 
-.video-list-item img { 
+.video-list-item img.video-thumbnail,
+.video-list-item img {
   width: 120px;
   height: 90px;
-  margin-right: 15px; 
-  object-fit: cover; 
-  flex-shrink: 0; 
-}
-
-.video-list-item div { 
-  flex-grow: 1; 
+  object-fit: cover;
+  flex-shrink: 0;
 }
 
 .video-list-item h4 {
   margin-top: 0;
-  margin-bottom: 8px; 
+  margin-bottom: 8px;
 }
 
 .video-list-item p {
-  margin-top: 4px; 
-  margin-bottom: 4px; 
-  font-size: 0.9em; 
+  margin-top: 4px;
+  margin-bottom: 4px;
+  font-size: 0.9em;
 }
 
 .video-description {
-  white-space: pre-wrap; 
+  white-space: pre-wrap;
 }
 
-.video-list-item p.video-reason { 
+.video-list-item p.video-reason {
   white-space: normal;
   word-break: break-word;
-  color: green; 
-  font-style: italic; 
+  color: green;
+  font-style: italic;
 }
 
-main > div:first-child { 
-  /* This selector might be too broad if other screens don't have this as first child */
-  /* display: flex;
-  flex-direction: row; 
-  align-items: center; 
-  justify-content: flex-start; 
-  margin-bottom: 20px; 
-  flex-wrap: nowrap; */
-}
-
-/* ... (other existing styles for playlist selector, media queries, etc. are kept below) ... */
 /* Media Queries for Responsiveness */
 @media (max-width: 768px) {
-  /* .App-header {
-    font-size: calc(12px + 2vmin); 
-  } */
-  
   .video-list-item {
-    flex-direction: column; 
-    align-items: flex-start; 
-    text-align: left; 
+    text-align: left;
   }
 
-  .video-list-item img.video-thumbnail, 
-  .video-list-item img { 
-    margin-right: 0;
-    margin-bottom: 10px; 
-    width: 100%; 
-    max-width: 160px; 
-    height: auto; 
+  .video-thumbnail { /* This is the <img> tag inside .video-item-header */
+    margin-right: 0; /* Remove right margin if stacking icon below */
+    margin-bottom: 10px; /* Add bottom margin if stacking icon below */
   }
 
-  .video-list-item div.video-details, 
-  .video-list-item div { 
-    width: 100%; 
-    min-width: 0; 
+  .video-item-header { /* If stacking on mobile */
+    /* flex-direction: column; */
+    /* align-items: flex-start; */
   }
 
-  .video-list-item div.video-details p,
-  .video-list-item div.video-details h4 {
-    white-space: normal; 
-    word-break: break-word; 
+  .watch-icon-enlarged { /* If stacking on mobile */
+    /* margin-left: 0; */ /* Reset margin if stacked */
+    /* margin-right: 0; */
+    /* align-self: flex-start; /* Or center, depending on desired mobile layout */
   }
 
-  .video-list-item p.video-reason { 
-    white-space: normal !important; 
+  .video-list-item div.video-details-content p,
+  .video-list-item div.video-details-content h4 {
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .video-list-item p.video-reason {
+    white-space: normal !important;
     word-break: break-word;
   }
 }
 
 @media (max-width: 480px) {
-  main {
-    /* padding: 10px; /* Let screens handle their padding */
-  }
-  
   .video-list-item {
     padding: 10px;
   }
 
   .video-list-item h4 {
-    font-size: 1.1em; 
+    font-size: 1.1em;
   }
    .video-list-item p {
-    font-size: 0.85em; 
+    font-size: 0.85em;
   }
 }
 
 /* Loading Overlay Styles */
 .loading-overlay {
-  position: fixed; 
+  position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.5); 
+  background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  z-index: 1000; 
+  z-index: 1000;
   color: white;
 }
 
 .spinner {
-  border: 8px solid #f3f3f3; 
-  border-top: 8px solid #3498db; 
+  border: 8px solid #f3f3f3;
+  border-top: 8px solid #3498db;
   border-radius: 50%;
   width: 60px;
   height: 60px;
@@ -286,58 +223,38 @@ main > div:first-child {
 /* Status Popup Styles */
 .status-popup {
   position: fixed;
-  bottom: 20px; 
+  bottom: 20px;
   left: 50%;
-  transform: translateX(-50%); 
+  transform: translateX(-50%);
   padding: 10px 20px;
   border-radius: 5px;
   color: white;
   font-size: 0.9em;
-  z-index: 1001; 
+  z-index: 1001;
   box-shadow: 0 2px 10px rgba(0,0,0,0.2);
   opacity: 1;
-  transition: opacity 0.5s ease-out, bottom 0.5s ease-out; 
+  transition: opacity 0.5s ease-out, bottom 0.5s ease-out;
 }
 
 .status-popup.success {
-  background-color: #4CAF50; 
+  background-color: #4CAF50;
 }
 
 .status-popup.error {
-  background-color: #f44336; 
+  background-color: #f44336;
 }
 
 .status-popup.hidden {
   opacity: 0;
-  bottom: -50px; 
+  bottom: -50px;
 }
 
 .last-query-display {
   font-size: 0.9em;
   color: #555;
   font-style: italic;
-  margin-top: -10px; 
+  margin-top: -10px;
   margin-bottom: 15px;
-}
-
-.watch-link {
-  display: inline-block; 
-  align-items: center;
-  margin-top: 8px;
-  padding: 0; 
-  background-color: transparent; 
-  color: #282c34; 
-  text-decoration: none;
-  border: none; 
-  border-radius: 4px; 
-  font-size: 0.9em; 
-  cursor: pointer;
-}
-
-.watch-link:hover {
-  background-color: transparent; 
-  color: #61dafb; 
-  text-decoration: underline; 
 }
 
 .more-less-button {
@@ -348,14 +265,14 @@ main > div:first-child {
   cursor: pointer;
   padding: 0;
   margin-left: 5px;
-  font-size: inherit; 
+  font-size: inherit;
 }
 
 .tabs {
   margin-bottom: 15px;
   border-bottom: 1px solid #ddd;
   padding-bottom: 5px;
-  text-align: left; 
+  text-align: left;
 }
 
 .tabs button {
@@ -373,7 +290,7 @@ main > div:first-child {
 .tabs button.active {
   background-color: white;
   border-color: #ddd;
-  border-bottom-color: white; 
+  border-bottom-color: white;
   font-weight: bold;
 }
 
@@ -384,47 +301,36 @@ main > div:first-child {
 }
 
 .thinking-output-container {
-  /* max-height: 300px; /* Removed to allow flex-grow to work */
   overflow-y: auto;
-  background-color: #2c3e50; 
-  color: #ecf0f1; 
+  background-color: #2c3e50;
+  color: #ecf0f1;
   padding: 10px;
   border-radius: 5px;
   margin-top: 10px;
   text-align: left;
-  border: 1px solid #34495e; 
+  border: 1px solid #34495e;
 }
 
 .thinking-output {
-  white-space: pre-wrap;   
-  white-space: -moz-pre-wrap; 
-  white-space: -pre-wrap;     
-  white-space: -o-pre-wrap;   
-  word-wrap: break-word;      
+  white-space: pre-wrap;
+  white-space: -moz-pre-wrap;
+  white-space: -pre-wrap;
+  white-space: -o-pre-wrap;
+  word-wrap: break-word;
   margin: 0;
   font-family: monospace;
   font-size: 0.9em;
 }
 
-/* This is the new main scrollable content wrapper between header and footer */
 .screen-content-wrapper {
   flex-grow: 1;
-  overflow-y: auto; /* This is THE scrollbar for screen content */
-  min-height: 0; /* Crucial for flex child scrolling */
-  padding-bottom: 70px; /* Space for the BottomNavigationBar */
+  overflow-y: auto;
+  min-height: 0;
+  padding-bottom: 70px;
   box-sizing: border-box;
   width: 100%;
-  /* Children of this (e.g. .playlists-screen, .chat-screen) should NOT have overflow-y:auto or height:100%
-     They should just take their natural height based on their content. */
 }
 
-/* Remove .main-content-area styles as it's replaced by .screen-content-wrapper logic in App.js */
-/*
-.main-content-area { ... }
-*/
-
-
-/* --- Bottom Navigation Bar Styles --- */
 .bottom-nav-bar {
   display: flex;
   justify-content: space-around;
@@ -433,11 +339,11 @@ main > div:first-child {
   bottom: 0;
   left: 0;
   width: 100%;
-  height: 60px; /* Adjust as needed */
-  background-color: #ffffff; /* White background */
-  border-top: 1px solid #e0e0e0; /* Light grey separator line */
-  box-shadow: 0 -2px 5px rgba(0,0,0,0.05); /* Softer shadow */
-  z-index: 100; 
+  height: 60px;
+  background-color: #ffffff;
+  border-top: 1px solid #e0e0e0;
+  box-shadow: 0 -2px 5px rgba(0,0,0,0.05);
+  z-index: 100;
 }
 
 .bottom-nav-item {
@@ -445,55 +351,37 @@ main > div:first-child {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background-color: transparent !important; /* Ensure no background on tap */
+  background-color: transparent !important;
   border: none;
-  color: #757575; /* Default inactive icon/label color (medium grey) */
+  color: #757575;
   cursor: pointer;
   padding: 5px;
-  -webkit-tap-highlight-color: transparent; /* For mobile Safari */
-  font-size: 0.75rem; 
+  -webkit-tap-highlight-color: transparent;
+  font-size: 0.75rem;
   height: 100%;
   flex-grow: 1;
-  transition: color 0.2s ease-in-out; /* Smooth color transition */
+  transition: color 0.2s ease-in-out;
 }
 
 .bottom-nav-item:hover {
-  color: #000000; /* Black on hover, for affordance */
+  color: #000000;
   background-color: transparent !important;
 }
 
 .bottom-nav-item.active {
-  color: #000000; /* Active color: Black */
-  font-weight: bold; /* Optionally make active label bold */
+  color: #000000;
+  font-weight: bold;
   background-color: transparent !important;
 }
 
 .bottom-nav-item:focus, .bottom-nav-item:active {
   background-color: transparent !important;
-  outline: none; /* Remove focus outline if not desired */
-}
-
-.send-button {
-  font-size: 1.8em;
-  background-color: transparent !important; /* Ensure no background on tap */
-  -webkit-tap-highlight-color: transparent; /* For mobile Safari */
-}
-
-.send-button:focus, .send-button:active {
-  background-color: transparent !important;
-  outline: none !important; /* Remove focus outline if not desired, added important for good measure */
-  box-shadow: none !important; /* Ensure no box shadow on interaction */
-  color: #282c34 !important; /* Ensure icon color does not change on active/focus */
+  outline: none;
 }
 
 .bottom-nav-icon {
-  font-size: 1.5rem; /* Icon size */
+  font-size: 1.5rem;
   margin-bottom: 2px;
-  /* The color will be inherited from .bottom-nav-item or .bottom-nav-item.active */
-}
-
-.bottom-nav-label {
-  /* The color will be inherited */
 }
 
 /* --- Screen Header Styles --- */
@@ -501,31 +389,30 @@ main > div:first-child {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 1rem; /* Approx 12px top/bottom, 16px left/right */
-  background-color: #fff; /* bg-white */
-  /* border-bottom: 1px solid #e0e0e0; /* Optional: if a separator is needed */
+  padding: 0.75rem 1rem;
+  background-color: #fff;
   width: 100%;
-  height: 64px; /* Explicitly set height */
-  box-sizing: border-box; /* Include padding in height calculation */
+  height: 64px;
+  box-sizing: border-box;
 }
 
 .screen-header-title {
-  color: #111418; 
-  font-size: 1.125rem; 
-  font-weight: 700; 
-  line-height: 1.375; 
-  letter-spacing: -0.015em; 
+  color: #111418;
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1.375;
+  letter-spacing: -0.015em;
   text-align: center;
   flex-grow: 1;
-  margin: 0; /* Ensure no default h1 margins interfere */
+  margin: 0;
 }
 
-.screen-header-action-left, /* Changed from spacer-left */
+.screen-header-action-left,
 .screen-header-action-right {
   display: flex;
   align-items: center;
-  justify-content: center; 
-  min-width: 48px; 
+  justify-content: center;
+  min-width: 48px;
   flex-shrink: 0;
 }
 
@@ -534,7 +421,7 @@ main > div:first-child {
   border: none;
   padding: 0;
   cursor: pointer;
-  color: #111418; /* Default icon color */
+  color: #111418;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -546,33 +433,24 @@ main > div:first-child {
 }
 
 .screen-header-app-logo {
-  height: 40px; /* Increased logo size */
+  height: 40px;
   width: auto;
-  max-height: calc(100% - 1.5rem); /* Ensure logo respects padding, 100% - (2 * 0.75rem) */
-  /* Add margin if needed, e.g., margin-right: 0.5rem; if title is close */
+  max-height: calc(100% - 1.5rem);
 }
-
 
 /* --- Playlists Screen Styles --- */
 .playlists-screen {
-  /* This is now a child of .screen-content-wrapper, so it should not try to be 100% height or scroll itself. */
-  /* It just provides a background and structure for its content. */
-  background-color: #f8f9fa; 
-  padding: 1rem; /* Padding for the content of the playlist screen */
-  /* display: flex; flex-direction: column; /* Not needed if it's not managing flex children's height */
+  background-color: #f8f9fa;
+  padding: 1rem;
 }
 
 .playlists-list-container {
-  /* This is just a container for items, no specific height or overflow here. */
-  /* flex-grow: 1; /* Remove */
-  /* overflow-y: auto; /* Remove */
-  /* padding: 1rem; /* Moved to .playlists-screen */
-  /* min-height: 0; /* Remove */
+  /* No specific styles needed now */
 }
 
 .playlists-empty-message {
   text-align: center;
-  color: #6c757d; /* Secondary text color */
+  color: #6c757d;
   padding: 2rem;
   font-size: 1rem;
 }
@@ -583,22 +461,22 @@ main > div:first-child {
   align-items: center;
   background-color: #fff;
   border: 1px solid #e0e0e0;
-  border-radius: 8px; /* rounded-lg */
-  padding: 1rem; /* p-4 */
-  margin-bottom: 1rem; /* Space between items */
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05); /* Subtle shadow */
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
 .playlist-item-thumbnail-container {
-  width: 60px; /* Adjust as needed, e.g., w-16 (4rem = 64px) or w-12 (3rem = 48px) */
+  width: 60px;
   height: 60px;
-  margin-right: 1rem; /* mr-4 */
+  margin-right: 1rem;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #e9ecef; /* Placeholder background */
-  border-radius: 4px; /* rounded */
+  background-color: #e9ecef;
+  border-radius: 4px;
   overflow: hidden;
 }
 
@@ -609,7 +487,7 @@ main > div:first-child {
 }
 
 .playlist-item-thumbnail-placeholder span {
-  font-size: 2rem; /* Larger icon */
+  font-size: 2rem;
   color: #adb5bd;
 }
 
@@ -618,167 +496,203 @@ main > div:first-child {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-width: 0; /* Important for text truncation if needed */
+  min-width: 0;
 }
 
 .playlist-item-title {
-  font-size: 1rem; /* text-base */
-  font-weight: 600; /* font-semibold or similar */
-  color: #212529; /* Darker text */
-  margin: 0 0 0.25rem 0; /* mb-1 */
+  font-size: 1rem;
+  font-weight: 600;
+  color: #212529;
+  margin: 0 0 0.25rem 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .playlist-item-count {
-  font-size: 0.875rem; /* text-sm */
-  color: #6c757d; /* Muted text */
+  font-size: 0.875rem;
+  color: #6c757d;
   margin: 0;
 }
 
 .playlist-item-action {
-  margin-left: 1rem; /* ml-4 */
+  margin-left: 1rem;
   flex-shrink: 0;
 }
 
 .playlist-item-view-button {
-  background-color: #007bff; /* Primary button color */
+  background-color: #007bff;
   color: white;
   border: none;
-  border-radius: 0.375rem; /* rounded-md */
-  padding: 0.5rem 1rem; /* py-2 px-4 */
-  font-size: 0.875rem; /* text-sm */
-  font-weight: 500; /* font-medium */
+  border-radius: 0.375rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
   cursor: pointer;
   transition: background-color 0.2s;
 }
 
 .playlist-item-view-button:hover {
-  background-color: #0056b3; /* Darker on hover */
+  background-color: #0056b3;
 }
 
 /* --- Chat Screen Styles --- */
 .chat-screen {
-  /* This is now a child of .screen-content-wrapper. */
-  /* It should be a flex container for its own content (.chat-view-content). */
   display: flex;
   flex-direction: column;
-  /* height: 100%; /* REMOVE - it will take height from .screen-content-wrapper's flex context */
-  /* overflow: hidden; /* REMOVE - parent .screen-content-wrapper handles scroll */
-  flex-grow: 1; /* Allow it to fill the .screen-content-wrapper if needed, along with its padding */
-  min-height: 0; /* Important if it's a flex child that might contain a scrollable area */
+  flex-grow: 1;
+  min-height: 0;
 }
 
 .chat-screen-content {
-  /* This was an intermediate wrapper, might not be strictly necessary anymore if .chat-view-content is direct child of .chat-screen */
-  /* For now, let it be a flex container that grows */
   flex-grow: 1;
-  display: flex; 
+  display: flex;
   flex-direction: column;
-  min-height: 0; 
-  /* overflow: hidden; /* REMOVE - scrolling is for .chat-tab-content-area */
+  min-height: 0;
 }
 
-/* If MainAuthenticatedView itself needs to be 100% height of its container */
-.chat-screen-content > .main-authenticated-view-container { /* Assuming MAV has this class */
+.chat-screen-content > .main-authenticated-view-container {
   height: 100%;
   display: flex;
   flex-direction: column;
 }
 
-/* Ensure MainAuthenticatedView within ChatScreen takes full height */
-.chat-screen-content > div[class*="MainAuthenticatedView_container"] { /* More generic selector if class name changes */
+.chat-screen-content > div[class*="MainAuthenticatedView_container"] {
     height: 100%;
     display: flex;
     flex-direction: column;
 }
 
-.chat-screen-content > div[class*="MainAuthenticatedView_container"] > div:first-child { /* Playlist selector area */
-    margin-top: 1rem; /* Add space below the ScreenHeader */
-    padding-left: 1rem; /* Add some horizontal padding */
+.chat-screen-content > div[class*="MainAuthenticatedView_container"] > div:first-child {
+    margin-top: 1rem;
+    padding-left: 1rem;
     padding-right: 1rem;
 }
 
-/* Styles for the new ChatViewContent component */
 .chat-view-content {
   display: flex;
   flex-direction: column;
-  flex-grow: 1; /* This should fill .chat-screen-content */
+  flex-grow: 1;
   box-sizing: border-box;
-  overflow: hidden; /* Crucial: this container should not scroll. */
-  min-height: 0; /* For its child .chat-tab-content-area to scroll */
+  overflow: hidden;
+  min-height: 0;
 }
 
-.chat-form { 
-  margin-top: 0.5rem; /* Add top margin */
-  margin-bottom: 1rem; 
-  padding: 0 1rem; /* Horizontal padding for the form */
-  flex-shrink: 0; /* Prevent form from shrinking */
+.chat-form {
+  margin-top: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0 1rem;
+  flex-shrink: 0;
 }
 
-.chat-view-content > .last-query-display { 
-  padding: 0 1rem; 
-  margin-top: -10px; 
-  margin-bottom: 15px; 
-  flex-shrink: 0; /* Prevent from shrinking */
+.chat-view-content > .last-query-display {
+  padding: 0 1rem;
+  margin-top: -10px;
+  margin-bottom: 15px;
+  flex-shrink: 0;
 }
 
-.chat-view-content > .tabs { 
-  padding: 0 1rem; 
-  margin-bottom: 15px; 
-  flex-shrink: 0; /* Prevent tabs from shrinking */
+.chat-view-content > .tabs {
+  padding: 0 1rem;
+  margin-bottom: 15px;
+  flex-shrink: 0;
 }
 
-/* VideoList within ChatViewContent (suggestions) specific styling if needed */
 .chat-view-content .video-list,
-.chat-view-content .thinking-output-container { 
-  width: 100%; 
+.chat-view-content .thinking-output-container {
+  width: 100%;
   box-sizing: border-box;
-  /* These children of .chat-tab-content-area should not have flex-grow or overflow-y themselves. */
-  /* Their natural height will make .chat-tab-content-area scroll if they are too tall. */
 }
 
 .chat-view-content .video-list {
-  overflow-x: hidden; /* Still prevent horizontal scroll on video list items if they are too wide */
+  overflow-x: hidden;
 }
 
-
-/* New wrapper for tab content - THIS IS THE SCROLLING CONTAINER */
 .chat-tab-content-area {
-  flex-grow: 1; 
-  overflow-y: auto; 
-  min-height: 0; 
-  width: 100%; 
+  flex-grow: 1;
+  overflow-y: auto;
+  min-height: 0;
+  width: 100%;
   box-sizing: border-box;
-  padding: 1rem; /* Apply consistent padding inside the scrollable area */
+  padding: 1rem;
 }
 
-/* Ensure the actual content inside the scrollable area doesn't try to flex-grow */
 .chat-tab-content-area > .video-list,
 .chat-tab-content-area > .thinking-output-container {
-    /* These should not have flex-grow. Their natural height will make .chat-tab-content-area scroll. */
-    /* width: 100%; /* Already set by .chat-view-content .video-list etc. */
-    /* box-sizing: border-box; /* Already set */
+  /* No flex-grow needed here */
 }
 
 /* Styles for selected playlist item */
 .playlist-item--selected {
-  background-color: #e0f7fa; /* A light cyan/blue for selection */
-  border-left: 4px solid #007bff; /* A distinct left border for emphasis */
-  padding-left: calc(1rem - 4px); /* Adjust padding to account for border */
+  background-color: #e0f7fa;
+  border-left: 4px solid #007bff;
+  padding-left: calc(1rem - 4px);
 }
 
 .playlist-item--selected .playlist-item-title {
-  font-weight: 700; /* Make title bold for selected item */
+  font-weight: 700;
 }
 
-/* Optional: Styles for a checkmark indicator if used */
-/*
-.selected-indicator-icon {
-  margin-left: auto; 
-  color: #007bff;
-  font-size: 1.2rem;
-  padding-right: 0.5rem; 
+/* Styles for VideoList item layout */
+.video-list-item { /* This is the <li> element */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  background-color: #f9f9f9;
+  border: 1px solid #eee;
+  padding: 15px;
+  margin-bottom: 15px;
+  border-radius: 4px;
+  text-align: left;
 }
-*/
+
+.video-item-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  width: 100%;
+  cursor: pointer; /* Make the whole header clickable */
+  padding: 0.5rem 0; /* Add some padding to make tap target a bit taller */
+}
+
+.video-item-header:focus,
+.video-item-header:active {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  background-color: transparent !important; /* Or a subtle tap feedback color if desired */
+}
+
+.video-item-header::-moz-focus-inner {
+  border: 0;
+  padding: 0;
+}
+
+.video-thumbnail { /* This is the <img> tag */
+  flex-shrink: 0;
+  width: 120px;
+  height: 90px;
+  margin-right: 1rem; /* Space between thumbnail and icon */
+  object-fit: cover;
+}
+
+.watch-icon-enlarged { /* This is the <span> containing the image/SVG icon */
+  font-size: 3em;   /* Base size for the icon container, adjust as needed */
+  line-height: 1;
+  display: inline-block; /* Changed from inline-flex */
+  margin-left: 1rem;  /* Positioned to the right of the thumbnail */
+  /* align-items: center; /* Not strictly needed for a single child image if image itself is block */
+}
+
+.youtube-logo-icon { /* This is the <img> tag for the YouTube logo */
+  display: block;
+  width: 1em;    /* Width relative to parent's (.watch-icon-enlarged) font-size */
+  height: auto;   /* Maintain aspect ratio */
+}
+
+/* Removed .watch-icon-enlarged svg and polygon styles as SVG is replaced by img */
+/* Removed .watch-link-repositioned and .watch-link-text as they are no longer used */
+
+.video-details-content {
+  width: 100%;
+}
