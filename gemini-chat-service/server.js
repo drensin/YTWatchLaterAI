@@ -65,7 +65,7 @@ wss.on('connection', (ws) => {
         const currentSession = activeSessions.get(ws);
 
         if (message.type === MSG_TYPE_INIT_CHAT) {
-            const { playlistId, modelId: clientModelId, includeSubscriptionFeed, userId } = message.payload;
+            const { playlistId, modelId: clientModelId, includeSubscriptionFeed, userId, deepThinking } = message.payload;
             // Use a model compatible with @google/generative-ai, e.g., gemini-pro or a specific preview version.
             // The test script used 'gemini-2.5-pro-preview-05-06', let's ensure consistency or use a generally available one.
             const effectiveModelId = clientModelId || DEFAULT_MODEL_ID; // Or 'gemini-2.5-pro-preview-05-06' if available & preferred
@@ -137,10 +137,11 @@ wss.on('connection', (ws) => {
                     videosForContext: combinedVideos, 
                     userId: userId, 
                     genModel: generativeModel, // Keep the model instance
-                    initialContextHistory: initialHistory // Store the static initial history/context
+                    initialContextHistory: initialHistory, // Store the static initial history/context
+                    deepThinking: deepThinking || false,
                 });
                 ws.send(JSON.stringify({ type: MSG_TYPE_CHAT_INITIALIZED, payload: { playlistId, modelId: effectiveModelId } }));
-                console.log(`[INIT_CHAT] Chat initialized for playlist: ${playlistId} with model ${effectiveModelId}. UserID: ${userId}, IncludeFeed: ${includeSubscriptionFeed}`);
+                console.log(`[INIT_CHAT] Chat initialized for playlist: ${playlistId} with model ${effectiveModelId}. UserID: ${userId}, IncludeFeed: ${includeSubscriptionFeed}, DeepThinking: ${deepThinking || false}`);
 
             } catch (error) {
                 console.error('[INIT_CHAT] Error initializing chat:', error);
@@ -163,6 +164,7 @@ wss.on('connection', (ws) => {
             }
 
             try {
+                const thinkingBudget = currentSession.deepThinking ? -1 : 256;
                 // Construct payload for model.generateContentStream, using the static initialContextHistory
                 const requestPayload = {
                     contents: [...initialContextHistory, { role: 'user', parts: [{ text: query }] }], // Use static initial context + current query
@@ -170,7 +172,7 @@ wss.on('connection', (ws) => {
                         responseMimeType: "application/json",
                         thinkingConfig: {
                             includeThoughts: true,
-                            thinkingBudget: 256, 
+                            thinkingBudget: thinkingBudget, 
                         },
                         temperature: 0, // Retain original temperature
                     },

@@ -38,6 +38,7 @@ const LS_KEY_INCLUDE_FEED = 'reelworthy_settings_includeSubscriptionFeed';
 const LS_KEY_PREFERRED_MODEL = 'preferredGeminiModel';
 const LS_KEY_USE_DEFAULT_PLAYLIST = 'reelworthy_useDefaultPlaylistEnabled';
 const LS_KEY_DEFAULT_PLAYLIST_ID = 'reelworthy_defaultPlaylistId';
+const LS_KEY_DEEP_THINKING = 'reelworthy_deepThinking'; // New Key
 
 /**
  * The main application component for ReelWorthy.
@@ -55,6 +56,9 @@ function App() {
   const [initialAutoNavAttempted, setInitialAutoNavAttempted] = useState(false);
   const [includeSubscriptionFeed, setIncludeSubscriptionFeed] = useState(() => {
     return localStorage.getItem(LS_KEY_INCLUDE_FEED) === 'true';
+  });
+  const [deepThinking, setDeepThinking] = useState(() => {
+    return localStorage.getItem(LS_KEY_DEEP_THINKING) === 'true';
   });
 
   const navigateTo = useCallback((screen) => {
@@ -121,6 +125,11 @@ function App() {
       setPopup({visible: true, message: `AI Model set to: ${modelDisplayName}`, type: 'info'});
       setTimeout(() => setPopup((p) => ({...p, visible: false})), 2000);
     }
+  };
+
+  const handleDeepThinkingChange = (isEnabled) => {
+    setDeepThinking(isEnabled);
+    localStorage.setItem(LS_KEY_DEEP_THINKING, isEnabled);
   };
 
   const {
@@ -207,6 +216,7 @@ function App() {
       selectedModelId,
       currentUser?.uid,
       includeSubscriptionFeed,
+      deepThinking,
   );
 
   const handleQuerySubmit = (query) => {
@@ -376,6 +386,8 @@ function App() {
             userPlaylists={userPlaylists}
             includeSubscriptionFeed={includeSubscriptionFeed}
             onIncludeSubscriptionFeedChange={setIncludeSubscriptionFeed}
+            deepThinking={deepThinking}
+            onDeepThinkingChange={handleDeepThinkingChange}
           />
         );
       default:

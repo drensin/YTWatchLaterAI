@@ -44,9 +44,10 @@ const MAX_RECONNECT_DELAY_MS = 30000;
  * @param {string} selectedModelId - The ID of the user-selected Gemini model to be used for chat.
  * @param {string | null | undefined} userId - The Firebase UID of the current user.
  * @param {boolean} currentIncludeSubscriptionFeed - The current preference for including subscription feed videos.
+ * @param {boolean} deepThinking - The current preference for the deep thinking feature.
  * @returns {WebSocketChatHookReturn} An object containing chat state and handler functions.
  */
-function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, setAppError, selectedModelId, userId, currentIncludeSubscriptionFeed) {
+function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, setAppError, selectedModelId, userId, currentIncludeSubscriptionFeed, deepThinking) {
   const ws = useRef(null);
   const pingIntervalRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
@@ -104,6 +105,7 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
           modelId: selectedModelId,
           includeSubscriptionFeed: currentIncludeSubscriptionFeed,
           userId: userId,
+          deepThinking: deepThinking,
         },
       }));
       if (setAppPopup) setAppPopup({visible: true, message: 'Chat service connected.', type: 'info'});
@@ -206,6 +208,7 @@ function useWebSocketChat(selectedPlaylistId, isPlaylistDataReady, setAppPopup, 
     selectedModelId,
     userId,
     currentIncludeSubscriptionFeed,
+    deepThinking,
     reconnectAttempt,
     closeWebSocket,
     clearWebSocketTimers,

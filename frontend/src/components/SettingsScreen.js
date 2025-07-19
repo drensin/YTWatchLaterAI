@@ -25,6 +25,8 @@ function SettingsScreen({
   userPlaylists,
   includeSubscriptionFeed,
   onIncludeSubscriptionFeedChange,
+  deepThinking,
+  onDeepThinkingChange,
 }) {
   const [useDefaultPlaylistEnabled, setUseDefaultPlaylistEnabled] = useState(false);
   const [defaultPlaylistId, setDefaultPlaylistId] = useState('');
@@ -74,6 +76,10 @@ function SettingsScreen({
       onIncludeSubscriptionFeedChange(isChecked);
     }
   }, [onIncludeSubscriptionFeedChange]);
+
+  const handleDeepThinkingChange = (event) => {
+    onDeepThinkingChange(event.target.checked);
+  };
 
   return (
     <div className="settings-screen-container">
@@ -140,6 +146,21 @@ function SettingsScreen({
               className="settings-checkbox"
             />
             Include recent videos from my subscriptions in AI suggestions
+          </label>
+        </div>
+      </div>
+
+      {/* Deep Thinking Setting */}
+      <div className="settings-section deep-thinking-section">
+        <div className="settings-checkbox-container">
+          <label>
+            <input
+              type="checkbox"
+              checked={deepThinking}
+              onChange={handleDeepThinkingChange}
+              className="settings-checkbox"
+            />
+            Enable Deep Thinking (slower, more detailed AI analysis)
           </label>
         </div>
       </div>
