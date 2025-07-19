@@ -45,6 +45,7 @@ const LS_KEY_DEFAULT_PLAYLIST_ID = 'reelworthy_defaultPlaylistId';
  */
 function App() {
   const thinkingOutputContainerRef = useRef(null);
+  const chatTabContentAreaRef = useRef(null);
   const [popup, setPopup] = useState({visible: false, message: '', type: ''});
   const [error, setError] = useState(null);
   const [isPlaylistDataReadyForChat, setIsPlaylistDataReadyForChat] = useState(false);
@@ -224,6 +225,9 @@ function App() {
     if (prevIsStreaming.current && !isStreaming) {
       if (suggestedVideos && suggestedVideos.length > 0) {
         setActiveOutputTab(TAB_SUGGESTIONS);
+        if (chatTabContentAreaRef.current) {
+          chatTabContentAreaRef.current.scrollTop = 0;
+        }
       }
     }
     prevIsStreaming.current = isStreaming;
@@ -315,8 +319,8 @@ function App() {
    * Runs when `thinkingOutput`, `dataReceptionIndicator`, or `activeOutputTab` changes.
    */
   useEffect(() => {
-    if (activeOutputTab === TAB_THINKING && thinkingOutputContainerRef.current) {
-      thinkingOutputContainerRef.current.scrollTop = thinkingOutputContainerRef.current.scrollHeight;
+    if (activeOutputTab === TAB_THINKING && chatTabContentAreaRef.current) {
+      chatTabContentAreaRef.current.scrollTop = chatTabContentAreaRef.current.scrollHeight;
     }
   }, [thinkingOutput, dataReceptionIndicator, activeOutputTab]);
 
@@ -359,6 +363,7 @@ function App() {
             thinkingOutput={thinkingOutput}
             dataReceptionIndicator={dataReceptionIndicator}
             thinkingOutputContainerRef={thinkingOutputContainerRef}
+            chatTabContentAreaRef={chatTabContentAreaRef}
           />
         );
       case SCREEN_SETTINGS:

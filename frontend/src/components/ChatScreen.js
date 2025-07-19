@@ -41,6 +41,7 @@ function ChatScreen(props) {
     thinkingOutput,
     dataReceptionIndicator,
     thinkingOutputContainerRef,
+    chatTabContentAreaRef,
   } = props;
 
   return (
@@ -58,6 +59,7 @@ function ChatScreen(props) {
           thinkingOutput={thinkingOutput}
           dataReceptionIndicator={dataReceptionIndicator}
           thinkingOutputContainerRef={thinkingOutputContainerRef}
+          chatTabContentAreaRef={chatTabContentAreaRef}
         />
       </div>
     </div>

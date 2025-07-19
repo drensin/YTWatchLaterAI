@@ -312,6 +312,8 @@ ul {
   padding-bottom: 70px;
   box-sizing: border-box;
   width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .bottom-nav-bar {
@@ -554,7 +556,6 @@ ul {
   flex-direction: column;
   flex-grow: 1;
   box-sizing: border-box;
-  overflow: hidden;
   min-height: 0;
 }
 
@@ -595,11 +596,6 @@ ul {
   width: 100%;
   box-sizing: border-box;
   padding: 1rem;
-}
-
-.chat-tab-content-area > .video-list,
-.chat-tab-content-area > .thinking-output-container {
-  /* No flex-grow needed here */
 }
 
 /* Styles for selected playlist item */

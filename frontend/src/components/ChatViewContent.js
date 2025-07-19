@@ -34,8 +34,8 @@ function ChatViewContent(props) {
     thinkingOutput,
     dataReceptionIndicator,
     thinkingOutputContainerRef,
+    chatTabContentAreaRef,
   } = props;
-
   const [waitingDots, setWaitingDots] = useState('');
   const waitingIntervalRef = useRef(null);
   const waitingMessage = 'Query sent. Waiting for AI response';
@@ -100,7 +100,10 @@ function ChatViewContent(props) {
 
       <div className="tabs">
         <button
-          onClick={() => onSetOutputTab('suggestions')}
+          onClick={() => {
+            if (chatTabContentAreaRef.current) chatTabContentAreaRef.current.scrollTop = 0;
+            onSetOutputTab('suggestions');
+          }}
           className={activeOutputTab === 'suggestions' ? 'active' : ''}
           disabled={isStreaming}
         >
@@ -115,7 +118,7 @@ function ChatViewContent(props) {
         </button>
       </div>
 
-      <div className="chat-tab-content-area">
+      <div className="chat-tab-content-area" ref={chatTabContentAreaRef}>
         {activeOutputTab === 'suggestions' && (
           <VideoList videos={suggestedVideos} listType="suggestions" />
         )}
