@@ -148,7 +148,7 @@ function SettingsScreen({
       <div className="settings-section logout-section">
         <button
           onClick={onLogout}
-          className="logout-button"
+          className="btn logout-button"
         >
           Logout
         </button>

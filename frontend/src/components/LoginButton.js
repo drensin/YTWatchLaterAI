@@ -12,7 +12,7 @@ import React from 'react';
  */
 function LoginButton({onLogin}) {
   return (
-    <button onClick={onLogin} className='auth-button'>
+    <button onClick={onLogin} className='btn auth-button'>
       Login
     </button>
   );
