@@ -17,7 +17,8 @@ This document provides detailed instructions for deploying the frontend, backend
 9.  [Datastore Index Setup](#9-datastore-index-setup)
 10. [Create Cloud Scheduler Job](#10-create-cloud-scheduler-job)
 11. [Final Configuration Checks](#11-final-configuration-checks)
-12. [Example `cloudbuild.yaml` (CI/CD)](#12-example-cloudbuildyaml-cicd)
+12. [Automated Deployment Script (`deploy.sh`)](#12-automated-deployment-script-deploysh)
+13. [Example `cloudbuild.yaml` (CI/CD)](#13-example-cloudbuildyaml-cicd)
 
 ---
 
@@ -295,7 +296,47 @@ gcloud scheduler jobs create http TriggerSubscriptionFeedUpdates \
 4.  **Allow-List:** Populate `AuthorizedEmail` Kind in Datastore with emails of authorized users.
 5.  **Test:** Thoroughly test the entire application flow.
 
-## 12. Example `cloudbuild.yaml` (CI/CD)
+## 12. Automated Deployment Script (`deploy.sh`)
+
+This project includes a `deploy.sh` script that automates all the deployment steps mentioned above (Cloud Functions, Cloud Run, and Firebase Hosting). This is the recommended method for a streamlined deployment.
+
+### a. Create Deployment Environment File
+
+The script requires a `.env.deploy` file in the project root (`YTWatchLaterAI/`) to be populated with your specific configuration variables.
+
+Create this file and add the following content, replacing the placeholder values:
+
+```sh
+# .env.deploy
+GCP_PROJECT_ID="your-gcp-project-id"
+FIREBASE_PROJECT_ID="your-firebase-project-id" # Often the same as GCP_PROJECT_ID
+GCP_REGION="us-central1" # Or your preferred region
+DOCKER_REPO="yt-watchlater-ai-repo" # The name of your Artifact Registry repo
+DOCKER_IMAGE_TAG="latest" # Or any tag you prefer, e.g., v1.0
+SERVICE_ACCOUNT_EMAIL="your-service-account-email@your-project-id.iam.gserviceaccount.com"
+```
+
+### b. Make the Script Executable
+
+You may need to grant execute permissions to the script:
+
+```bash
+chmod +x deploy.sh
+```
+
+### c. Run the Script
+
+Execute the script from the project root directory:
+
+```bash
+./deploy.sh
+```
+
+The script will then proceed to deploy all backend and frontend services in the correct order.
+
+---
+
+## 13. Example `cloudbuild.yaml` (CI/CD)
 This example demonstrates deploying all services. Ensure Cloud Build service account has necessary roles (Cloud Functions Admin, Cloud Run Admin, Pub/Sub Admin, Artifact Registry Writer, Firebase Admin, etc.).
 
 ```yaml
